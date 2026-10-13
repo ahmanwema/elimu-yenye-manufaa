@@ -1,0 +1,290 @@
+{
+  "runId": "agora-2026-10-13T19-58-43-871Z",
+  "provider": "agora",
+  "startedAt": "2026-10-13T19:58:43.871Z",
+  "environment": {
+    "chrome": "155.0.8059.40",
+    "os": "win32 x64",
+    "machine": "single Windows PC (teacher + 3 students as separate Chrome contexts)",
+    "network": "this PC's real internet connection",
+    "audio": "Chrome fake microphone (synthetic tone)"
+  },
+  "scenarios": {
+    "S1": {
+      "joins": {
+        "teacher": {
+          "ok": true,
+          "ms": 4007,
+          "wallMs": 4278,
+          "error": null
+        },
+        "student-1": {
+          "ok": true,
+          "ms": 4773,
+          "wallMs": 4905,
+          "error": null
+        },
+        "student-2": {
+          "ok": true,
+          "ms": 2629,
+          "wallMs": 2866,
+          "error": null
+        },
+        "student-3": {
+          "ok": true,
+          "ms": 1738,
+          "wallMs": 1807,
+          "error": null
+        }
+      },
+      "firstAudioMs": {
+        "student-1": 6134,
+        "student-2": 2912,
+        "student-3": 2092
+      },
+      "teacherAudioReachesStudents": {
+        "student-1": true,
+        "student-2": true,
+        "student-3": true
+      },
+      "participantsSeenByTeacher": 0,
+      "participantsAfterLeave": 0,
+      "rejoin": {
+        "ok": true,
+        "ms": 1257,
+        "wallMs": 1363,
+        "error": null
+      },
+      "participantsAfterRejoin": 0,
+      "audioAfterRejoin": true
+    },
+    "S2": {
+      "cycles": [
+        {
+          "student": "student-1",
+          "flowingBeforeGrant": false,
+          "grantToAudioMs": 3579,
+          "studentMicSet": true,
+          "micErrors": [],
+          "revokeToSilenceMs": 2354
+        },
+        {
+          "student": "student-2",
+          "flowingBeforeGrant": false,
+          "grantToAudioMs": 2365,
+          "studentMicSet": true,
+          "micErrors": [],
+          "revokeToSilenceMs": 2374
+        },
+        {
+          "student": "student-1",
+          "flowingBeforeGrant": false,
+          "grantToAudioMs": 4183,
+          "studentMicSet": true,
+          "micErrors": [],
+          "revokeToSilenceMs": 2369
+        }
+      ]
+    },
+    "S3": {
+      "forcePublish": {
+        "clientResult": "client reported publish success",
+        "teacherReceivesAudio": true
+      },
+      "ignoreRevoke": {
+        "flowingAfterGrant": true,
+        "teacherStillReceivesAfter8s": true,
+        "serverUnpublishedTrack": false,
+        "permissionChangedEvent": []
+      }
+    },
+    "S4": {
+      "note": "SIMULATED interruption: Chrome offline emulation (blocks HTTP/WebSocket signalling; may not block UDP media).",
+      "drop10s": {
+        "recovered": true,
+        "recoveryMsAfterRestore": 2562,
+        "stateEvents": [
+          "connection_state:RECONNECTING",
+          "connection_state:CONNECTED",
+          "reconnected(11068ms)"
+        ],
+        "teacherSeesParticipants": 1
+      },
+      "drop30s": {
+        "recovered": true,
+        "recoveryMsAfterRestore": 32862,
+        "stateEvents": [
+          "connection_state:RECONNECTING",
+          "connection_state:CONNECTED",
+          "reconnected(32616ms)"
+        ],
+        "teacherSeesParticipants": 0
+      }
+    },
+    "S5": {
+      "canvasFullyVisible": true,
+      "supabase-realtime": {
+        "available": true,
+        "fingerprintsAfterDrawing": {
+          "teacher": "519cbea9",
+          "student-1": "f20f3529",
+          "student-2": "f2af71a9",
+          "student-3": "ad42c1a9"
+        },
+        "consistentAfterDrawing": false,
+        "strokeDiff": {
+          "student-1": {
+            "teacherStrokes": 49,
+            "studentStrokes": 49,
+            "missing": [],
+            "extra": [],
+            "differentPointCounts": []
+          },
+          "student-2": {
+            "teacherStrokes": 49,
+            "studentStrokes": 49,
+            "missing": [],
+            "extra": [],
+            "differentPointCounts": []
+          },
+          "student-3": {
+            "teacherStrokes": 49,
+            "studentStrokes": 49,
+            "missing": [],
+            "extra": [],
+            "differentPointCounts": []
+          }
+        },
+        "rttMs": {
+          "n": 90,
+          "p50": 660,
+          "p95": 1342,
+          "max": 1494
+        },
+        "bytesSentByTeacher": 27185,
+        "strokesDrawn": 51,
+        "receiverGaps": {
+          "student-1": {
+            "received": 226,
+            "missing": 4,
+            "outOfOrder": 4
+          },
+          "student-2": {
+            "received": 226,
+            "missing": 3,
+            "outOfOrder": 3
+          },
+          "student-3": {
+            "received": 226,
+            "missing": 3,
+            "outOfOrder": 3
+          }
+        },
+        "afterOfflineDrawing": {
+          "fingerprints": {
+            "teacher": "a5fb4193",
+            "student-1": "2edf973",
+            "student-2": "d7494053",
+            "student-3": "6bee11b3"
+          },
+          "student2MatchesTeacher": false
+        },
+        "consistentAfterClear": true
+      },
+      "livekit-data": {
+        "available": false,
+        "error": "this provider has no data channel in the browser SDK"
+      }
+    },
+    "S6": {
+      "minutes": 10,
+      "note": "Sustained session shortened to 10 min (plan: 60 min) for the automated PC run.",
+      "teacherAudioContinuity": "2/54 samples with teacher audio flowing to all 3 students",
+      "perParticipant": {
+        "teacher": {
+          "disconnects": 0,
+          "reconnects": 0,
+          "errors": 0,
+          "heapMB": {
+            "start": 30,
+            "end": 30,
+            "max": 31
+          }
+        },
+        "student-1": {
+          "disconnects": 0,
+          "reconnects": 0,
+          "errors": 0,
+          "heapMB": {
+            "start": 33,
+            "end": 30,
+            "max": 33
+          }
+        },
+        "student-2": {
+          "disconnects": 0,
+          "reconnects": 0,
+          "errors": 0,
+          "heapMB": {
+            "start": 33,
+            "end": 30,
+            "max": 33
+          }
+        },
+        "student-3": {
+          "disconnects": 0,
+          "reconnects": 0,
+          "errors": 0,
+          "heapMB": {
+            "start": 32,
+            "end": 31,
+            "max": 33
+          }
+        }
+      }
+    }
+  },
+  "audioMetrics": {
+    "rttMs": {
+      "n": 1266,
+      "p50": 226,
+      "p95": 412,
+      "max": 10000
+    },
+    "jitterMs": null,
+    "agoraEnd2EndDelayMs": {
+      "n": 1219,
+      "p50": 414,
+      "p95": 1369,
+      "max": 5011
+    },
+    "agoraPacketLossRate": {
+      "n": 1219,
+      "p50": 0,
+      "p95": 0.00102880658436214,
+      "max": 0.10399113082039911
+    },
+    "agoraReceiveKbps": {
+      "n": 1219,
+      "p50": 0,
+      "p95": 25,
+      "max": 2479
+    },
+    "livekitPacketLoss": null
+  },
+  "browserErrors": {
+    "teacher": [
+      "error: this provider has no data channel in the browser SDK"
+    ],
+    "student-1": [
+      "error: this provider has no data channel in the browser SDK"
+    ],
+    "student-2": [
+      "error: this provider has no data channel in the browser SDK"
+    ],
+    "student-3": [
+      "error: this provider has no data channel in the browser SDK"
+    ]
+  },
+  "finishedAt": "2026-10-13T20:13:08.640Z"
+}

@@ -191,6 +191,8 @@ See the full list with context in [docs/roadmap/open-questions.md](docs/roadmap/
 6. Relationship between monthly tuition, per-course payment, teacher-level subscription, and platform-level subscription (see [docs/features/payments.md](docs/features/payments.md)). — **Structure resolved by A34** (hybrid, five distinct concepts); prices, revenue sharing, durations and inter-concept rules still open.
 7. Recording consent flow and retention period for lesson recordings. — **Resolved at business level by A30/A31**; deletion mechanics and authorized-deleter definition still open (open question 16).
 8. Final RTC/whiteboard vendor selection (build vs buy) — see [docs/system/technology-evaluation.md](docs/system/technology-evaluation.md). — **Still open**; selection *process* approved by A35.
+   - 2026-10-13: **Pilot prepared — owner decision pending.** Plan [docs/testing/rtc-pilot-plan.md](docs/testing/rtc-pilot-plan.md), harness `pilot/rtc/` (throwaway). No vendor selected; A35 unchanged.
+   - 2026-10-13: **Pilot run (automated, one PC) — owner decision pending.** Measured results: [docs/testing/rtc-pilot-results.md](docs/testing/rtc-pilot-results.md) §4. Phone/4G/XPPen tests not yet run. No vendor selected; A35 unchanged.
 9. Whether native iOS/Android apps are needed at MVP or can wait behind PWA + mobile web. — **Resolved by A36** (not needed for MVP).
 
 New owner questions surfaced while reconciling the 2026-10-05 decisions are listed as items 13–20 in [docs/roadmap/open-questions.md](docs/roadmap/open-questions.md).

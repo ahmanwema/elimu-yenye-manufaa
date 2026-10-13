@@ -1,0 +1,229 @@
+{
+  "runId": "livekit-2026-10-13T19-25-04-440Z",
+  "provider": "livekit",
+  "startedAt": "2026-10-13T19:25:04.441Z",
+  "environment": {
+    "chrome": "155.0.8059.40",
+    "os": "win32 x64",
+    "machine": "single Windows PC (teacher + 3 students as separate Chrome contexts)",
+    "network": "this PC's real internet connection",
+    "audio": "Chrome fake microphone (synthetic tone)"
+  },
+  "scenarios": {
+    "S1": {
+      "joins": {
+        "teacher": {
+          "ok": true,
+          "ms": 2566,
+          "wallMs": 2609,
+          "error": null
+        },
+        "student-1": {
+          "ok": true,
+          "ms": 928,
+          "wallMs": 1038,
+          "error": null
+        },
+        "student-2": {
+          "ok": true,
+          "ms": 1839,
+          "wallMs": 2082,
+          "error": null
+        },
+        "student-3": {
+          "ok": true,
+          "ms": 5187,
+          "wallMs": 5372,
+          "error": null
+        }
+      },
+      "firstAudioMs": {
+        "student-1": 927,
+        "student-2": 1838,
+        "student-3": 5187
+      },
+      "teacherAudioReachesStudents": {
+        "student-1": true,
+        "student-2": true,
+        "student-3": true
+      },
+      "participantsSeenByTeacher": 3,
+      "participantsAfterLeave": 2,
+      "rejoin": {
+        "ok": true,
+        "ms": 5528,
+        "wallMs": 5828,
+        "error": null
+      },
+      "participantsAfterRejoin": 3,
+      "audioAfterRejoin": true
+    },
+    "S2": {
+      "cycles": [
+        {
+          "student": "student-1",
+          "flowingBeforeGrant": false,
+          "grantToAudioMs": null,
+          "studentMicSet": null,
+          "micErrors": [
+            "failed to publish track, insufficient permissions"
+          ],
+          "revokeToSilenceMs": 554
+        },
+        {
+          "student": "student-2",
+          "flowingBeforeGrant": false,
+          "grantToAudioMs": null,
+          "studentMicSet": null,
+          "micErrors": [
+            "failed to publish track, insufficient permissions"
+          ],
+          "revokeToSilenceMs": 553
+        },
+        {
+          "student": "student-1",
+          "flowingBeforeGrant": false,
+          "grantToAudioMs": null,
+          "studentMicSet": false,
+          "micErrors": [
+            "failed to publish track, insufficient permissions",
+            "failed to publish track, insufficient permissions"
+          ],
+          "revokeToSilenceMs": 538
+        }
+      ]
+    },
+    "S3": {
+      "forcePublish": {
+        "clientResult": "failed to publish track, insufficient permissions",
+        "teacherReceivesAudio": false
+      },
+      "ignoreRevoke": {
+        "flowingAfterGrant": true,
+        "teacherStillReceivesAfter8s": false,
+        "serverUnpublishedTrack": true,
+        "permissionChangedEvent": [
+          true,
+          false,
+          true,
+          false,
+          true,
+          false
+        ]
+      }
+    },
+    "S4": {
+      "note": "SIMULATED interruption: Chrome offline emulation (blocks HTTP/WebSocket signalling; may not block UDP media).",
+      "drop10s": {
+        "recovered": true,
+        "recoveryMsAfterRestore": 1047,
+        "stateEvents": [
+          "connection_state:signalReconnecting"
+        ],
+        "teacherSeesParticipants": 3
+      },
+      "drop30s": {
+        "recovered": true,
+        "recoveryMsAfterRestore": 3574,
+        "stateEvents": [
+          "connection_state:signalReconnecting",
+          "connection_state:connected",
+          "reconnected"
+        ],
+        "teacherSeesParticipants": 3
+      }
+    },
+    "S5": {
+      "supabase-realtime": {
+        "available": true,
+        "fingerprintsAfterDrawing": {
+          "teacher": "d7edbc47",
+          "student-1": "287578e6",
+          "student-2": "287578e6",
+          "student-3": "287578e6"
+        },
+        "consistentAfterDrawing": false,
+        "rttMs": {
+          "n": 90,
+          "p50": 669,
+          "p95": 1031,
+          "max": 1112
+        },
+        "bytesSentByTeacher": 19437,
+        "receiverGaps": {
+          "student-1": {
+            "received": 177,
+            "missing": 0,
+            "outOfOrder": 0
+          },
+          "student-2": {
+            "received": 177,
+            "missing": 0,
+            "outOfOrder": 0
+          },
+          "student-3": {
+            "received": 177,
+            "missing": 0,
+            "outOfOrder": 0
+          }
+        },
+        "afterOfflineDrawing": {
+          "fingerprints": {
+            "teacher": "ec63802b",
+            "student-1": "d3c12ca",
+            "student-2": "d3c12ca",
+            "student-3": "d3c12ca"
+          },
+          "student2MatchesTeacher": false
+        },
+        "consistentAfterClear": true
+      },
+      "livekit-data": {
+        "available": true,
+        "fingerprintsAfterDrawing": {
+          "teacher": "82e90c67",
+          "student-1": "82e90c67",
+          "student-2": "82e90c67",
+          "student-3": "82e90c67"
+        },
+        "consistentAfterDrawing": true,
+        "rttMs": {
+          "n": 90,
+          "p50": 226,
+          "p95": 742,
+          "max": 843
+        },
+        "bytesSentByTeacher": 43562,
+        "receiverGaps": {
+          "student-1": {
+            "received": 379,
+            "missing": 4,
+            "outOfOrder": 4
+          },
+          "student-2": {
+            "received": 379,
+            "missing": 4,
+            "outOfOrder": 4
+          },
+          "student-3": {
+            "received": 379,
+            "missing": 2,
+            "outOfOrder": 2
+          }
+        },
+        "afterOfflineDrawing": {
+          "fingerprints": {
+            "teacher": "854a9469",
+            "student-1": "854a9469",
+            "student-2": "854a9469",
+            "student-3": "854a9469"
+          },
+          "student2MatchesTeacher": true
+        },
+        "consistentAfterClear": true
+      }
+    }
+  },
+  "fatal": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#hands span').filter({ hasText: 'student-1' }).locator('button')\u001b[22m\n",
+  "finishedAt": "2026-10-13T19:31:12.915Z"
+}

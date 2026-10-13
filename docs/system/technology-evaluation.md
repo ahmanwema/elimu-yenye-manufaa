@@ -56,6 +56,13 @@ final project-owner decision (later)
 
 The cost figures in the table above are inputs to that comparison, not a verdict. Daily.co is not named as a pilot candidate in A35; nothing has been decided about it beyond the 2026-09-30 evaluation. The pilot should also compare each candidate's recording/egress capability, because Option B clips and the Option C add-on depend on it ([../features/audio-recording.md](../features/audio-recording.md)). It should also compare per-room participant-limit configuration, because capacity is plan-based with numbers still undetermined (A33).
 
+**2026-10-13 pilot preparation — read before using the table above:**
+- The prices in the table were *approximate* (2026-09-30). Official figures re-verified on 2026-10-13 are in [../testing/rtc-pilot-results.md](../testing/rtc-pilot-results.md) §3. For example, LiveKit Build includes 5,000 participant-minutes, not "agent-minutes".
+- Two security-relevant facts from official docs now drive the pilot:
+  - LiveKit can revoke publishing server-side (`UpdateParticipant` auto-unpublishes).
+  - Agora documents no selective server-side revoke, and its subscriber token restricts publishing only with co-host authentication enabled by Agora support.
+- Pilot plan: [../testing/rtc-pilot-plan.md](../testing/rtc-pilot-plan.md). **No vendor selected — owner decision pending (A35).**
+
 ## 5. Whiteboard real-time sync
 
 General-purpose CRDT libraries (e.g. Yjs) are built for text/structured documents; canvas/stroke data has different conflict semantics (strokes are mostly append-only, rarely truly concurrently edited at the same pixel). Precedent: tldraw deliberately does **not** use a CRDT for its sync engine — it uses a server-authoritative document with diff reconciliation, specifically because general CRDTs aren't a good fit for canvas data.

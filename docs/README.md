@@ -56,6 +56,8 @@ Status tags used throughout: `APPROVED`, `PROPOSED`, `OPEN QUESTION`, `DEFERRED`
 - [testing/device-compatibility.md](testing/device-compatibility.md) — includes XPPen Deco 640 test plan
 - [testing/live-class-acceptance.md](testing/live-class-acceptance.md)
 - [testing/security-tests.md](testing/security-tests.md)
+- [testing/rtc-pilot-plan.md](testing/rtc-pilot-plan.md) — Agora vs LiveKit + whiteboard transport pilot plan
+- [testing/rtc-pilot-results.md](testing/rtc-pilot-results.md) — desk findings, cost model, results matrix (device tests pending)
 - [testing/dev-supabase-verification.md](testing/dev-supabase-verification.md) — runbook for verifying against a local/dev Supabase (not yet executed)
 - [testing/responsive-ui-tests.md](testing/responsive-ui-tests.md)
 

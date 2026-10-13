@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Throwaway RTC pilot: separate package, not part of the app (pilot/rtc/README.md).
+    "pilot/**",
   ]),
 ]);
 

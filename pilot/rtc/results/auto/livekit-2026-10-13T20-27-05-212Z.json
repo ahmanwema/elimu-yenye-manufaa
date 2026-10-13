@@ -1,0 +1,328 @@
+{
+  "runId": "livekit-2026-10-13T20-27-05-212Z",
+  "provider": "livekit",
+  "startedAt": "2026-10-13T20:27:05.213Z",
+  "environment": {
+    "chrome": "155.0.8059.40",
+    "os": "win32 x64",
+    "machine": "single Windows PC (teacher + 3 students as separate Chrome contexts)",
+    "network": "this PC's real internet connection",
+    "audio": "Chrome fake microphone (synthetic tone)"
+  },
+  "scenarios": {
+    "S1": {
+      "joins": {
+        "teacher": {
+          "ok": true,
+          "ms": 2396,
+          "wallMs": 2576,
+          "error": null
+        },
+        "student-1": {
+          "ok": true,
+          "ms": 1630,
+          "wallMs": 1826,
+          "error": null
+        },
+        "student-2": {
+          "ok": true,
+          "ms": 1928,
+          "wallMs": 2055,
+          "error": null
+        },
+        "student-3": {
+          "ok": true,
+          "ms": 809,
+          "wallMs": 1049,
+          "error": null
+        }
+      },
+      "firstAudioMs": {
+        "student-1": 1630,
+        "student-2": 1928,
+        "student-3": 809
+      },
+      "teacherAudioReachesStudents": {
+        "student-1": true,
+        "student-2": true,
+        "student-3": true
+      },
+      "participantsSeenByTeacher": 3,
+      "participantsAfterLeave": 2,
+      "rejoin": {
+        "ok": true,
+        "ms": 798,
+        "wallMs": 1076,
+        "error": null
+      },
+      "participantsAfterRejoin": 3,
+      "audioAfterRejoin": true
+    },
+    "S2": {
+      "cycles": [
+        {
+          "student": "student-1",
+          "flowingBeforeGrant": false,
+          "grantToAudioMs": 1784,
+          "studentMicSet": true,
+          "micErrors": [
+            "failed to publish track, insufficient permissions"
+          ],
+          "revokeToSilenceMs": 543
+        },
+        {
+          "student": "student-2",
+          "flowingBeforeGrant": false,
+          "grantToAudioMs": 1762,
+          "studentMicSet": true,
+          "micErrors": [],
+          "revokeToSilenceMs": 638
+        },
+        {
+          "student": "student-1",
+          "flowingBeforeGrant": false,
+          "grantToAudioMs": 1775,
+          "studentMicSet": true,
+          "micErrors": [
+            "failed to publish track, insufficient permissions",
+            "failed to publish track, insufficient permissions"
+          ],
+          "revokeToSilenceMs": 548
+        }
+      ]
+    },
+    "S3": {
+      "forcePublish": {
+        "clientResult": "failed to publish track, insufficient permissions",
+        "teacherReceivesAudio": false
+      },
+      "ignoreRevoke": {
+        "flowingAfterGrant": true,
+        "teacherStillReceivesAfter8s": false,
+        "serverUnpublishedTrack": true,
+        "permissionChangedEvent": [
+          true,
+          false,
+          true,
+          false,
+          true,
+          false
+        ]
+      }
+    },
+    "S4": {
+      "note": "SIMULATED interruption: Chrome offline emulation (blocks HTTP/WebSocket signalling; may not block UDP media).",
+      "drop10s": {
+        "recovered": true,
+        "recoveryMsAfterRestore": 1047,
+        "stateEvents": [],
+        "teacherSeesParticipants": 3
+      },
+      "drop30s": {
+        "recovered": true,
+        "recoveryMsAfterRestore": 4079,
+        "stateEvents": [
+          "connection_state:signalReconnecting",
+          "connection_state:connected",
+          "reconnected"
+        ],
+        "teacherSeesParticipants": 3
+      }
+    },
+    "S5": {
+      "canvasFullyVisible": true,
+      "supabase-realtime": {
+        "available": true,
+        "fingerprintsAfterDrawing": {
+          "teacher": "519cbea9",
+          "student-1": "66420d69",
+          "student-2": "519cbea9",
+          "student-3": "d09f1cc9"
+        },
+        "consistentAfterDrawing": false,
+        "strokeDiff": {
+          "student-1": {
+            "teacherStrokes": 49,
+            "studentStrokes": 49,
+            "missing": [],
+            "extra": [],
+            "differentPointCounts": []
+          },
+          "student-2": {
+            "teacherStrokes": 49,
+            "studentStrokes": 49,
+            "missing": [],
+            "extra": [],
+            "differentPointCounts": []
+          },
+          "student-3": {
+            "teacherStrokes": 49,
+            "studentStrokes": 49,
+            "missing": [],
+            "extra": [],
+            "differentPointCounts": []
+          }
+        },
+        "rttMs": {
+          "n": 90,
+          "p50": 588,
+          "p95": 708,
+          "max": 849
+        },
+        "bytesSentByTeacher": 27177,
+        "strokesDrawn": 51,
+        "receiverGaps": {
+          "student-1": {
+            "received": 226,
+            "missing": 2,
+            "outOfOrder": 2
+          },
+          "student-2": {
+            "received": 226,
+            "missing": 1,
+            "outOfOrder": 1
+          },
+          "student-3": {
+            "received": 226,
+            "missing": 2,
+            "outOfOrder": 2
+          }
+        },
+        "afterOfflineDrawing": {
+          "fingerprints": {
+            "teacher": "a5fb4193",
+            "student-1": "f71e3fb3",
+            "student-2": "e774c2f3",
+            "student-3": "74629113"
+          },
+          "student2MatchesTeacher": false
+        },
+        "consistentAfterClear": true
+      },
+      "livekit-data": {
+        "available": true,
+        "fingerprintsAfterDrawing": {
+          "teacher": "a2db1170",
+          "student-1": "a2db1170",
+          "student-2": "a2db1170",
+          "student-3": "a2db1170"
+        },
+        "consistentAfterDrawing": true,
+        "rttMs": {
+          "n": 90,
+          "p50": 225,
+          "p95": 302,
+          "max": 308
+        },
+        "bytesSentByTeacher": 27241,
+        "strokesDrawn": 51,
+        "receiverGaps": {
+          "student-1": {
+            "received": 226,
+            "missing": 0,
+            "outOfOrder": 0
+          },
+          "student-2": {
+            "received": 226,
+            "missing": 0,
+            "outOfOrder": 0
+          },
+          "student-3": {
+            "received": 226,
+            "missing": 0,
+            "outOfOrder": 0
+          }
+        },
+        "afterOfflineDrawing": {
+          "fingerprints": {
+            "teacher": "b0d34259",
+            "student-1": "b0d34259",
+            "student-2": "b0d34259",
+            "student-3": "b0d34259"
+          },
+          "student2MatchesTeacher": true
+        },
+        "consistentAfterClear": true
+      }
+    },
+    "S6": {
+      "minutes": 10,
+      "note": "Sustained session shortened to 10 min (plan: 60 min) for the automated PC run.",
+      "teacherAudioContinuity": "54/54 samples with teacher audio flowing to all 3 students",
+      "perParticipant": {
+        "teacher": {
+          "disconnects": 0,
+          "reconnects": 0,
+          "errors": 0,
+          "heapMB": {
+            "start": 32,
+            "end": 29,
+            "max": 32
+          }
+        },
+        "student-1": {
+          "disconnects": 0,
+          "reconnects": 0,
+          "errors": 1,
+          "heapMB": {
+            "start": 30,
+            "end": 29,
+            "max": 31
+          }
+        },
+        "student-2": {
+          "disconnects": 0,
+          "reconnects": 0,
+          "errors": 0,
+          "heapMB": {
+            "start": 30,
+            "end": 29,
+            "max": 32
+          }
+        },
+        "student-3": {
+          "disconnects": 0,
+          "reconnects": 0,
+          "errors": 0,
+          "heapMB": {
+            "start": 32,
+            "end": 30,
+            "max": 32
+          }
+        }
+      }
+    }
+  },
+  "audioMetrics": {
+    "rttMs": {
+      "n": 1300,
+      "p50": 100,
+      "p95": 947,
+      "max": 11633
+    },
+    "jitterMs": {
+      "n": 1300,
+      "p50": 7,
+      "p95": 31,
+      "max": 78
+    },
+    "agoraEnd2EndDelayMs": null,
+    "agoraPacketLossRate": null,
+    "agoraReceiveKbps": null,
+    "livekitPacketLoss": {
+      "lost": 413,
+      "received": 129089
+    }
+  },
+  "browserErrors": {
+    "teacher": [],
+    "student-1": [
+      "mic_error: failed to publish track, insufficient permissions"
+    ],
+    "student-2": [],
+    "student-3": [
+      "mic_error: failed to publish track, insufficient permissions"
+    ]
+  },
+  "finishedAt": "2026-10-13T20:41:47.330Z"
+}

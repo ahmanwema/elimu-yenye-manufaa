@@ -1,0 +1,6 @@
+node_modules/
+dist/
+# Raw telemetry stays local; commit only reviewed summaries.
+results/raw/
+.env*
+!.env.example

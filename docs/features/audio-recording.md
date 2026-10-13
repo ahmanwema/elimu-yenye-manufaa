@@ -13,7 +13,7 @@ Teacher (recording control, reviews student submissions), Student (submits recit
 ## User journey — class recording
 
 1. Teacher starts the class; recording begins only if enabled. Full-session recording is the optional Option C add-on (A29). Consent per A30: participants must already have given general consent at enrollment/account setup, **and** a clear notice is shown when recording begins.
-2. Teacher's mic audio is captured continuously by the RTC provider's recording/egress capability.
+2. Teacher's mic audio is captured continuously by the RTC provider's recording/egress capability. *(2026-10-13: stale as a default — full-session recording is the optional Option C add-on (A29/A44). This step applies only when that add-on is enabled. Short correction clips can be captured without it; see [../testing/rtc-pilot-results.md](../testing/rtc-pilot-results.md) §2.)*
 3. In parallel, the whiteboard/PDF operation log for the session is retained (already durable by design, per [whiteboard.md](whiteboard.md)).
 4. After class, the two streams (audio + operation log) are associated by a shared session timeline so [lesson-player.md](lesson-player.md) can play them back in sync.
 

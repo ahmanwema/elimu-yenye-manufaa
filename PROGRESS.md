@@ -66,6 +66,44 @@ Chronological, factual log of what has actually happened. Do not record intentio
 - Local: 388 tests (19 files), lint, typecheck, build pass.
 - Not verified: actual email delivery to an inbox (manual), RTC, payments.
 
+## 2026-10-13 — RTC + whiteboard pilot prepared (evaluation only)
+
+- Baseline verified: commit 2972fe4, 388/388, clean tree.
+- Doc audit: stale assumptions recorded (approximate prices, "LiveKit preferred" wording, continuous-recording default, whiteboard-over-data-channel vs A16).
+- Official-source desk research:
+  - LiveKit revokes publishing server-side; Agora documents no selective server-side revoke.
+  - Agora subscriber tokens restrict publishing only with co-host authentication.
+  - The Agora Web SDK documents no data-send API.
+  - Both support per-participant audio recording.
+  - Pricing re-verified.
+- Throwaway harness `pilot/rtc/`: own package, excluded from the app.
+  - Server-side roles, unguessable rooms, LiveKit server-enforced mic grant/revoke, Agora client-cooperative model.
+  - Force-publish / ignore-revoke security tests; whiteboard over Supabase Realtime vs the LiveKit data channel.
+  - XPPen pointer logging; JSONL telemetry + analyzer.
+  - Pilot server tests 5/5; HTTPS smoke test OK; app checks unchanged (388/388, build OK).
+- **NOT run:** device/network tests. They need owner-created Agora and LiveKit development accounts (credentials absent), the physical devices (Android phones, XPPen Deco 640), and a decision on a public tunnel for 4G tests. No measured RTC numbers exist yet. **Vendor: owner decision pending.**
+- Not committed (no commit authorized in this task).
+
+## 2026-10-13 — RTC + whiteboard pilot run (automated, one PC)
+
+- Both providers validated with owner-created development credentials, stored in git-ignored `pilot/rtc/.env.local` and never printed.
+- New `pilot/rtc/automation/run.mjs` drives the real pilot page in installed Chrome 155 (headless, fake microphone) as 1 teacher + 3 students through S1–S6. `compare.mjs` generates `results/automated-comparison.md`.
+- Harness fixes found by running:
+  - LiveKit now publishes on the server permission event (the grant raced the permission update);
+  - whiteboard counters reset per transport;
+  - canvas fully visible;
+  - undo/eraser added.
+- 4 full runs, alternating LK → AG → AG → LK, S6 = 10 min, on this PC's REAL NETWORK; S4 interruptions SIMULATED.
+- Observed:
+  - **S3 security:** LiveKit blocked force-publish and server-unpublished an ignore-revoke client (2/2). Agora let unauthorized audio reach the teacher and kept transmitting after revoke (2/2; co-host authentication not enabled).
+  - **S2 timing:** LiveKit grant→audio ~1.75 s vs Agora ~2.4–4.2 s; revoke→silence ~0.5–1.2 s vs ~1.1–2.4 s.
+  - **S6:** LiveKit 54/54 in both runs; Agora 2/54 in run 1 (teacher audio repeatedly unpublished at the students; cause undetermined) and 54/54 in run 2.
+  - **Whiteboard:** Supabase Realtime delivered all strokes but out of order (0–4 per student). The LiveKit data channel kept order, with ping RTT ~225 vs ~600 ms. Offline-recovery checks are inconclusive.
+- Details: [docs/testing/rtc-pilot-results.md](docs/testing/rtc-pilot-results.md) §4.
+- **Not run:** phones, 4G/hotspot, XPPen, real voices, 60-min session.
+- **Vendor and whiteboard transport: owner decision pending (A35 unchanged).**
+- Pilot tests 5/5; app check 388/388; build OK. One local commit, not pushed.
+
 ## Status snapshot
 
 | Area | Status |
