@@ -1,0 +1,210 @@
+# DECISIONS.md — Elimu Yenye Manufaa
+
+This is the single source of truth for what has actually been decided versus what is still a proposal or open question. When in doubt, this file wins over any narrative description elsewhere.
+
+Statuses used throughout the documentation:
+
+- **APPROVED** — the project owner has explicitly signed off. Treat as fixed until explicitly changed here.
+- **PROPOSED** — an engineering recommendation, not yet approved. May be built only after approval.
+- **OPEN QUESTION** — unresolved, needs an owner decision before design/implementation can proceed in that area.
+- **DEFERRED** — intentionally out of scope for now; revisit later.
+
+Last updated: 2026-10-13 (fourth update: delegation, child proposal, self-request, Supabase environment — A62–A65, §1.5).
+
+History: 2026-09-30 initial documentation pass. 2026-10-05 owner business decisions BR-01–BR-13 reconciled (A26–A38, §1.1).
+
+---
+
+## 1. Approved decisions
+
+These come directly from the project owner's brief and are treated as fixed requirements for documentation and future implementation planning.
+
+| # | Decision | Source |
+|---|---|---|
+| A1 | Product is a multi-teacher, multi-institution (Markaz) online Islamic education platform. | Brief Part 1 |
+| A2 | Students self-register; they join teachers/institutions via invitation links, without requiring manual teacher approval to join. | Brief Part 1 |
+| A3 | A student may study with multiple teachers across different courses. | Brief Part 1 |
+| A4 | Target platforms (eventually): desktop web, mobile web, installable PWA, Android app, iOS app. | Brief Part 1 |
+| A5 | Hosting preference: Vercel + Supabase. | Brief Part 1 |
+| A6 | Supported languages: Swahili, Arabic, English. | Brief Part 1 |
+| A7 | Initial confirmed roles: Super Admin, Teacher, Student, Unregistered visitor. | Brief Part 2 |
+| A8 | Teachers must not access unrelated teachers' private student records. | Brief Part 2 |
+| A9 | Platform must support parental access to children's progress (model TBD). | Brief Part 2 |
+| A10 | Curriculum must support Level→Book→Chapter→Lesson, Course→Module→Lesson, and teacher-defined structures. | Brief Part 3 |
+| A11 | **Live Class is the first feature to design and implement**, before the rest of the platform. | Brief Part 4 |
+| A12 | Teacher drawing tablet: XPPen Deco 640, connected to Windows, primary browser Google Chrome. No extra teaching software beyond required drivers, if browser compatibility is achievable. | Brief 4.1 |
+| A13 | Confirmed Live Class capabilities: teacher mic audio, digital whiteboard (write/erase), PDF display + annotation, Qur'an page annotation, screen sharing, raise-hand, teacher-controlled student mic, text chat questions, lesson recording, attendance tracking. | Brief 4.2 |
+| A14 | Live teacher video is **not** an initial requirement. | Brief 4.2 |
+| A15 | Class capacity varies by plan, not a single universal cap. | Brief 4.2 |
+| A16 | Students cannot write on the whiteboard by default; teacher must explicitly grant/revoke per-student write permission; this must be enforced server-side. | Brief 4.3 |
+| A17 | Teacher can mark up an individual student's reading (underline/circle/highlight/annotate) and only that student + teacher can see it. | Brief 4.4 |
+| A18 | Students must be able to: self-register, join via invite link, join live classes, listen to recordings, submit recitation audio, do exercises/exams, review results/progress, download permitted materials offline, review private corrections. | Brief Part 5 |
+| A19 | A future Arabic-language-learning module is required (vocabulary, sentence construction, grammar/I'rab, audio dictation) — sourced from Qur'an/Hadith/scholarly lectures, with references preserved and never invented. | Brief Part 6 |
+| A20 | Assessment must support teacher grading, automatic grading, Hifdh/Muraja'ah assessment, feedback, completion certificates, and future AI-assisted grading (not part of initial Live Class work). Teacher selects grading method per exercise/exam. | Brief Part 7 |
+| A21 | Must support free and paid plans; monthly subscriptions, course-based payments, M-Pesa, Airtel Money. Monthly tuition is the current emphasis. | Brief Part 8 |
+| A22 | Security must cover teacher data isolation, multi-institution isolation, parental access, recording permissions, audit logs, backups, child-protection considerations. | Brief Part 9 |
+| A23 | UI/UX must produce an **original** design identity inspired by (not copied from) Codefinity references; must support Arabic RTL + tashkīl + accessible reading sizes. | Brief Part 10 |
+| A24 | Live Class lesson page replaces the primary video area with the synchronized whiteboard/document viewer, and must support recorded-lesson replay later. | Brief Part 11 |
+| A25 | No final technology stack yet — Next.js/React/TypeScript/Supabase is a candidate to evaluate, not a locked choice. | Brief Part 12 |
+| A26 | **Markaz Administrator** is an approved role. Inside their own Markaz they hold broad operational authority, close to a Super Admin *for that tenant only*. They do **not** automatically gain authority over other Markaz/tenants, global platform settings, or Super Admin-only operations. Exact permission rows are **not** yet derived (see open question 13). This decision does not by itself change A8 or A17. | Owner decision BR-01, 2026-10-05 |
+| A27 | **Parent** is a separate account type (not a viewer flag or a property on a Student account). A Parent account may be linked to one or more Students. Linking/verification method and the exact scope of what a Parent may see remain open (open question 14). | Owner decision BR-02, 2026-10-05 |
+| A28 | One Teacher account may belong to **more than one Markaz**. Each Markaz relationship is tenant-scoped; roles, classes, access, and data visibility must not leak across Markaz boundaries; a Teacher's role/permissions may differ per Markaz. | Owner decision BR-03, 2026-10-05 |
+| A29 | **Correction storage — approved tiered model.** *Default* correction mechanism is **Option B**: structured annotations + timestamp + short relevant audio segment + private correction context. Full lesson recordings must **not** be required for normal corrections. **Option C** (full-session lesson recording) is an **optional add-on**: not the default correction mechanism, expected to be separately enabled, may become a paid feature/add-on, and must not be treated as mandatory infrastructure for ordinary corrections. This formally defines the previously undefined "tiered offering". Option C pricing and the technical mechanics of clipping/audio storage are **not** decided. Supersedes P6 (see §1.1). | Owner decision BR-04, 2026-10-05 |
+| A30 | **Recording consent** requires both (1) general consent during enrollment/account setup **and** (2) a clear notice when recording begins. General consent alone is not sufficient. | Owner decision BR-05, 2026-10-05 |
+| A31 | **Recording retention:** recordings remain available until an authorized user deletes them, subject to the project's retention/deletion policy. Technical mechanics (soft vs hard delete, grace period, archival, storage garbage collection, legal hold) and *who* counts as an authorized user are **not** approved (open question 16). | Owner decision BR-06, 2026-10-05 |
+| A32 | **Departed students:** when a Student leaves a Markaz, they retain access to their own personal submissions/corrections; restricted/licensed Markaz content may be removed from their access. Leaving a Markaz is not automatic deletion of the Student's personal academic history. | Owner decision BR-07, 2026-10-05 |
+| A33 | **Live Class capacity:** no final participant numbers are hardcoded. The architecture may support plan-based capacity limits; concrete limits stay unresolved until pilot/network/cost testing. Refines A15. | Owner decision BR-08, 2026-10-05 |
+| A34 | **Hybrid commercial model.** These are separate concepts and must not be collapsed into one generic "payment type": (1) platform-level plans, (2) Markaz tuition, (3) teacher-level subscriptions, (4) paid courses, (5) optional paid features/add-ons (e.g. full-session recording). No prices, revenue sharing, or subscription durations are decided. | Owner decision BR-09, 2026-10-05 |
+| A35 | **RTC/whiteboard vendor:** Agora and LiveKit both remain pilot candidates. Selection process: Agora vs LiveKit → real target-network pilot → latency/reliability/cost comparison → final project-owner decision later. Neither vendor is selected. Supersedes the vendor preference in P4 (see §1.1). | Owner decision BR-10, 2026-10-05 |
+| A36 | **MVP platform = PWA + mobile web first.** Native Android and native iOS are not required for MVP and may remain future phases. Refines A4 (A4's "eventually" list is unchanged). | Owner decision BR-11, 2026-10-05 |
+| A37 | **Qur'an annotation source:** the final Qur'an page image/PDF source is **not** selected (open question 11 stays open). Any source must pass a verification/authenticity review before production use. | Owner decision BR-12, 2026-10-05 |
+| A38 | **Large media storage:** Supabase Storage is the current storage direction. No migration to Cloudflare R2 or Backblaze B2 now; may be reconsidered later based on real volume/cost data. Supersedes the "evaluate" framing of P8 for the current phase (see §1.1). | Owner decision BR-13, 2026-10-05 |
+
+| A39 | **Technology stack APPROVED:** Next.js, TypeScript, **Prisma ORM**, Supabase PostgreSQL, Supabase Auth, Supabase Storage, PWA, with Vercel as the *intended* deployment platform. Vercel deployment and Supabase production creation/configuration are **not** authorized by this decision (see §2). Supersedes P1. | Owner decision, 2026-10-13 |
+| A40 | **Markaz Administrator = full tenant administrator for their own Markaz.** May manage normal Markaz operations (teachers, students, classes, curriculum/content, attendance, reports, Markaz settings, Markaz-level operational/billing information) **only where those capabilities exist in project documentation**. Never automatically receives: access to another Markaz, platform-global settings, Super Admin management, global pricing/policy authority, or global tenant administration. Refines A26; resolves the *direction* of open question 13. | Owner decision BR-03 (2026-10-13) |
+| A41 | **Parent visibility is broad for a linked child:** progress, attendance, assessments, submissions, corrections, and approved recordings. A Parent must **not** automatically see teacher-private notes, administrator-only notes, unrelated Students, or another Parent's children. Child data becomes visible only through a verified/active Parent–Student relationship. **Explicit exception to A17** for corrections (see §1.2). Who verifies/approves a link is **not** decided (open question 14). | Owner decision BR-04 (2026-10-13) |
+| A42 | **Parent–Student link states** (approved for planning): `PENDING`, `VERIFIED`, `ACTIVE`, `REVOKED`. Who moves a link between states is **not** decided. | Owner decision BR-04 (2026-10-13) |
+| A43 | **Correction audio source is HYBRID (resolves open question 15).** When a full-session recording exists, a correction's clip/segment *may* be derived from it via the correction's timestamp. When no full-session recording exists, the correction uses **independently captured short correction audio**. Option B must work without Option C; ordinary corrections must never depend on a full-session recording. **Durability rule:** a correction's required context must not silently disappear because an unrelated full-session recording is deleted. Physical clip vs segment pointer vs both is a technical evaluation (see P10). | Owner decision BR-06 (2026-10-13) |
+| A44 | Option C (full-session recording) stays an optional add-on, outside the mandatory MVP correction flow; no pricing or paid-entitlement behavior is implemented until pricing is approved. Restates A29 for the implementation phase. | Owner decision BR-07 (2026-10-13) |
+| A45 | **Authentication = invite-first onboarding + email OTP / magic link.** Users do not self-assign privileged roles; accounts begin from an authorized invitation where applicable; sign-in uses Supabase email OTP / magic link. Passwords are not the primary login method in this phase. No social (Google/Facebook) or phone/SMS sign-in. | Owner decision A (2026-10-13) |
+| A46 | **Parent–Student link verification** may be performed by a MARKAZ_ADMIN or a TEACHER **only** when that person holds the explicit, tenant-scoped permission `parent_link.verify` in the link's Markaz. The role alone is never sufficient; there is no cross-tenant verification authority. | Owner decision B (2026-10-13) |
+| A47 | **Explicit permissions are not implied by roles.** `parent_link.verify` is granted per person per Markaz and is checked explicitly. No default holder is approved — nobody holds it automatically. | Owner decision B (2026-10-13) |
+| A48 | **Only ACTIVE grants Parent access.** PENDING = requested, not verified; VERIFIED = verified by an authorized verifier; ACTIVE = access enabled; REVOKED = access disabled. PENDING, VERIFIED and REVOKED grant nothing. **Who moves VERIFIED → ACTIVE is NOT decided.** Confirms the foundation's ACTIVE-only reading of A41. | Owner decision C (2026-10-13) |
+| A49 | **Default UI language: Kiswahili.** | Owner decision E (2026-10-13) |
+| A50 | **English and Arabic are user-selectable**; Arabic uses RTL layout; the choice persists for the user/browser. Scope: application UI strings, not domain data. | Owner decision E (2026-10-13) |
+| A51 | **Teacher roster:** a Teacher may see BASIC roster information for Students in their Markaz, and DETAILED Student information only for Students in classes they are authorized to teach. Basic roster visibility never unlocks private corrections, assessments, sensitive notes or full history. | Owner decision F (2026-10-13) |
+| A52 | **Markaz Admin appointment:** a Markaz Admin may REQUEST another Markaz Administrator but may not grant the role; only a SUPER_ADMIN approves or rejects; no self-approval; the membership is granted on approval. | Owner decision G (2026-10-13) |
+| A53 | **Standalone correction clips (P10 approved).** Every finalized correction audio clip must exist as its own storage object; a correction never stays dependent on the parent full-session recording; deleting a recording must not destroy a finalized correction's audio. | Owner decision H (2026-10-13) |
+| A54 | **Reaffirmed:** hybrid correction audio source (A43); RTC vendor undecided — any audio/recording architecture stays vendor-neutral (A35); Supabase Storage remains the direction, with no production bucket changes (A38). | Owner decisions H, I, J (2026-10-13) |
+| A55 | **Parent link activation:** VERIFIED → ACTIVE only by a MARKAZ_ADMIN or TEACHER holding explicit `parent_link.activate` in the link's Markaz. The role alone is not enough; no cross-tenant activation. | Owner decision A (2026-10-13, 3rd) |
+| A56 | **Parent link creation/request:** a link may be initiated by the Parent (self-request, tenant-bound, never self-activating) or by staff holding explicit `parent_link.create` in that Markaz. Not every Teacher can initiate. | Owner decision B (2026-10-13, 3rd) |
+| A57 | **Parent link revocation:** a Parent may revoke/withdraw their own link; staff holding explicit `parent_link.revoke` in the link's Markaz may revoke. No parent revokes another parent's link; no cross-tenant staff revocation. | Owner decision C (2026-10-13, 3rd) |
+| A58 | **Assigning `parent_link.verify`:** Super Admin may assign verification permissions platform-wide; a Markaz Admin may assign `parent_link.verify` to eligible Teachers in their own Markaz only; Teachers may not assign it. Replaces the interim "Super Admin only" rule. | Owner decision D (2026-10-13, 3rd) |
+| A59 | **Teacher invitations** require explicit `invitation.create` in that Markaz; tenant-bound; Teachers may not invite Super Admins or Markaz Admins. Allowed targets: STUDENT, PARENT. | Owner decision E (2026-10-13, 3rd) |
+| A60 | **Invitation lifetime is exactly 7 days** — a business rule, no longer an engineering default. | Owner decision F (2026-10-13, 3rd) |
+| A61 | **Parent invitations** may be issued by a MARKAZ_ADMIN or a TEACHER holding `invitation.create`. Acceptance onboards a Parent account and never grants child access; any proposed child becomes a normal PENDING → VERIFIED → ACTIVE link request. | Owner decision G (2026-10-13, 3rd) |
+| A62 | **Delegation:** a Markaz Admin may assign all five explicit permissions (`parent_link.create/verify/activate/revoke`, `invitation.create`) to ACTIVE Teachers in their OWN Markaz only. Not across tenants, not to themselves, never platform/global privileges. Teachers cannot assign. Super Admin may assign across tenants. | Owner decision A (2026-10-13, 4th) |
+| A63 | **Parent invitation proposing a child** requires BOTH `invitation.create` AND `parent_link.create` in that Markaz. Without a child, the right to invite is enough. The result is only ever a PENDING link. | Owner decision B (2026-10-13, 4th) |
+| A64 | **Parent self-request** identifies the child by Markaz code + student email, OR Markaz code + student ID / registration number. The response must not reveal whether the Markaz, student, email, ID or relationship exists. | Owner decision C (2026-10-13, 4th) |
+| A65 | **Supabase environment:** one project only for now, `elimu-yenye-manufaa`. Supabase project `elimu-yenye-manufaa` is currently used as the development environment. It must not be treated as production until the project owner explicitly approves production readiness. | Owner decision (2026-10-13, 4th) |
+
+### 1.5 Supersession and refinement record (2026-10-13, fourth update)
+
+| Earlier entry | Earlier content (summary) | New decision | Relationship |
+|---|---|---|---|
+| A58 + interim OQ31 | Markaz Admin may assign only `parent_link.verify`; the other four by Super Admin only (interim). | A62 | **Superseded:** Markaz Admins may assign all five to their own ACTIVE Teachers. |
+| Interim OQ32 | Child proposal needs `parent_link.create` (plus the right to invite). | A63 | **Superseded and tightened:** needs BOTH explicit grants, `invitation.create` + `parent_link.create`, including for Markaz Admins. |
+| Interim OQ33 | Self-request by Markaz code + student email. | A64 | **Extended:** Markaz code + email OR + student registration number. |
+| Technical (not a business rule) | No student ID existed. | A64 | Added `memberships.registration_number` for STUDENT memberships: 8 characters from an unambiguous alphabet, random, assigned once by trigger, immutable, unique per Markaz. |
+| Technical (security) | Invite flow used `shouldCreateUser: true`, which needs public sign-ups enabled. | A45 | **Changed:** OTP never creates accounts. Invited accounts are created server-side via the admin API after token validation, so **public sign-ups can stay disabled** in Supabase. |
+
+### 1.4 Supersession and refinement record (2026-10-13, parent workflow / invitations)
+
+| Earlier entry | Earlier content (summary) | New decision | Relationship |
+|---|---|---|---|
+| OQ14 | Who activates, creates and revokes links; who holds or assigns verify. | A55–A58 | **Resolved.** Nobody holds any explicit permission by default (unchanged). |
+| OQ27 | Teacher invitations. | A59 | **Resolved.** |
+| OQ28 | Invitation lifetime (7-day engineering default). | A60 | **Resolved** — 7 days is now a business rule. |
+| OQ29 | Who creates/requests a parent link; parent invitations. | A56, A61 | **Resolved.** |
+| OQ30 | Who assigns `parent_link.verify`. | A58 | **Resolved**; the interim "Super Admin only" rule is superseded. |
+| A47 | One explicit permission (`parent_link.verify`). | A55–A59 | **Extended** to five: `parent_link.create/verify/activate/revoke`, `invitation.create`. |
+| A40 / Phase 2A rows | Markaz Admin invites TEACHER/STUDENT. | A61 | **Extended:** Markaz Admins may also invite PARENT (by role, as A61 names them without requiring a grant). |
+| Interim (engineering) | — | — | **Not yet decided, interim in code:** only a Super Admin may assign `parent_link.create`, `parent_link.activate`, `parent_link.revoke` and `invitation.create` (open question 31). Proposing a child in a parent invitation requires `parent_link.create` (open question 32). A parent self-request names the child by Markaz code + the child's email (open question 33). |
+
+### 1.3 Supersession and refinement record (2026-10-13, Phase 1.5 / 2A)
+
+| Earlier entry | Earlier content (summary) | New decision | Relationship |
+|---|---|---|---|
+| P10 (Proposed) | Standalone clip object; segment pointer as provenance only. | A53 | **Superseded — approved.** |
+| OQ14 | Parent linking: verifier, VERIFIED semantics, write access. | A46–A48 | **Partially resolved:** verifier eligibility (MA/Teacher + explicit permission) and ACTIVE-only access decided. Still open: who moves VERIFIED → ACTIVE, who creates/requests a link, who revokes, and who holds or assigns `parent_link.verify`. |
+| OQ22 | Auth method and sign-up flow. | A45 | **Resolved:** invite-first + email OTP / magic link. |
+| OQ24 | Default UI language. | A49, A50 | **Resolved.** |
+| OQ25 | Teacher roster visibility. | A51 | **Resolved.** The foundation's earlier deny-all rule for teachers (and its RLS test) is superseded; the test was rewritten to the new boundary. |
+| OQ26 | Can a Markaz Admin appoint Markaz Admins? | A52 | **Resolved:** request only; Super Admin approves. |
+| A26/A40 rows | Markaz Admin permissions. | A52 | **Refined:** "manage teachers/students" never includes granting MARKAZ_ADMIN directly. |
+
+### 1.2 Supersession and refinement record (2026-10-13)
+
+| Earlier entry | Earlier content (summary) | New decision | Relationship |
+|---|---|---|---|
+| P1 (Proposed) | Next.js + TS + Supabase on Vercel. | A39 | **Superseded — approved, and extended with Prisma ORM.** |
+| A17 (Approved) | A private correction is visible to "only that student + teacher". | A41 | **Superseded in part (explicit exception):** a Parent with an ACTIVE link to the student may also see that student's corrections. Teacher-private notes remain excluded from Parent view. No other party is added. |
+| A26 (Approved) | Markaz Admin: broad operational authority inside own Markaz; exact rows open. | A40 | **Refined:** "full tenant administrator" for documented capabilities; the upper bound is unchanged. |
+| P7 (Proposed, in part) | Parent linked *read-only*. | A41 | **Still not decided as such.** A41 defines what a Parent may *see*; no decision grants a Parent write access, and none is implemented. |
+| P3 (Proposed) | Shared schema + `tenant_id` + RLS, with tenant/role claims **in the JWT**. | Foundation implementation | Shared schema + RLS **implemented**. The JWT-claims part was **not** adopted: RLS uses `SECURITY DEFINER` membership-lookup functions instead, so a revoked membership takes effect immediately rather than at token refresh. Revisit only if RLS performance requires it. |
+| OQ15 | Option B clip source and lifecycle. | A43 | **Resolved** (hybrid source + durability rule). |
+
+### 1.1 Supersession and refinement record (2026-10-05)
+
+Historical entries are kept, not deleted. This table records which earlier entries the owner decisions of 2026-10-05 affect.
+
+| Earlier entry | Earlier content (summary) | New decision | Relationship |
+|---|---|---|---|
+| P6 (Proposed) | Option B default, Option C optional paid add-on — *recommendation only*. | A29 | **Superseded** — the recommendation is now approved, with the qualifier that Option C *may* (not "will") be paid. |
+| P4 (Proposed) | LiveKit recommended over Agora/Daily on cost-at-scale; Agora as fallback. | A35 | **Superseded in part** — the LiveKit-first preference no longer stands; LiveKit and Agora are equal pilot candidates pending a target-network pilot. P4's cost research remains valid as input to that pilot. Daily.co is not named in A35; its status is unchanged (evaluated, not a named pilot candidate). |
+| P7 (Proposed) | Markaz Admin role + Parent/Guardian account type linked *read-only* to Students. | A26, A27 | **Superseded in part** — both roles now exist (approved). The P7 description of the Markaz Admin as narrow (roster/settings/billing) is replaced by A26's "broad operational authority within own Markaz". P7's "read-only" Parent qualifier is **not** confirmed or rejected by A27 — it stays proposed (open question 14). |
+| P8 (Proposed) | Evaluate Supabase Storage vs R2/B2 once recording volume is material. | A38 | **Superseded for the current phase** — Supabase Storage is the approved current direction; the future re-evaluation trigger (real volume/cost data) is preserved. |
+| A4 (Approved) | Eventual targets include Android and iOS apps. | A36 | **Refined, not superseded** — native apps remain eventual targets, just not MVP. |
+| A15 (Approved) | Class capacity varies by plan. | A33 | **Refined, not superseded** — no concrete numbers until pilot/cost testing. |
+| A21 (Approved) | Free/paid plans, monthly subscriptions, course payments, M-Pesa, Airtel Money; tuition emphasis. | A34 | **Refined, not superseded** — A34 adds the requirement that the commercial concepts stay distinct. |
+
+## 2. Current authorization scope (as of 2026-10-13)
+
+**Authorized (2026-10-13, fourth authorization):** implementation of A62–A64; use of Supabase project `elimu-yenye-manufaa` **strictly as development** (migrations, Auth/RLS/Storage verification, dev-only data and dev URLs); one LOCAL baseline Git commit after verification. NOT authorized: production launch, real users, production data or domains, deploy, push, remote, RTC, payments. Supabase project `elimu-yenye-manufaa` is currently used as the development environment. It must not be treated as production until the project owner explicitly approves production readiness.
+
+**Authorized (2026-10-13, third authorization):** local implementation of the parent-link workflow, explicit permissions, delegation, teacher and parent invitations, and the fixed 7-day expiry; **`git init` locally** (no commit, no remote, no push); verification against a **local or dedicated non-production development** Supabase only. Status: Git initialized, nothing committed. Dev Supabase verification **could not be performed** — no Docker/WSL on this machine and no dev project credentials provided (see PROGRESS.md).
+
+**Authorized (2026-10-13, second authorization): LOCAL Phase 1.5 / 2A implementation** — email OTP / magic-link UI, invite-first onboarding and acceptance, explicit permission foundation (`parent_link.verify`), Parent–Student verification (PENDING → VERIFIED only), ACTIVE-only Parent authorization, localization (sw default, en, ar + RTL), teacher basic roster boundary, Markaz Admin appointment request/review, vendor-neutral standalone correction-audio data foundation and storage contract, local schema/migration/RLS files, tests and docs. Same local-only limits as below.
+
+**Authorized (2026-10-13, first authorization): LOCAL Phase 1 foundation implementation** — Next.js/TypeScript project, Prisma setup, local/environment-safe Supabase integration structure, authentication architecture, profiles, Markaz/tenant model, tenant-scoped memberships, roles foundation, multi-Markaz Teacher support, Parent account type and Parent–Student link foundation, Student membership foundation, tenant isolation, RLS design/migration *files*, negative authorization tests, basic PWA foundation, documentation reconciliation, lint/typecheck/test setup. Installing packages locally, generating (not applying to any live DB) migrations, and running local tests/lint/typecheck/build are allowed.
+
+**Still NOT authorized:** production database access, applying migrations to any live database, creating/configuring a Supabase production project, live storage buckets, Vercel deployment, live domains, Agora/LiveKit integration, Live Class, whiteboard, recording, correction clips, Option C, payments/pricing, native apps, choosing a Qur'an source, **initializing Git**, committing, pushing.
+
+Earlier scope (2026-09-30, Brief Part 15): documentation and analysis only. Kept for history.
+
+This scope itself is **APPROVED** and stays in force until the project owner changes it here.
+
+## 3. Proposed (engineering recommendations — NOT yet approved)
+
+| # | Proposal | Detail | Status (2026-10-05) |
+|---|---|---|---|
+| P1 | Web stack: Next.js (App Router) + TypeScript + Supabase (Postgres, Auth, Storage, Realtime), hosted on Vercel. | [docs/system/technology-evaluation.md](docs/system/technology-evaluation.md) | **Superseded by A39 (2026-10-13)** — approved, with Prisma added. |
+| P2 | Mobile: Expo (React Native + React Native Web) in a pnpm/Turborepo monorepo sharing business logic with the Next.js web app, rather than a fully separate native codebase. | [docs/system/technology-evaluation.md](docs/system/technology-evaluation.md) | Proposed (unchanged) — now applies to a post-MVP phase only (A36). |
+| P3 | Multi-tenancy: shared Postgres schema, `tenant_id` column + Postgres Row Level Security, tenant/role claims embedded in the JWT. | [docs/system/tenancy.md](docs/system/tenancy.md) | Shared schema + RLS **implemented in the local foundation (2026-10-13)**; JWT-claims variant **not adopted** (see §1.2). |
+| P4 | Real-time audio/screen-share: LiveKit (self-hosted or LiveKit Cloud) as the SFU, chosen over Agora/Daily primarily on cost-at-scale and open-source exit path. | [docs/system/technology-evaluation.md](docs/system/technology-evaluation.md) | **Superseded in part by A35** — no vendor preference stands; pilot required. |
+| P5 | Whiteboard sync: custom operation-log protocol (not a general-purpose CRDT), riding on the same real-time transport as audio where practical. | [docs/features/whiteboard.md](docs/features/whiteboard.md) | Proposed (unchanged) |
+| P6 | Private correction storage: Option B — structured annotations with timestamps + linked short audio segments — as the default; full-session recording (Option C) offered as an optional paid add-on, not the default. | [docs/features/student-corrections.md](docs/features/student-corrections.md) | **Superseded by A29** (approved). |
+| P7 | Roles expanded with a distinct **Markaz Admin** role (institution-level, separate from Teacher) and a **Parent/Guardian** account type linked read-only to one or more Student accounts. | [docs/system/roles-permissions.md](docs/system/roles-permissions.md) | **Superseded in part by A26/A27** — roles approved; "read-only" Parent scope still proposed. |
+| P8 | Recordings/media storage: evaluate Supabase Storage vs Cloudflare R2/Backblaze B2 for egress-cost reasons once recording volume is material. | [docs/system/technology-evaluation.md](docs/system/technology-evaluation.md) | **Superseded for current phase by A38.** |
+| P9 | PDF rendering/annotation: Mozilla `pdf.js` with a custom annotation overlay layer, reusing the whiteboard sync protocol keyed to page number. | [docs/features/pdf-annotations.md](docs/features/pdf-annotations.md) | Proposed (unchanged) |
+| P10 | Correction clip storage (technical evaluation for A43): every correction that has audio owns a **standalone clip object** in Supabase Storage. When the clip was derived from a full-session recording, the segment pointer (recording id + start/end offsets) is kept as **provenance metadata only**, never as the sole source. Reason: a pointer-only design violates the A43 durability rule unless recording deletion is restricted — and deletion mechanics are an open owner decision (OQ16). | [docs/features/student-corrections.md](docs/features/student-corrections.md) | **Superseded by A53 — APPROVED (2026-10-13).** Data foundation implemented (no media processing). |
+
+## 4. Open questions requiring project owner decision
+
+See the full list with context in [docs/roadmap/open-questions.md](docs/roadmap/open-questions.md). Headline items (original 2026-09-30 wording kept; status as of 2026-10-05 appended):
+
+1. Exact Markaz administrator role and its permission boundaries vs. Super Admin and Teacher. — **Resolved in principle by A26**; exact permission rows still open (open question 13).
+2. Parent account model: separate account type vs. a "linked viewer" relationship on a Student account; how parent-child linking is verified. — **Account model resolved by A27** (separate type); linking verification still open (open question 14).
+3. Tenant ownership model: can a teacher belong to more than one Markaz? Who owns a student's data when a student studies under both an independent teacher and a Markaz? — **First part resolved by A28** (yes, tenant-scoped); second part still open.
+4. Final correction-storage approach (A/B/C — see [docs/features/student-corrections.md](docs/features/student-corrections.md)). — **Resolved by A29** (B default, C optional add-on); clip/storage mechanics and C pricing still open.
+5. Class-size limits per plan tier and how "plan" maps to a concrete participant cap and to RTC cost. — **Still open** (A33: numbers only after pilot/cost testing).
+6. Relationship between monthly tuition, per-course payment, teacher-level subscription, and platform-level subscription (see [docs/features/payments.md](docs/features/payments.md)). — **Structure resolved by A34** (hybrid, five distinct concepts); prices, revenue sharing, durations and inter-concept rules still open.
+7. Recording consent flow and retention period for lesson recordings. — **Resolved at business level by A30/A31**; deletion mechanics and authorized-deleter definition still open (open question 16).
+8. Final RTC/whiteboard vendor selection (build vs buy) — see [docs/system/technology-evaluation.md](docs/system/technology-evaluation.md). — **Still open**; selection *process* approved by A35.
+9. Whether native iOS/Android apps are needed at MVP or can wait behind PWA + mobile web. — **Resolved by A36** (not needed for MVP).
+
+New owner questions surfaced while reconciling the 2026-10-05 decisions are listed as items 13–20 in [docs/roadmap/open-questions.md](docs/roadmap/open-questions.md).
+
+2026-10-13: item 13 direction resolved by A40; item 14 scope resolved by A41/A42 (verifier still open); item 15 resolved by A43. Items raised during the foundation build are 21–26.
+
+2026-10-13 (Phase 2A): items 22, 24, 25, 26 resolved; item 14 partially resolved (A46–A48). New items 27–30 were raised during the build.
+
+2026-10-13 (parent workflow): items 14, 27, 28, 29, 30 resolved. Items 31–33 record interim engineering choices awaiting confirmation.
+
+2026-10-13 (fourth update): items 31, 32, 33 resolved (A62, A63, A64).
+
+## 5. Deferred
+
+- AI-assisted grading (Part 7) — explicitly deferred past Live Class implementation.
+- Full catalog of educational resource types (handwriting exercises, full multi-subject curriculum content) — deferred past MVP.
+- Detailed pricing, commission %, and subscription limits — deferred until Part 8 open questions are resolved; nothing here should be invented. (Still deferred after A34: the hybrid *structure* is approved, but no prices, revenue sharing, subscription durations, or Option C add-on price exist.)

@@ -1,0 +1,92 @@
+# PROGRESS.md — Elimu Yenye Manufaa
+
+Chronological, factual log of what has actually happened. Do not record intentions here — record completed state. See [DECISIONS.md](DECISIONS.md) for approval status of anything mentioned here.
+
+## 2026-09-30 — Project initialization
+
+- Repository inspected: empty directory, not yet a git repository, no prior code, no `references/ui/` folder present (Codefinity screenshots were not available — written requirements from the brief were used instead, per the brief's own fallback instruction).
+- Created initial documentation structure: `CLAUDE.md`, `DECISIONS.md`, `PROGRESS.md`, and the full `docs/` tree (system, features, features/language-learning, components, testing, roadmap).
+- Performed technical research to ground recommendations in current (2026) facts rather than assumption, specifically: XPPen Deco 640 hardware specs and OS/browser compatibility claims, real-time communication provider pricing (LiveKit / Agora / Daily.co), whiteboard sync architecture precedent (tldraw sync), Supabase Row Level Security multi-tenant patterns, and Next.js/Expo cross-platform strategy.
+- Produced the required first report (technology options, Live Class architecture proposal, hardware test plan, correction-storage comparison, roadmap, and open questions for owner approval).
+- No application code, dependencies, database, or infrastructure was created or modified. No commit, push, or deploy occurred (none of these are authorized yet — see [DECISIONS.md](DECISIONS.md) §2).
+
+## 2026-10-05 — Business decision reconciliation (BR-01–BR-13)
+
+- Repository re-inspected: still not a git repository; still documentation only (43 Markdown files); no application code, schema, migrations, RLS policies, tests, or PWA configuration exist.
+- Recorded the project owner's 13 business decisions as approved rows A26–A38 in [DECISIONS.md](DECISIONS.md), with a supersession/refinement record (§1.1) covering P4, P6, P7, P8 and refinements of A4, A15, A21. No historical entry was deleted.
+- Updated [docs/roadmap/open-questions.md](docs/roadmap/open-questions.md): items 2, 4, 9, 10, 12 resolved; items 1, 3, 6, 7 partially resolved; items 5, 8, 11 still open. Added items 13–20 (gaps the approved rules leave open).
+- Reconciled affected docs: student-corrections, audio-recording, live-class, payments, pdf-annotations, lesson-player, student-dashboard, curriculum, roles-permissions, tenancy, security, technology-evaluation, architecture, database, phases, security-tests.
+- A pre-edit copy of all documentation was saved outside the repository (session scratchpad), because there is no git history to revert to.
+- No application code, dependencies, database, storage, or infrastructure was created or modified. No commit, push, or deploy.
+
+## 2026-10-13 — Phase 1 local foundation implemented
+
+- Pre-state verified: docs only (43 Markdown files), not a Git repository, no code. Matches the 2026-10-13 audit. The 2026-10-05 scratchpad docs backup no longer existed; a fresh backup of all docs was taken before editing.
+- Scaffolded Next.js 16.4.0 + React 19.3.0 + TypeScript 5.9 (strict), with ESLint 9 (eslint-config-next 16.4.0). Installed locally: Prisma 7.10.0 (+ pg adapter), @supabase/ssr 0.12.7, @supabase/supabase-js 2.117.3, zod 4.6.7, server-only. Dev: Vitest 5.0.4, PGlite 0.5.9, dotenv.
+- Prisma schema: profiles (= auth.users.id), platform_admins, tenants (Markaz), memberships (tenant-scoped role, ACTIVE/ENDED), student_accounts, parent_accounts, parent_student_links (PENDING/VERIFIED/ACTIVE/REVOKED). Migration SQL generated offline (`prisma migrate diff`, no database connection). A hand-written Supabase migration adds the auth.users FK, profile trigger, integrity checks, helper functions and read-only, deny-by-default RLS.
+- Server authorization layer (`src/server/authz`) + authorize-then-query data access (`src/server/data`). Supabase Auth plumbing (server/browser clients, proxy session refresh) with lazy env validation. Basic PWA (manifest, placeholder icons, minimal service worker, offline page).
+- Tests: 91 passing (unit authz/data-access/env + RLS and schema tests executing the real migrations on in-process PGlite). Mutation check: weakening two RLS policies made 9 tests fail. Lint clean, typecheck clean, production build succeeds without credentials, local `next start` smoke test passed.
+- Docs reconciled: A39–A44 + §1.2 supersession record (P1 approved with Prisma; A17 exception for ACTIVE-linked parents; OQ13 direction, OQ14 scope, OQ15 resolved), new open questions 21–26, security §2.1 (Prisma bypasses RLS), database §7, roles §2.2, tenancy §5.1, architecture §5.1, new docs/system/pwa.md, README.md.
+- NOT done: no live Supabase project, no migration applied anywhere, no deploy, no Git init, no commit/push, no RTC/payments/recording/correction clips/Live Class.
+
+## 2026-10-13 — Phase 1.5 / 2A implemented locally
+
+- Pre-state verified: matched the Phase 1 report; baseline lint/typecheck/91 tests/build all passed.
+- Docs: decisions A45–A54 recorded (§1.3 supersession); open questions 22, 24, 25, 26 resolved, 14 partially; new 27–30 (teacher invitations, invitation TTL, parent link creation, who assigns `parent_link.verify`). New docs/features/auth-onboarding.md; updated roles-permissions §2.3, tenancy §5.2, security §3.1–3.3, database §8, architecture, pwa, student-corrections, audio-recording, phases, security-tests, components README, CLAUDE.md, README.md.
+- Schema (local only): `tenant_permission_grants`, `invitations`, `markaz_admin_appointment_requests`, minimal `corrections`, `correction_audio_clips`; `parent_student_links` gained `tenant_id` + verification audit. Migrations 20261013000200 (offline diff) and 20261013000300 (constraints, partial unique indexes, RLS). Applied only to in-memory PGlite.
+- App: localized routes (sw default, en, ar RTL; cookie persistence via proxy), email OTP / magic-link sign-in, invite-first onboarding, Markaz workspace (roster, invitations, parent links + verify, appointment request), platform admin (appointment review, verifier grants), standalone correction-audio services + vendor-neutral storage contract.
+- Security fix during the build: an OTP helper exported from a "use server" file would have been a public endpoint able to create accounts; moved to a non-action module and pinned by a test.
+- Tests: 275 passing (14 files), incl. service tests on real Prisma over PGlite (`pglite-prisma-adapter`, dev-only). Mutation check: 6/6 deliberate security weakenings caught. Lint, typecheck, build pass; local HTTP smoke test (locale redirects, cookie, lang/dir, RTL, translated text, auth callback fallback) passed.
+- Known: `npm audit` reports high-severity advisories in `mysql2`/`deepmerge-ts` pulled in by the Prisma 7.10 CLI/config (not used at runtime against Postgres); the only offered fix downgrades Prisma — not applied.
+- NOT done: real Supabase project, any migration on a live DB, buckets, deploy, Git init, commit/push, RTC, recording, VERIFIED → ACTIVE, parent link creation.
+
+## 2026-10-13 — Parent-link workflow, invitations, Git (third authorization)
+
+- Pre-state verified: matched the Phase 2A report; baseline 275/275, lint, typecheck, build passed.
+- **Git initialized** (branch `master`, no commits, no remote). `.gitignore` hardened (keys/credentials, Supabase local state, databases, logs). 147 files would be tracked; secrets scan over them found 0 matches; `.env.example` has no values. Nothing staged.
+- Decisions A55–A61 recorded (§1.4); open questions 14, 27–30 resolved; interim choices recorded as 31–33.
+- Schema (local only): 4 more explicit permissions, parent-link audit columns + `parent_link_events`, invitation `kind`/nullable `role`/`proposed_student_id`. Migrations 20261013000400 (offline diff) and 20261013000500 (state CHECKs, NULLS NOT DISTINCT pending index, permission function, RLS).
+- Implemented: parent self-request (non-enumerating), staff create, verify, activate, parent withdraw, staff revoke (conditional updates + event history); Markaz Admin delegation of `parent_link.verify`; teacher invitations (`invitation.create`); parent invitations (proposed child → PENDING only); fixed 7-day expiry with a tested boundary; UI for all of it in sw/en/ar.
+- Tests: 355 passing (18 files). Mutation check: 7/7 new rule-breaks caught. Lint, typecheck, build, local HTTP smoke test passed.
+- **Dev Supabase verification NOT performed:** no Docker / WSL / Supabase CLI on this machine and no dev-project credentials. Runbook: docs/testing/dev-supabase-verification.md. No Supabase project of any kind was touched.
+- NOT done: commits, remote, push, deploy, RTC, payments, recording.
+
+## 2026-10-13 — Fourth authorization: delegation, self-request, single Supabase dev project (COMPLETED)
+
+- Pre-state verified (branch master, no commits, 355/355, build OK).
+- Implemented: A62 (Markaz Admin may assign all five permissions to own ACTIVE Teachers), A63 (child proposal needs invitation.create + parent_link.create), A64 (self-request by Markaz code + email OR registration number, non-enumerating). Student registration number: migrations 20261013000600/0700 (per-Markaz, random, immutable, trigger-assigned).
+- Security hardening: OTP never creates accounts; invited accounts are created server-side via the admin API after token validation; Supabase public sign-ups are DISABLED (verified: disable_signup=true).
+- **Supabase project `elimu-yenye-manufaa` (ref jahyvgzqxqldaatitfvz, PostgreSQL 17.11, eu-central-1) used as DEVELOPMENT (A65).** Read-only preflight beforehand: 0 auth users, 0 tables, 0 buckets — safe for development.
+- Applied 9 migrations (8 existing + 20261013000800, found by verification). Schema parity with PGlite: tables, columns, constraints, indexes, enums, policies, functions, triggers and grants all identical (scripts/compare-schema.mjs).
+- Differences found and fixed: (1) Supabase grants EXECUTE on new public functions to anon/authenticated, so the SECURITY DEFINER trigger function was executable → revoked (migration 0800), and the PGlite stand-in now mimics the grant. (2) A 7-statement transaction exceeded Prisma's 5 s default at ~230 ms round-trip to eu-central-1 → transaction timeout 20 s / maxWait 10 s. (3) A test false positive: Supabase rejects @example.com in public auth flows, so the sign-up test passed for the wrong reason → rewritten to require the authoritative setting and the specific signup_disabled error.
+- Created private dev bucket `correction-clips`.
+- Real-Supabase suite (tests/real, `npm run test:dev-supabase`): 24/24 — trigger, RLS through PostgREST with real JWTs from real OTP verification, server-only tables, write refusal, sign-up disabled, unknown-email OTP refused, invite → account → OTP → session → accept (email match, tamper-proof, single use, 7-day expiry), delegation, self-request by registration number and by email (non-enumerating), parent PENDING→VERIFIED→ACTIVE gaining real Data API access, Storage signed upload/read with allow/deny matrix and no direct path access.
+- UI E2E (scripts/dev-e2e.mjs against next start): 14/14 — invite page, real /auth/confirm, session cookie, real accept form submitted without JS, membership created, single use, account in sw/en/ar (RTL).
+- All test data removed after each run (0 users, 0 objects remain). No real users or data added; no production domain configured.
+- Local: 388 tests (19 files), lint, typecheck, build pass.
+- Not verified: actual email delivery to an inbox (manual), RTC, payments.
+
+## Status snapshot
+
+| Area | Status |
+|---|---|
+| Documentation foundation | Done (this pass) |
+| Business rules BR-01–BR-13 | Recorded as approved (A26–A38), docs reconciled 2026-10-05 |
+| Technology stack | **Approved** (A39), installed locally |
+| Database schema | 9 migrations applied to the DEVELOPMENT Supabase project; parity with PGlite verified |
+| Auth / tenancy / roles / Parent links | Foundation implemented (no sign-in UI, no invitations, no link workflow) |
+| PWA | Basic foundation (manifest, placeholder icons, minimal SW) |
+| Tests | 388 local + 24 real-Supabase + 14-step UI E2E, all passing |
+| Version control | Git initialized; first local baseline commit created 2026-10-13; no remote |
+| Auth / onboarding / i18n | Implemented locally (OTP + magic link, invite-first, sw/en/ar + RTL) |
+| Parent links | Full workflow implemented (request/create → verify → activate → revoke) with explicit permissions and audit history |
+| Correction audio | Data foundation + storage contract; no capture/extraction |
+| Live Class architecture | Proposed, awaiting approval |
+| Live Class implementation | Not started |
+| Any other feature | Not started |
+| Hosting/infrastructure setup | Not started (not authorized) |
+| First deployment | Not started |
+
+## Next expected step
+
+Owner confirms the interpretations listed in the latest report (child proposal by Markaz Admins needs both explicit grants; registration-number format) and chooses the next feature scope. Production readiness is NOT approved; the Supabase project stays development-only.
