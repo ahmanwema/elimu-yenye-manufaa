@@ -3,6 +3,11 @@
 
 let context = {};
 let queue = [];
+let authCode = null; // sent with each batch (the server requires it); NEVER copied into events
+
+export function setTelemetryAuth(code) {
+  authCode = code || null;
+}
 
 export function setContext(next) {
   context = { ...context, ...next };
@@ -23,10 +28,11 @@ export function log(type, data = {}) {
 }
 
 async function flush() {
-  if (queue.length === 0) return;
+  if (queue.length === 0 || !authCode) return; // held until a valid code has been used
   const events = queue.splice(0, 500);
   try {
-    await fetch("/api/telemetry", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ events }) });
+    const res = await fetch("/api/telemetry", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: authCode, events }) });
+    if (!res.ok) throw new Error(String(res.status));
   } catch {
     queue.unshift(...events); // keep for the next attempt (e.g. during a network drop)
   }

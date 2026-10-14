@@ -4,3 +4,6 @@ dist/
 results/raw/
 .env*
 !.env.example
+# Local LAN certificate + key for the Phase 2 gateway — never commit.
+.certs/
+*.pem

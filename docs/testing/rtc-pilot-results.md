@@ -1,6 +1,13 @@
 # RTC + Whiteboard Pilot — Results (Agora vs LiveKit)
 
-Status (2026-10-13): **desk research complete; automated one-PC pilot RUN (2 full runs per provider). Phone, 4G/hotspot and XPPen tests NOT YET RUN.** Measured results are in §4, kept separate from the documentation findings in §1. **Final vendor: owner decision pending (A35).** Whiteboard transport: not decided.
+Status (2026-10-14): **pilot phase closed for now by the owner.**
+- Desk research complete.
+- Automated one-PC pilot: 2 full runs per provider (§4).
+- Real-device test on the same Wi-Fi: 1 Android phone, both providers (§5).
+- Not run: hotspot / 4G. The tunnel was never opened.
+- XPPen: **pending hardware**. Agora co-host authentication: **deferred**.
+
+Measured results are kept separate from the documentation findings in §1. **Final vendor: owner decision pending (A35).** Whiteboard transport: not decided.
 
 Plan: [rtc-pilot-plan.md](rtc-pilot-plan.md).
 
@@ -138,16 +145,68 @@ RTT maxima of 10–15 s occur during the simulated offline periods. CPU % was no
 
 **Not decided:** the final whiteboard transport.
 
-## 5. Not yet tested (evidence gaps)
+## 5. Real-device test — same Wi-Fi (2026-10-14)
+
+**Setup:**
+- **Teacher:** Windows 11 PC, Chrome 155, mouse.
+- **Student:** one **realme 7i** (Android 10, Chrome 153).
+- **Network:** both on the same home Wi-Fi (**REAL NETWORK**), through the hardened LAN gateway (`pilot/rtc/gateway.mjs`, HTTPS with a local self-signed certificate).
+- **Participants:** 1 teacher + 1 student.
+- **Providers:** both, LiveKit first, then Agora. About 46 min of LiveKit activity and about 81 min of Agora activity, including pauses.
+- **Owner-operated:** a real human voice, not a fake mic.
+
+**Data:**
+- Evidence: [pilot/rtc/results/real-device/2026-10-14-wifi.json](../../pilot/rtc/results/real-device/2026-10-14-wifi.json), sanitized from the git-ignored raw telemetry.
+- Event timestamps have 1-second resolution, so the latencies below are approximate (≈).
+- The Scenario field stayed `A-S1` for the whole session, so scenarios were identified from the events themselves.
+- **Excluded:** 04:30–04:33 UTC. The phone was set to LiveKit while the teacher's session was Agora (operator mismatch), which caused one "insufficient permissions" error.
+
+| Scenario | LiveKit | Agora |
+|---|---|---|
+| Phone join | 1575 ms | 1865–2191 ms (4 joins) |
+| Phone first teacher audio | 1572 ms | 2217–2341 ms (3 joins) |
+| Grant → phone allowed to publish | ≈1 s (server permission event) ×2 | ≈1–3 s (client switches to host) ×3 |
+| Grant → teacher hears phone | ≈30 s the first time, likely including Android's mic-permission prompt (not confirmed); later grants ≈1 s to publish | ≈3 s |
+| Revoke → audio stops at teacher | ≈0–1 s; the **server unpublished** the phone's track (`local_track_unpublished`) ×2 | ≈1 s; the client stepped down to audience (`BecomeAudience`) ×2 |
+| Unplanned connection episode | 04:05:57–04:07:53: repeated signalling reconnects, one full reconnect (2433 ms), teacher saw the phone leave and rejoin; recovered. Cause not recorded. | none |
+| Other events | — | Phone `AUDIO_INPUT_LEVEL_TOO_LOW`, recovered after 15 s. Teacher disconnected with `TOKEN_EXPIRE` after 1 h: **a pilot limitation** (60-min token, no renewal), not a provider fault. |
+| Security S3 on the phone (force publish / ignore revoke) | **not run** | **not run** |
+| Planned real interruption (airplane mode) | **not run** | **not run** |
+
+**Phone-side telemetry** (these metric names differ per SDK and are not equivalent):
+
+| Metric | LiveKit | Agora |
+|---|---|---|
+| RTT p50 / p95 / max | 101 / 135 / 274 ms (WebRTC candidate pair) | 224 / 262 / 444 ms (SDK) |
+| Jitter p50 / p95 | 9 / 24 ms | not exposed |
+| End-to-end delay p50 / p95 | not exposed | 238 / 649 ms |
+| Packet loss | not captured in the phone samples | SDK rate p95 0.01 %, max 4 % |
+| Receive bitrate | not sampled | p50 32 kbps |
+| Samples not connected | 39 / 1118 (the episode above) | 0 / 740 |
+| Phone JS heap | ≤ 11 MB | ≤ 11 MB |
+
+**Whiteboard on the phone:**
+- **Supabase Realtime:** the phone received 318 messages, of which **111 arrived out of sequence**. The gap counter showed 118, but it over-counts when messages arrive late, so actual loss is unproven. Final-board equality was not checked.
+- **Supabase ping RTT:** p50 549 ms, max 903 ms (n = 20, Agora sessions).
+- **LiveKit data:** **not validly tested on the phone.** The teacher switched to LiveKit data, but the phone stayed on Supabase.
+- **Owner note (subjective):** "Whiteboard works on Android, but visually feels slightly slower than LiveKit data; delay not severe."
+- All strokes came from a mouse (pressure 0.5). **No XPPen strokes.**
+
+**Voice quality:** a real voice was used. The only recorded comment is the whiteboard note above. No voice-quality notes, clap test or battery reading were logged, so none are reported.
+
+## 6. Not yet tested (evidence gaps)
 
 | Test | Status |
 |---|---|
-| Phones (Android/iPhone) on real Wi-Fi / 4G / hotspot, target region | not run |
-| Real network loss (airplane mode, cable pull) instead of emulation | not run |
-| Clap-test latency, listener scores, battery, CPU % | not run |
-| S6 at 60 min | not run (10 min automated only) |
-| XPPen Deco 640 checklist (Windows) | **not run — no physical test performed** |
-| Agora with co-host authentication enabled (support request) | not run |
+| Phones on hotspot / 4G, target region | **not run.** The owner closed the phase on 2026-10-14; the Cloudflare tunnel was never opened. |
+| More than one phone; iPhone | not run |
+| Security S3 on a real phone | not run (automated PC runs only, §4) |
+| Real network loss (airplane mode, Wi-Fi ↔ 4G) | not run (one unplanned LiveKit reconnect episode only) |
+| LiveKit data whiteboard on a real phone | not run (transport mismatch) |
+| Clap-test latency, voice-quality notes, battery, CPU % | not recorded |
+| S6 at 60 min | not run |
+| XPPen Deco 640 checklist (Windows) | **PENDING — hardware not yet available** |
+| Agora with co-host authentication enabled | **DEFERRED** (owner, 2026-10-14). The support request is drafted in [rtc-phase2-runbook.md](rtc-phase2-runbook.md). Agora results so far are **default mode only**. |
 | Recording/egress latency on either provider | not run |
 
 Generated per-run numbers for manual runs: `pilot/rtc/results/summary.md` (`npm run analyze`).

@@ -3,13 +3,14 @@
 // SERVER (here: from pilot codes in pilot/rtc/.env.local), never by the client.
 //
 // Endpoints (JSON, same-origin via the Vite proxy at /api):
-//   GET  /api/config                    → which providers are configured (no secrets)
+//   GET  /api/config                    → which providers are configured (nothing else; no code needed)
 //   POST /api/session   {code}          → teacher creates a fresh pilot room id
 //   POST /api/join      {code, provider, room} → role + provider token (server-chosen role)
 //   POST /api/hand      {code, room, up}        → student raises/lowers hand
 //   POST /api/mic       {code, room, provider, identity, grant} → teacher grants/revokes mic
 //   GET  /api/state?room=&code=         → hands + grants (polled by clients)
-//   POST /api/telemetry {events:[...]}  → appended to results/raw/<date>.jsonl
+//   POST /api/telemetry {code, events}  → appended to results/raw/<date>.jsonl
+// Every endpoint except /api/config requires a valid pilot code; wrong codes are rate-limited.
 import http from "node:http";
 import { randomUUID, randomInt } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
@@ -18,6 +19,9 @@ import agoraToken from "agora-token";
 
 const { RtcTokenBuilder, RtcRole } = agoraToken;
 const PORT = Number(process.env.PILOT_PORT ?? 8787);
+const HOST = process.env.PILOT_HOST ?? "127.0.0.1"; // reached only through gateway.mjs / the Vite proxy
+const MAX_CODE_FAILURES = Number(process.env.PILOT_MAX_CODE_FAILURES ?? 10); // per client, per window
+const FAILURE_WINDOW_MS = 10 * 60 * 1000;
 const env = (k) => (process.env[k] ?? "").trim();
 
 const TEACHER = env("PILOT_TEACHER_CODE");
@@ -77,6 +81,25 @@ function agoraTokenFor(room, uid, publisher) {
   );
 }
 
+// Brute-force brake for the public tunnel: count wrong codes per client (gateway.mjs passes the
+// original address in x-pilot-client) and refuse that client for the rest of the window.
+const failures = new Map(); // client → { n, since }
+const clientKey = (req) => String(req.headers["x-pilot-client"] ?? req.socket.remoteAddress ?? "?");
+function lockedOut(key) {
+  const f = failures.get(key);
+  if (!f) return false;
+  if (Date.now() - f.since > FAILURE_WINDOW_MS) {
+    failures.delete(key);
+    return false;
+  }
+  return f.n >= MAX_CODE_FAILURES;
+}
+function noteFailure(key) {
+  const f = failures.get(key);
+  if (!f || Date.now() - f.since > FAILURE_WINDOW_MS) failures.set(key, { n: 1, since: Date.now() });
+  else f.n++;
+}
+
 const lkService = () => new RoomServiceClient(lk.url.replace(/^wss?:/, "https:"), lk.key, lk.secret);
 
 async function handle(req, res, body) {
@@ -87,13 +110,16 @@ async function handle(req, res, body) {
   };
 
   if (req.method === "GET" && url.pathname === "/api/config") {
-    return send(200, {
-      configured,
-      livekitUrl: configured.livekit ? lk.url : null, // public WebSocket URL, not a secret
-      agoraAppId: configured.agora ? ag.appId : null, // App ID is public by design
-      supabaseUrl: env("NEXT_PUBLIC_SUPABASE_URL") || null,
-      supabasePublishableKey: env("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY") || null,
-    });
+    return send(200, { configured });
+  }
+
+  // Everything below needs a valid pilot code. Wrong codes are counted per client.
+  const key = clientKey(req);
+  if (lockedOut(key)) return send(429, { error: "too many wrong codes; try again later" });
+  const who = whoIs(body?.code ?? url.searchParams.get("code"));
+  if (!who) {
+    noteFailure(key);
+    return send(403, { error: "unknown pilot code" });
   }
 
   if (req.method === "POST" && url.pathname === "/api/telemetry") {
@@ -101,12 +127,10 @@ async function handle(req, res, body) {
     mkdirSync("results/raw", { recursive: true });
     const file = `results/raw/${new Date().toISOString().slice(0, 10)}.jsonl`;
     const serverTime = Date.now();
-    appendFileSync(file, body.events.map((e) => JSON.stringify({ ...e, serverTime })).join("\n") + "\n");
+    // The submitter's server-side identity is recorded; the code itself is never stored.
+    appendFileSync(file, body.events.map((e) => JSON.stringify({ ...e, serverTime, submittedBy: who.identity })).join("\n") + "\n");
     return send(200, { ok: true });
   }
-
-  const who = whoIs(body?.code ?? url.searchParams.get("code"));
-  if (!who) return send(403, { error: "unknown pilot code" });
 
   if (req.method === "POST" && url.pathname === "/api/session") {
     if (who.role !== "teacher") return send(403, { error: "teacher only" });
@@ -121,13 +145,18 @@ async function handle(req, res, body) {
 
   if (req.method === "POST" && url.pathname === "/api/join") {
     const provider = body.provider;
+    // Whiteboard transport settings (Supabase dev project, publishable key): only after a valid code.
+    const wb = {
+      supabaseUrl: env("NEXT_PUBLIC_SUPABASE_URL") || null,
+      supabasePublishableKey: env("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY") || null,
+    };
     if (provider === "livekit" && configured.livekit) {
-      return send(200, { ...who, provider, url: lk.url, token: await liveKitToken(room, who) });
+      return send(200, { ...who, provider, url: lk.url, token: await liveKitToken(room, who), wb });
     }
     if (provider === "agora" && configured.agora) {
       const uid = agoraUid(state, who.identity);
       const publisher = who.role === "teacher" || state.grants.has(who.identity);
-      return send(200, { ...who, provider, appId: ag.appId, uid, token: agoraTokenFor(room, uid, publisher) });
+      return send(200, { ...who, provider, appId: ag.appId, uid, token: agoraTokenFor(room, uid, publisher), wb });
     }
     return send(400, { error: `provider ${provider} not configured` });
   }
@@ -207,6 +236,6 @@ http
       }
     });
   })
-  .listen(PORT, () => {
-    console.log(`[pilot] token server on :${PORT} — configured: ${JSON.stringify(configured)}`);
+  .listen(PORT, HOST, () => {
+    console.log(`[pilot] token server on ${HOST}:${PORT} — configured: ${JSON.stringify(configured)}`);
   });

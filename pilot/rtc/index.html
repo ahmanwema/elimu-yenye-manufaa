@@ -30,12 +30,17 @@
           <option value="hotspot-average">Average mobile hotspot (real)</option>
           <option value="4g">4G mobile data (real)</option>
           <option value="weak-unstable">Weak/unstable (real)</option>
+          <option value="switching-wifi-4g">Switching Wi-Fi ↔ 4G during the test (real)</option>
           <option value="sim-throttled">Simulated / throttled (DevTools)</option>
           <option value="automation-pc">Automated: one PC, Chrome, fake mic (real network)</option>
         </select>
       </label>
       <label>Device <input id="device" placeholder="e.g. Tecno Spark 10, Chrome 131" size="28" /></label>
       <label>Scenario <input id="scenario" placeholder="e.g. S2-run1" size="10" /></label>
+      <div class="row">
+        <label>Note <input id="note" placeholder="e.g. clap test 420 ms; voice clear, no echo (subjective)" size="44" /></label>
+        <button id="logNote">Log note</button>
+      </div>
     </fieldset>
 
     <fieldset>

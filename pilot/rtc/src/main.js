@@ -1,6 +1,6 @@
 import { connectAgora } from "./providers/agora.js";
 import { connectLiveKit } from "./providers/livekit.js";
-import { deviceSample, log, setContext } from "./telemetry.js";
+import { deviceSample, log, setContext, setTelemetryAuth } from "./telemetry.js";
 import { createWhiteboard } from "./whiteboard.js";
 
 const $ = (id) => document.getElementById(id);
@@ -36,10 +36,19 @@ function context() {
 for (const id of ["provider", "network", "device", "scenario"]) $(id).addEventListener("change", context);
 context();
 
+// Manual observations (subjective voice quality, clap-test latency, what the tester saw).
+$("logNote").onclick = () => {
+  const text = $("note").value.trim().slice(0, 500);
+  if (!text) return;
+  log("note", { text });
+  $("note").value = "";
+};
+
 $("create").onclick = async () => {
   try {
     const { room } = await api("session", { code: $("code").value });
     $("room").value = room;
+    setTelemetryAuth($("code").value);
     log("session_created", { room });
   } catch (e) {
     log("error", { where: "create", error: e.message });
@@ -51,6 +60,8 @@ $("join").onclick = async () => {
   try {
     join = { ...(await api("join", { code: $("code").value, provider, room: $("room").value })), room: $("room").value };
     context();
+    setTelemetryAuth($("code").value);
+    Object.assign(config, join.wb); // whiteboard settings arrive only after a valid code
     $("who").textContent = `Joined as ${join.identity} (${join.role}, decided by the server) via ${provider}`;
     const handlers = {
       onRemoteAudio: (from, el) => el && $("audio").append(el),

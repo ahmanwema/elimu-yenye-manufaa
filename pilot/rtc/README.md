@@ -49,6 +49,25 @@ npm run client        # terminal 2: https://<laptop-ip>:5173 (self-signed certif
 ### Remote / 4G testing
 Phones on 4G cannot reach a laptop on Wi-Fi. That needs a temporary HTTPS tunnel to the laptop (for example Cloudflare's `cloudflared tunnel --url https://localhost:5173`, a single downloaded program). **This is an owner decision**, because it exposes the pilot publicly for the duration of the test. Use only throwaway pilot codes.
 
+## Real-device access (Phase 2): hardened gateway
+
+Use this instead of the Vite dev server whenever phones connect.
+
+1. **Build:** `npx vite build` (writes `dist/`).
+2. **Certificate:** create a local dev certificate, git-ignored and valid 7 days:
+   ```bash
+   mkdir -p .certs && MSYS_NO_PATHCONV=1 openssl req -x509 -newkey rsa:2048 -nodes -days 7 \
+     -keyout .certs/lan-key.pem -out .certs/lan-cert.pem -subj "/CN=elimu-rtc-pilot-LOCAL-DEV" \
+     -addext "subjectAltName=IP:<PC-LAN-IP>,DNS:localhost,IP:127.0.0.1"
+   ```
+3. **Run:** `npm run server` (token server, 127.0.0.1:8787 only) and `node gateway.mjs`.
+   - LAN: `https://<PC-LAN-IP>:5443`.
+   - Tunnel: `http://127.0.0.1:5480`, loopback only.
+4. **What the gateway exposes:** only `dist/` and the 7 pilot API endpoints. Every endpoint except `/api/config` (configured flags only) needs a pilot code, and wrong codes are rate-limited.
+5. **Stop it** after testing, and confirm the ports are closed.
+
+Owner runbook: [docs/testing/rtc-phase2-runbook.md](../../docs/testing/rtc-phase2-runbook.md). A public tunnel (`cloudflared tunnel --url http://127.0.0.1:5480`) is an owner decision each time. As of 2026-10-14 it has never been opened.
+
 ## Automated side-by-side run (one PC)
 
 `node automation/run.mjs --provider livekit|agora [--s6-minutes 10]`

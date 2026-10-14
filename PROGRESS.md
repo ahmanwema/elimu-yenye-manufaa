@@ -104,6 +104,30 @@ Chronological, factual log of what has actually happened. Do not record intentio
 - **Vendor and whiteboard transport: owner decision pending (A35 unchanged).**
 - Pilot tests 5/5; app check 388/388; build OK. One local commit, not pushed.
 
+## 2026-10-14 — RTC pilot Phase 2: real-device Wi-Fi test; pilot phase closed
+
+**Pilot hardening, before any device access:**
+- The token server listens on 127.0.0.1 only.
+- `/api/config` returns only the "configured" flags. Whiteboard (Supabase dev) settings come only after a valid code.
+- Telemetry requires a valid code; the code is never stored in events.
+- Wrong codes lock a client out after 10 tries per 10 min.
+- New `gateway.mjs` serves only the built `dist/` plus 7 allow-listed API endpoints. It uses HTTPS for the LAN with a local self-signed 7-day certificate in git-ignored `.certs/`. Its loopback HTTP listener for a tunnel was prepared but never used.
+- Exposure probes (env files, source, results, traversal, `/@fs`, other ports) were all refused. No secrets in the bundle; no codes in logs.
+- Pilot tests: 7/7.
+
+**Owner test:**
+- Windows Chrome teacher + realme 7i (Android 10, Chrome 153) on the same Wi-Fi, both providers, real voice.
+- Findings: [docs/testing/rtc-pilot-results.md](docs/testing/rtc-pilot-results.md) §5. Evidence: `pilot/rtc/results/real-device/2026-10-14-wifi.json`.
+
+**Closed by the owner:**
+- XPPen: **pending hardware**.
+- Agora co-host authentication: **deferred**.
+- Hotspot / 4G: not run. The **Cloudflare tunnel was never opened** (cloudflared was never installed).
+- Pilot server and gateway stopped; ports 5443 / 5480 / 8787 confirmed closed.
+- **No vendor selected (A35 unchanged).**
+
+**Firewall review (not changed):** Windows has two pre-existing "Node.js JavaScript Runtime" inbound Allow rules, created by an earlier click on the Windows prompt. They cover TCP and UDP, any port, any remote address, Public profile. They are not needed now. Recommendation: remove them, or narrow them to a specific port + `LocalSubnet` when LAN tests resume.
+
 ## Status snapshot
 
 | Area | Status |

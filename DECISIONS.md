@@ -192,6 +192,7 @@ See the full list with context in [docs/roadmap/open-questions.md](docs/roadmap/
 7. Recording consent flow and retention period for lesson recordings. — **Resolved at business level by A30/A31**; deletion mechanics and authorized-deleter definition still open (open question 16).
 8. Final RTC/whiteboard vendor selection (build vs buy) — see [docs/system/technology-evaluation.md](docs/system/technology-evaluation.md). — **Still open**; selection *process* approved by A35.
    - 2026-10-13: **Pilot prepared — owner decision pending.** Plan [docs/testing/rtc-pilot-plan.md](docs/testing/rtc-pilot-plan.md), harness `pilot/rtc/` (throwaway). No vendor selected; A35 unchanged.
+   - 2026-10-14: **Real-device Wi-Fi test done (1 Android phone); pilot phase closed for now by the owner.** XPPen pending hardware; Agora co-host authentication deferred; hotspot/4G not run. Results: [docs/testing/rtc-pilot-results.md](docs/testing/rtc-pilot-results.md) §5. No vendor selected; A35 unchanged.
    - 2026-10-13: **Pilot run (automated, one PC) — owner decision pending.** Measured results: [docs/testing/rtc-pilot-results.md](docs/testing/rtc-pilot-results.md) §4. Phone/4G/XPPen tests not yet run. No vendor selected; A35 unchanged.
 9. Whether native iOS/Android apps are needed at MVP or can wait behind PWA + mobile web. — **Resolved by A36** (not needed for MVP).
 
