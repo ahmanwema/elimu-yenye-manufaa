@@ -4,11 +4,13 @@ import { Suspense } from "react";
 import { ActionForm } from "@/components/action-form";
 import { format } from "@/i18n/dictionaries";
 import { getDictionary, getLocale } from "@/i18n/server";
+import { enableOptionCAction } from "@/server/actions/media";
 import { grantPermissionAction, reviewAppointmentAction, revokePermissionAction } from "@/server/actions/workspace";
 import { GRANTABLE_PERMISSIONS } from "@/server/authz/policy";
 import { getCurrentActor } from "@/server/auth";
 import { getDb } from "@/server/db";
 import { listPendingAppointmentRequests } from "@/server/services/appointments";
+import { listPendingOptionCRequests } from "@/server/services/option-c";
 import { listPermissionOverview } from "@/server/services/platform";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -36,14 +38,34 @@ async function PlatformBody() {
   if (!current.actor.isPlatformAdmin) return <p role="alert">{dict.platform.notAllowed}</p>;
 
   const db = getDb();
-  const [requests, overview] = await Promise.all([
+  const [requests, overview, optionC] = await Promise.all([
     listPendingAppointmentRequests(db, current.actor),
     listPermissionOverview(db, current.actor),
+    listPendingOptionCRequests(db, current.actor),
   ]);
   const name = (n: string | null) => n ?? dict.markaz.unnamed;
 
   return (
     <>
+      <section className="card" aria-labelledby="option-c">
+        <h2 id="option-c">{dict.platform.optionCHeading}</h2>
+        <p className="muted">{dict.media.optionCNote}</p>
+        {optionC.length === 0 ? (
+          <p className="muted">{dict.platform.noOptionC}</p>
+        ) : (
+          <ul className="list">
+            {optionC.map((o) => (
+              <li key={o.tenantId} className="row">
+                <span>{o.tenant.name}</span>
+                <ActionForm action={enableOptionCAction} submitLabel={dict.platform.optionCEnable} pendingLabel={dict.common.loading} messages={dict.results} inline>
+                  <input type="hidden" name="tenantId" value={o.tenantId} />
+                </ActionForm>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="card" aria-labelledby="requests">
         <h2 id="requests">{dict.platform.requestsHeading}</h2>
         {requests.length === 0 ? (

@@ -15,7 +15,11 @@ export type DomainErrorCode =
   /** Recording consent (A70–A72) does not allow capturing this student's audio. */
   | "consent_required"
   /** The stored file is not AAC audio in M4A of at most 60 seconds (A69). */
-  | "invalid_media";
+  | "invalid_media"
+  /** A84: the requester cannot approve their own deletion request; another admin must. */
+  | "second_admin_required"
+  /** A90: Option C (full recording) is not enabled for this Markaz. */
+  | "feature_not_enabled";
 
 export class DomainError extends Error {
   constructor(

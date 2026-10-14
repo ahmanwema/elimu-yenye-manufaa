@@ -146,6 +146,23 @@ Chronological, factual log of what has actually happened. Do not record intentio
 - **Fail-closed:** the minor age threshold is unset, so no student is currently recording-eligible.
 - Tests: 511 local (27 files; +123), lint, typecheck and build pass. `tests/real` was updated but not run (needs the new migrations on the dev project).
 
+## 2026-10-15 — Media policy decisions completed (local, A81–A91)
+
+- Owner decisions A81–A91 recorded and implemented:
+  - under-18 threshold; DOB entered by student/guardian and verified by a Markaz Admin;
+  - adult self-consent; withdrawal actors;
+  - no deletion self-approval (second admin; single admin → stays pending); cancel/decline;
+  - 7-day abandoned-upload cleanup; 10 MB clip limit;
+  - recording reject/resubmit; explicit current-clip selection;
+  - teacher recording notice; Option C request → Super Admin enable (entitlement only).
+- Migrations `20261015000000_media_policy_decisions` (additive; DOB columns renamed) and `20261015000100_media_policy_decisions_rls`. Applied to PGlite only.
+- UI:
+  - account: own DOB and consent, guardian DOB and consent;
+  - Markaz: DOB verification, decline/cancel, reject/resubmit, Make current, Option C request;
+  - platform: Option C enable.
+- Tests: 539 local (28 files; +28), lint, typecheck, build pass. Real Supabase NOT changed; pending plan in docs/testing/dev-supabase-verification.md.
+- Remaining open: items 41, 42, 46–50 (open-questions.md); RTC vendor (A35); XPPen (hardware).
+
 ## Status snapshot
 
 | Area | Status |
@@ -153,10 +170,10 @@ Chronological, factual log of what has actually happened. Do not record intentio
 | Documentation foundation | Done (this pass) |
 | Business rules BR-01–BR-13 | Recorded as approved (A26–A38), docs reconciled 2026-10-05 |
 | Technology stack | **Approved** (A39), installed locally |
-| Database schema | 9 migrations applied to the DEVELOPMENT Supabase project (parity verified); 2 further local migrations (2026-10-14, media policy) NOT yet applied there |
+| Database schema | 9 migrations applied to the DEVELOPMENT Supabase project (parity verified); 4 further local migrations (2026-10-14/15, media policy) NOT yet applied there |
 | Auth / tenancy / roles / Parent links | Foundation implemented (no sign-in UI, no invitations, no link workflow) |
 | PWA | Basic foundation (manifest, placeholder icons, minimal SW) |
-| Tests | 511 local (2026-10-14) + 24 real-Supabase + 14-step UI E2E (real suites last run 2026-10-13) |
+| Tests | 539 local (2026-10-15) + 24 real-Supabase + 14-step UI E2E (real suites last run 2026-10-13) |
 | Version control | Git initialized; first local baseline commit created 2026-10-13; no remote |
 | Auth / onboarding / i18n | Implemented locally (OTP + magic link, invite-first, sw/en/ar + RTL) |
 | Parent links | Full workflow implemented (request/create → verify → activate → revoke) with explicit permissions and audit history |

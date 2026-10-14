@@ -63,6 +63,8 @@ export class FakeStorage implements ObjectStorage {
   readonly objects = new Map<string, Uint8Array>();
   readonly signedDownloads: string[] = [];
   readonly deleted: string[] = [];
+  /** Number of ranged reads served (an oversized file must be rejected without any). */
+  reads = 0;
   put(bucket: string, key: string, content: number | Uint8Array) {
     this.objects.set(`${bucket}/${key}`, typeof content === "number" ? new Uint8Array(content) : content);
   }
@@ -84,6 +86,7 @@ export class FakeStorage implements ObjectStorage {
     return bytes === undefined ? ({ exists: false } as const) : ({ exists: true, byteSize: bytes.length } as const);
   }
   async readRange(bucket: string, key: string, offset: number, length: number) {
+    this.reads++;
     const bytes = this.objects.get(`${bucket}/${key}`);
     if (!bytes) throw new Error("no such object");
     return bytes.slice(offset, offset + length);

@@ -9,7 +9,7 @@ Statuses used throughout the documentation:
 - **OPEN QUESTION** — unresolved, needs an owner decision before design/implementation can proceed in that area.
 - **DEFERRED** — intentionally out of scope for now; revisit later.
 
-Last updated: 2026-10-14 (recording & correction media — A66–A80, §1.6). Previous: 2026-10-13 (fourth update: delegation, child proposal, self-request, Supabase environment — A62–A65, §1.5).
+Last updated: 2026-10-15 (media policy decisions — A81–A91, §1.7). Previous: 2026-10-14 (recording & correction media — A66–A80, §1.6). Previous: 2026-10-13 (fourth update: delegation, child proposal, self-request, Supabase environment — A62–A65, §1.5).
 
 History: 2026-09-30 initial documentation pass. 2026-10-05 owner business decisions BR-01–BR-13 reconciled (A26–A38, §1.1).
 
@@ -102,6 +102,33 @@ These come directly from the project owner's brief and are treated as fixed requ
 | A78 | **Recording approval:** the Teacher owns the teaching workflow and may **submit**; a **Markaz Admin** reviews, **approves** and may later **revoke**. Default approval covers the **whole recording**; **segment approval** is a special case. A parent sees a recording only if it is APPROVED **and** the link is ACTIVE **and** applicable consent rules are satisfied — never merely because the object exists. | Owner decision (2026-10-14) |
 | A79 | **Approval revocation is not deletion:** revoked media stays stored/history-retained under the retention rules but is hidden from ordinary parent visibility. States: DRAFT → PENDING_APPROVAL → APPROVED → REVOKED (no rejection/return workflow approved). | Owner decision (2026-10-14) |
 | A80 | **Mandatory audit events:** Super Admin media access, recording approval and revocation, deletion request and approval, physical purge, verified offline consent, consent withdrawal (actor, tenant, action, target type/id, time; never secrets or signed URLs). | Owner decision (2026-10-14) |
+| A81 | **Minor = age < 18; adult = age ≥ 18**, derived from the date of birth (no stored is_minor flag). Resolves OQ34. | Owner decision (2026-10-15) |
+| A82 | **DOB entry & verification:** the DOB may be entered by the student or a parent/guardian; a **Markaz Admin must verify it** before it is trusted for consent/minor decisions. Until verified, recording eligibility fails closed. Entered by/at and verified by/at are tracked; the DOB is not broadly exposed. | Owner decision (2026-10-15) |
+| A83 | **Adult consent & withdrawal:** an adult student gives their **own** consent during the enrollment/account flow and may withdraw it. For a minor, an **ACTIVE guardian** may withdraw consent. Withdrawal keeps A72's effects (future capture blocked; existing media to review/deletion; no immediate hard delete). Resolves OQ35 and part of OQ40. | Owner decision (2026-10-15) |
+| A84 | **No deletion self-approval:** a Markaz Admin must not approve a deletion request they created; a **second eligible Markaz Admin** is required. With only one admin the request stays pending, with a clear status — never silently self-approved. Resolves OQ36 for deletion. | Owner decision (2026-10-15) |
+| A85 | **Deletion cancel / decline:** the requester may **cancel** their own pending request; a Markaz Admin may **decline** a pending request. States PENDING / APPROVED / DECLINED / CANCELLED; actor and time recorded; optional decline reason. Media is untouched on DECLINED or CANCELLED. Resolves OQ43. | Owner decision (2026-10-15) |
+| A86 | **Abandoned uploads:** unfinalized correction-audio uploads are cleaned up after **7 days** by a safe, re-runnable server-side cleanup; finalized clips are never cleaned for age. No production scheduling. Resolves OQ37. | Owner decision (2026-10-15) |
+| A87 | **Recording review flow:** PENDING_APPROVAL → REJECTED (Markaz Admin); the teacher may fix and **resubmit** after rejection or after approval revocation (REVOKED → PENDING_APPROVAL); never auto-re-approved; the Markaz Admin stays the final approver. Submit, approve, reject, revoke and resubmit are audited. Resolves OQ39. | Owner decision (2026-10-15) |
+| A88 | **Current clip promotion:** when the current clip is deleted/restricted, nothing is promoted automatically; the **teacher or a same-tenant Markaz Admin** explicitly chooses a historical finalized, non-deleted, non-purged clip of the same correction. One current clip at a time; audited; history preserved; a correction may temporarily have no current clip. Resolves OQ44. | Owner decision (2026-10-15) |
+| A89 | **Teacher recording notice:** teachers need no separate consent flow but must receive (and acknowledge) a recording notice, distinct from student consent and never treated as guardian/student consent. No employment/legal logic. Resolves OQ45 (teacher part). | Owner decision (2026-10-15) |
+| A90 | **Option C enablement:** Markaz Admin → **request** → Super Admin → **approve/enable**. Teachers cannot enable it. Provider-neutral tenant **entitlement only** — no pricing, payment, billing or subscription logic. Resolves OQ45 (Option C part). | Owner decision (2026-10-15) |
+| A91 | **Correction clip maximum file size: 10 MB** (in addition to AAC in M4A and ≤ 60 s), enforced at the service layer. Resolves OQ38. | Owner decision (2026-10-15) |
+
+### 1.7 Supersession and refinement record (2026-10-15, media policy decisions)
+
+| Earlier entry | Earlier content (summary) | New decision | Relationship |
+|---|---|---|---|
+| Interim (2026-10-14) | Age threshold unset → nobody recording-eligible. | A81 | **Superseded:** under 18 = minor. |
+| Interim (2026-10-14) | A guardian or a Markaz Admin may record the DOB; recording = trusted. | A82 | **Superseded:** student or guardian enters; a Markaz Admin verifies; unverified = not eligible. Markaz Admins no longer enter DOBs. |
+| Interim (2026-10-14) | Adults not eligible (adult consent undecided). | A83 | **Superseded:** adults consent for themselves (SELF_ONLINE). |
+| Interim (2026-10-14) | Withdrawal: online by an ACTIVE guardian; offline by a Markaz Admin. | A83 | **Superseded:** adult withdraws own; for a minor an ACTIVE guardian withdraws (any of the minor's consents). Markaz Admins no longer withdraw. |
+| A73 / interim | Admin self-approval undecided; refused. | A84 | **Decided:** refused; second admin required (also a DB CHECK). |
+| A74 / interim | Requests only PENDING → APPROVED. | A85 | **Extended:** DECLINED and CANCELLED. |
+| Interim | Abandoned-upload cleanup had no default age. | A86 | **Decided:** 7 days. |
+| A69 / interim | No file-size limit. | A91 | **Extended:** 10 MB maximum. |
+| A79 | No rejection workflow; REVOKED final. | A87 | **Extended:** REJECTED and resubmission after rejection or revocation. |
+| Interim | No automatic promotion of an older clip. | A88 | **Confirmed** and extended with explicit selection. |
+| OQ45 | Teacher consent; Option C enablement. | A89, A90 | **Resolved.** |
 
 ### 1.6 Supersession and refinement record (2026-10-14, recording & correction media)
 
@@ -177,7 +204,10 @@ Historical entries are kept, not deleted. This table records which earlier entri
 | A15 (Approved) | Class capacity varies by plan. | A33 | **Refined, not superseded** — no concrete numbers until pilot/cost testing. |
 | A21 (Approved) | Free/paid plans, monthly subscriptions, course payments, M-Pesa, Airtel Money; tuition emphasis. | A34 | **Refined, not superseded** — A34 adds the requirement that the commercial concepts stay distinct. |
 
-## 2. Current authorization scope (as of 2026-10-14)
+## 2. Current authorization scope (as of 2026-10-15)
+
+**Authorized (2026-10-15, sixth authorization):** LOCAL implementation of A81–A91 (new additive migrations, services, RLS, UI, tests, docs) and ONE local commit. NOT authorized: applying migrations or configuration to the real Supabase project, production, deploy, push, choosing the RTC vendor, provider-specific recording, payments/billing.
+
 
 **Authorized (2026-10-14, fifth authorization):** LOCAL implementation of the recording & correction media decisions A66–A80 (schema, local migrations, RLS SQL, services, UI, tests, docs) and ONE local commit after all checks pass. NOT authorized: applying migrations to or changing the real Supabase development project without explicit owner approval, production, deploy, push, choosing the RTC vendor, provider-specific recording/egress, payments. (Earlier: the RTC pilot authorizations of 2026-10-13/14 — closed.)
 
@@ -237,6 +267,8 @@ New owner questions surfaced while reconciling the 2026-10-05 decisions are list
 2026-10-13 (parent workflow): items 14, 27, 28, 29, 30 resolved. Items 31–33 record interim engineering choices awaiting confirmation.
 
 2026-10-13 (fourth update): items 31, 32, 33 resolved (A62, A63, A64).
+
+2026-10-15 (media policy decisions): items 34, 35, 37, 38, 39, 43, 44, 45 and part of 36/40 resolved by A81–A91; items 46–50 added.
 
 2026-10-14 (recording & correction media): items 15 (stale), 16, 17, 19, 20, 23 resolved by A66–A80. New items 34–45 record what those decisions leave open and the interim (fail-closed) behaviour in code.
 

@@ -72,7 +72,9 @@ describe("server action surface", () => {
     // clip, recording media register/finalize, purge, abandoned-upload cleanup, anchor
     // removal) must NEVER appear here.
     "media.ts": [
-      "recordDateOfBirthAction",
+      "enterDateOfBirthAction",
+      "verifyDateOfBirthAction",
+      "giveOwnConsentAction",
       "giveGuardianConsentAction",
       "recordOfflineConsentAction",
       "withdrawConsentAction",
@@ -82,10 +84,17 @@ describe("server action surface", () => {
       "clipPlaybackAction",
       "requestMediaDeletionAction",
       "approveMediaDeletionAction",
+      "declineMediaDeletionAction",
+      "cancelMediaDeletionAction",
+      "selectCurrentClipAction",
       "createRecordingAction",
       "submitRecordingAction",
       "approveRecordingAction",
       "revokeRecordingApprovalAction",
+      "rejectRecordingAction",
+      "updateRecordingTitleAction",
+      "requestOptionCAction",
+      "enableOptionCAction",
       "recordingPlaybackAction",
     ],
   };

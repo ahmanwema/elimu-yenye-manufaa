@@ -8,7 +8,7 @@ import { insertCorrection, insertGuardianConsent, M, MINOR_DOB, seedMedia, setDo
 // Data API (RLS) view of the recording & correction media tables (2026-10-14).
 let db: PGlite;
 
-const SERVER_ONLY = ["recording_consents", "recordings", "recording_participants", "recording_segments", "media_deletion_requests", "audit_events"];
+const SERVER_ONLY = ["recording_consents", "recordings", "recording_participants", "recording_segments", "media_deletion_requests", "audit_events", "recording_entitlements"];
 const EVERYONE = [U.superAdmin, U.adminA, U.adminB, U.teacherA, U.teacherAB, U.studentX, U.parentActive, M.departedTeacher];
 
 beforeAll(async () => {
@@ -57,6 +57,7 @@ describe("date of birth stays server-only", () => {
     expect(await count(U.parentActive, "SELECT profile_id FROM student_accounts")).toBe(1);
     for (const who of [U.studentX, U.parentActive, U.adminA, U.superAdmin]) {
       await expect(count(who, "SELECT date_of_birth FROM student_accounts")).rejects.toThrow(/permission denied/);
+      await expect(count(who, "SELECT date_of_birth_verified_by_id FROM student_accounts")).rejects.toThrow(/permission denied/);
       await expect(count(who, "SELECT * FROM student_accounts")).rejects.toThrow(/permission denied/);
     }
   });

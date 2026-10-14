@@ -22,31 +22,34 @@ import {
 import { auditSuperAdminRead, recordAudit } from "./audit";
 import { getRecordingEligibility } from "./consent";
 import { DomainError } from "./errors";
+import { requireOptionCEnabled } from "./option-c";
 
 // Full-session recordings (Option C) — PROVIDER-NEUTRAL foundation only (A77–A80; A35:
 // no RTC vendor chosen). There is NO capture, egress, extraction or transcoding here: a
 // future vendor adapter/worker writes the media through the internal register/finalize
 // functions below and must honour the capture plan.
 //
-//   DRAFT ──submit (author teacher)──▶ PENDING_APPROVAL ──approve (Markaz Admin)──▶ APPROVED
-//                                                                                    │
-//                                                     revoke (Markaz Admin) ─────────▼
-//                                                                                 REVOKED
-// No rejection/return state exists: it was not approved (owner decision pending).
-// Revocation is not deletion; deletion is ./media-deletion.ts.
+// Review workflow (A78–A79, completed 2026-10-15 by A87):
+//
+//   DRAFT ──submit (teacher)──▶ PENDING_APPROVAL ──approve (Markaz Admin)──▶ APPROVED
+//                                 │      ▲                                     │
+//          reject (Markaz Admin)  ▼      │ resubmit (teacher)                  │ revoke (Markaz Admin)
+//                              REJECTED ─┘◀────────────── REVOKED ◀─────────────┘
+//
+// Resubmission never re-approves anything: it always returns to PENDING_APPROVAL for a
+// Markaz Admin. Revocation is not deletion; deletion is ./media-deletion.ts.
+// Option C must be ENABLED for the Markaz (A90) to create or start a recording.
 
 export type RecordingOptions = { now?: Date; policy?: ConsentPolicy };
 
 const createSchema = z.object({ tenantId: z.uuid(), title: z.string().trim().max(200).optional() });
 
-/**
- * An ACTIVE teacher creates recording metadata. Option C entitlement (how the add-on is
- * enabled, A44) is not decided and not enforced here.
- */
+/** An ACTIVE teacher creates recording metadata — only where Option C is ENABLED (A90). */
 export async function createRecording(db: PrismaClient, actor: Actor, input: unknown, options: RecordingOptions = {}) {
   const parsed = createSchema.safeParse(input);
   if (!parsed.success) throw new DomainError("invalid_input");
   if (!hasActiveRole(actor, parsed.data.tenantId, "TEACHER")) throw new AuthorizationError();
+  await requireOptionCEnabled(db, parsed.data.tenantId);
   const recording = await db.recording.create({
     data: {
       tenantId: parsed.data.tenantId,
@@ -72,19 +75,54 @@ async function loadForAuthor(db: PrismaClient, actor: Actor, input: unknown) {
   return recording;
 }
 
-const startSchema = z.object({ recordingId: z.uuid(), noticeShown: z.literal(true) });
+const startSchema = z.object({
+  recordingId: z.uuid(),
+  /** A30: the recording-start notice was shown to everyone in the session. */
+  noticeShown: z.literal(true),
+  /** A89: the teacher acknowledges their OWN recording notice (not consent). */
+  teacherNoticeAcknowledged: z.literal(true),
+});
 
 /**
- * Marks capture as started. A30: general consent never replaces the recording-start notice,
- * so the caller must confirm the notice was shown to everyone in the session.
+ * Marks capture as started. General consent never replaces the recording-start notice (A30),
+ * and the teacher must acknowledge the teacher recording notice (A89) — a notice, not a
+ * consent: it is never treated as student or guardian consent and gates nothing else.
  */
 export async function startRecording(db: PrismaClient, actor: Actor, input: unknown, options: RecordingOptions = {}) {
   const parsed = startSchema.safeParse(input);
   if (!parsed.success) throw new DomainError("invalid_input");
   const recording = await loadForAuthor(db, actor, { recordingId: parsed.data.recordingId });
   if (recording.status !== "DRAFT" || recording.startedAt || recording.deletedAt) throw new DomainError("invalid_state");
+  await requireOptionCEnabled(db, recording.tenantId);
   const now = options.now ?? new Date();
-  await db.recording.update({ where: { id: recording.id }, data: { noticeShownAt: now, startedAt: now } });
+  await db.$transaction(async (tx) => {
+    await tx.recording.update({
+      where: { id: recording.id },
+      data: { noticeShownAt: now, startedAt: now, teacherNoticeAcknowledgedAt: now, teacherNoticeAcknowledgedById: actor.profileId },
+    });
+    await recordAudit(tx, {
+      actorId: actor.profileId,
+      tenantId: recording.tenantId,
+      action: "RECORDING_TEACHER_NOTICE_ACKNOWLEDGED",
+      targetType: "RECORDING",
+      targetId: recording.id,
+      now,
+    });
+  });
+}
+
+const titleSchema = z.object({ recordingId: z.uuid(), title: z.string().trim().max(200) });
+
+/** The teacher fixes a recording's details while it is DRAFT, REJECTED or REVOKED (A87). */
+export async function updateRecordingTitle(db: PrismaClient, actor: Actor, input: unknown) {
+  const parsed = titleSchema.safeParse(input);
+  if (!parsed.success) throw new DomainError("invalid_input");
+  const recording = await loadForAuthor(db, actor, { recordingId: parsed.data.recordingId });
+  const { count } = await db.recording.updateMany({
+    where: { id: recording.id, status: { in: ["DRAFT", "REJECTED", "REVOKED"] }, deletedAt: null },
+    data: { title: parsed.data.title || null },
+  });
+  if (count !== 1) throw new DomainError("invalid_state");
 }
 
 const participantsSchema = z.object({ recordingId: z.uuid(), studentProfileIds: z.array(z.uuid()).min(1).max(500) });
@@ -201,21 +239,71 @@ export async function finalizeSegmentMedia(db: PrismaClient, storage: ObjectStor
 
 // --- Approval workflow (A78–A79) ---------------------------------------------------------
 
-/** The authoring teacher submits a finished recording for approval. Never approves it. */
+/**
+ * The authoring teacher submits a finished recording (DRAFT), or RESUBMITS one that was
+ * REJECTED or whose approval was REVOKED (A87). Either way it goes to PENDING_APPROVAL — it is
+ * never re-approved automatically. The previous decision fields are cleared on the row (the
+ * full history stays in the audit trail).
+ */
 export async function submitRecordingForApproval(db: PrismaClient, actor: Actor, input: unknown, options: RecordingOptions = {}) {
   const recording = await loadForAuthor(db, actor, input);
   if (recording.deletedAt || !recording.mediaFinalizedAt) throw new DomainError("invalid_state");
+  const resubmission = recording.status === "REJECTED" || recording.status === "REVOKED";
+  if (!resubmission && recording.status !== "DRAFT") throw new DomainError("invalid_state");
   const now = options.now ?? new Date();
   await db.$transaction(async (tx) => {
     const { count } = await tx.recording.updateMany({
-      where: { id: recording.id, status: "DRAFT", deletedAt: null },
-      data: { status: "PENDING_APPROVAL", submittedAt: now, submittedById: actor.profileId },
+      where: { id: recording.id, status: recording.status, deletedAt: null },
+      data: {
+        status: "PENDING_APPROVAL",
+        submittedAt: now,
+        submittedById: actor.profileId,
+        approvalScope: null,
+        approvedAt: null,
+        approvedById: null,
+        approvalRevokedAt: null,
+        approvalRevokedById: null,
+        rejectedAt: null,
+        rejectedById: null,
+        rejectionReason: null,
+      },
+    });
+    if (count !== 1) throw new DomainError("invalid_state");
+    await tx.recordingSegment.updateMany({ where: { recordingId: recording.id, withdrawnAt: null }, data: { withdrawnAt: now } });
+    await recordAudit(tx, {
+      actorId: actor.profileId,
+      tenantId: recording.tenantId,
+      action: resubmission ? "RECORDING_RESUBMITTED" : "RECORDING_SUBMITTED",
+      targetType: "RECORDING",
+      targetId: recording.id,
+      metadata: resubmission ? { from: recording.status } : undefined,
+      now,
+    });
+  });
+}
+
+const rejectSchema = z.object({ recordingId: z.uuid(), reason: z.string().trim().max(500).optional() });
+
+/** A Markaz Admin rejects a submitted recording, optionally with a reason (A87). */
+export async function rejectRecording(db: PrismaClient, actor: Actor, input: unknown, options: RecordingOptions = {}) {
+  const parsed = rejectSchema.safeParse(input);
+  if (!parsed.success) throw new DomainError("invalid_input");
+  const recording = await db.recording.findUnique({
+    where: { id: parsed.data.recordingId },
+    select: { id: true, tenantId: true, teacherProfileId: true },
+  });
+  if (!recording || !canApproveRecording(actor, recording)) throw new AuthorizationError();
+  const now = options.now ?? new Date();
+  await db.$transaction(async (tx) => {
+    const { count } = await tx.recording.updateMany({
+      where: { id: recording.id, status: "PENDING_APPROVAL" },
+      data: { status: "REJECTED", rejectedAt: now, rejectedById: actor.profileId, rejectionReason: parsed.data.reason || null },
     });
     if (count !== 1) throw new DomainError("invalid_state");
     await recordAudit(tx, {
       actorId: actor.profileId,
       tenantId: recording.tenantId,
-      action: "RECORDING_SUBMITTED",
+      action: "RECORDING_REJECTED",
       targetType: "RECORDING",
       targetId: recording.id,
       now,
@@ -298,6 +386,8 @@ export async function revokeRecordingApproval(db: PrismaClient, actor: Actor, in
       data: { status: "REVOKED", approvalRevokedAt: now, approvalRevokedById: actor.profileId },
     });
     if (count !== 1) throw new DomainError("invalid_state");
+    // Segments belonged to that approval: never shown to parents again.
+    await tx.recordingSegment.updateMany({ where: { recordingId: recording.id, withdrawnAt: null }, data: { withdrawnAt: now } });
     await recordAudit(tx, {
       actorId: actor.profileId,
       tenantId: recording.tenantId,
@@ -361,7 +451,7 @@ export async function getRecordingPlaybackUrl(
       storageObjectKey: true,
       mediaFinalizedAt: true,
       participants: { select: { studentProfileId: true, audioIncluded: true } },
-      segments: { select: { id: true, storageBucket: true, storageObjectKey: true, mediaFinalizedAt: true, purgedAt: true } },
+      segments: { select: { id: true, storageBucket: true, storageObjectKey: true, mediaFinalizedAt: true, purgedAt: true, withdrawnAt: true } },
     },
   });
   if (!recording) throw new AuthorizationError();
@@ -376,6 +466,7 @@ export async function getRecordingPlaybackUrl(
   if (parsed.data.segmentId) {
     const segment = recording.segments.find((s) => s.id === parsed.data.segmentId);
     if (!segment) throw new DomainError("not_found");
+    if (staff === "DENY" && segment.withdrawnAt) throw new AuthorizationError();
     if (!segment.mediaFinalizedAt || segment.purgedAt || !segment.storageBucket || !segment.storageObjectKey) throw new DomainError("invalid_state");
     object = { bucket: segment.storageBucket, key: segment.storageObjectKey };
     segmentId = segment.id;
@@ -403,6 +494,7 @@ const listSelect = {
   title: true,
   status: true,
   approvalScope: true,
+  rejectionReason: true,
   startedAt: true,
   mediaFinalizedAt: true,
   deletedAt: true,
@@ -433,7 +525,7 @@ export async function listParentVisibleRecordings(db: PrismaClient, actor: Actor
       ...listSelect,
       tenant: { select: { name: true } },
       participants: { select: { studentProfileId: true, audioIncluded: true } },
-      segments: { where: { mediaFinalizedAt: { not: null }, purgedAt: null }, select: { id: true, startMs: true, endMs: true } },
+      segments: { where: { mediaFinalizedAt: { not: null }, purgedAt: null, withdrawnAt: null }, select: { id: true, startMs: true, endMs: true } },
     },
     orderBy: { createdAt: "desc" },
   });

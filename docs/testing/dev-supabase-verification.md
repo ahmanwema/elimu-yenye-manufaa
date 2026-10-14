@@ -54,3 +54,16 @@ Nothing below has been applied. Each needs explicit owner approval:
 2. Bucket `correction-clips`: optionally restrict allowed MIME types to `audio/mp4` (plus `audio/x-m4a` if browsers send it). **Do not set a file-size limit** — none is approved (open question 38). The server already validates the stored bytes.
 3. Create a **private** bucket `recordings` (only when recording capture is authorized; nothing writes to it yet).
 4. Re-run `npm run test:dev-supabase` (the storage test now uploads a real M4A structure and sets consent first) and `scripts/compare-schema.mjs`. Note: `audit_events` is append-only, so any audited action on the dev project leaves permanent audit rows; the real test avoids audited actions.
+
+## Pending owner-approved changes — updated 2026-10-15 (supersedes the list above)
+
+Nothing has been applied. In order, after explicit owner approval:
+
+1. **Migrations** (`npm run db:deploy:dev`), four new ones in sequence:
+   `20261014000000_recording_correction_media`, `20261014000100_recording_correction_media_rls`,
+   `20261015000000_media_policy_decisions`, `20261015000100_media_policy_decisions_rls`.
+   All additive; FKs/CHECKs that could reject existing rows are NOT VALID; the DOB columns are renamed, not dropped.
+2. **Bucket `correction-clips`** (stays private): allowed MIME types `audio/mp4` (and `audio/x-m4a` if browsers send it); **file size limit "10MB"** (Supabase's 10 × 1024 × 1024 bytes — matches the server rule).
+3. **Bucket `recordings`**: create as **private**, only when recording capture is authorized (Option C enabled + RTC vendor chosen). No size/MIME rule is approved for full recordings.
+4. **Scheduled jobs (not authorized yet):** `purgeExpiredMedia` (daily is sufficient; bytes are only removed after the 30-day grace) and `cleanupAbandonedUploads` (7-day rule). Both are idempotent server-side functions with no client entry point.
+5. **Re-verify:** `npm run test:dev-supabase` (updated storage test: verified DOB + guardian consent, real M4A bytes, ranged reads), `node scripts/compare-schema.mjs` (PGlite ↔ dev parity), `node scripts/dev-e2e.mjs`. Note: `audit_events` is append-only; audited actions leave permanent rows on the dev project.

@@ -120,6 +120,20 @@ Additive only (no drops; two FKs on the existing clips table added NOT VALID; on
 
 Integrity is enforced in SQL as well as in services: one primary per correction; primary ⇒ live FINALIZED; finalized ⇒ `audio/mp4` and ≤ 60 000 ms; deletion ⇒ archive + purge date; purge ⇒ after grace; consent method fields; participant audio ⇔ CONSENTED; recording status ⇔ audit fields; started ⇒ notice shown; one pending deletion per target. RLS: see [security.md](security.md) §3.7.
 
+## 13. Media policy decisions (2026-10-15, migrations 20261015000000 / 20261015000100)
+
+Additive: new enum values (`SELF_ONLINE`, `REJECTED`, `DATE_OF_BIRTH_UNVERIFIED`, `DECLINED`, `CANCELLED`, new audit actions/targets), nullable columns, one new table; the DOB "recorded" columns are **renamed** to "entered" (hand-edited from Prisma's DROP/ADD to keep data).
+
+| Change | Purpose |
+|---|---|
+| `student_accounts.date_of_birth_entered_by_id/at`, `date_of_birth_verified_by_id/at` | A82 |
+| `recording_consents` method `SELF_ONLINE` (+ CHECK: recorded by the student; one live per student) | A83 |
+| `media_deletion_requests` DECLINED/CANCELLED + actors/times, `decline_reason`; CHECKs `deletion_no_self_approval`, `deletion_cancel_by_requester` | A84–A85 |
+| `correction_audio_clips` CHECK `clip_finalized_max_10mb` | A91 |
+| `recordings` REJECTED + `rejected_*`, `rejection_reason`; `teacher_notice_acknowledged_*`; CHECK `recording_started_with_notices` | A87, A89 |
+| `recording_segments.withdrawn_at` | segments of a revoked approval never return |
+| `recording_entitlements` (NOT_ENABLED / PENDING / ENABLED) | A90 |
+
 ## 6. Open questions
 
 See [../roadmap/open-questions.md](../roadmap/open-questions.md) for tenant-ownership-of-student-data and Markaz/teacher relationship questions that materially affect the final schema shape.

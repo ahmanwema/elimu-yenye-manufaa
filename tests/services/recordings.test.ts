@@ -11,6 +11,8 @@ import {
   finalizeSegmentMedia,
   getRecordingPlaybackUrl,
   listParentVisibleRecordings,
+  rejectRecording,
+  updateRecordingTitle,
   registerRecordingMedia,
   registerRecordingParticipants,
   registerSegmentMedia,
@@ -21,7 +23,7 @@ import {
 import { RECORDING_BUCKET } from "@/server/storage/object-storage";
 import { actor, createTestPrisma, FakeStorage } from "../db/prisma";
 import { T, U } from "../support/fixture";
-import { insertGuardianConsent, M, MINOR_DOB, seedMedia, setDob, TEST_POLICY } from "../support/media";
+import { enableOptionCFor, insertGuardianConsent, M, MINOR_DOB, seedMedia, setDob, TEST_POLICY } from "../support/media";
 
 let pg: PGlite;
 let db: PrismaClient;
@@ -35,13 +37,14 @@ beforeEach(async () => {
   storage = new FakeStorage();
   await setDob(pg, U.studentX, MINOR_DOB);
   consentId = await insertGuardianConsent(pg, U.studentX);
+  await enableOptionCFor(pg, T.A);
 });
 
 /** A finished recording of Markaz A (by teacherA) in which studentX took part. */
 async function finishedRecording(teacher: string = U.teacherA, tenantId: string = T.A) {
   const a = await actor(db, teacher);
   const recordingId = await createRecording(db, a, { tenantId, title: "An-Naba" }, O);
-  await startRecording(db, a, { recordingId, noticeShown: true }, O);
+  await startRecording(db, a, { recordingId, noticeShown: true, teacherNoticeAcknowledged: true }, O);
   await registerRecordingParticipants(db, a, { recordingId, studentProfileIds: [U.studentX] }, O);
   // The future provider-neutral worker writes the media:
   await registerRecordingMedia(db, storage, recordingId);
@@ -62,18 +65,35 @@ const play = async (who: string, recordingId: string, segmentId?: string) =>
   getRecordingPlaybackUrl(db, storage, await actor(db, who), { recordingId, segmentId }, O);
 
 describe("provider-neutral foundation (A77)", () => {
-  it("the only states are DRAFT → PENDING_APPROVAL → APPROVED → REVOKED (no rejection workflow)", () => {
-    expect(Object.keys(RecordingStatus).sort()).toEqual(["APPROVED", "DRAFT", "PENDING_APPROVAL", "REVOKED"]);
+  it("states: DRAFT, PENDING_APPROVAL, APPROVED, REVOKED and REJECTED (A87)", () => {
+    expect(Object.keys(RecordingStatus).sort()).toEqual(["APPROVED", "DRAFT", "PENDING_APPROVAL", "REJECTED", "REVOKED"]);
   });
 
-  it("capture can only start once the recording notice was shown (A30)", async () => {
+  it("capture starts only with the participants' notice (A30) AND the teacher's own notice acknowledgement (A89)", async () => {
     const a = await actor(db, U.teacherA);
     const recordingId = await createRecording(db, a, { tenantId: T.A }, O);
-    await expect(startRecording(db, a, { recordingId, noticeShown: false }, O)).rejects.toMatchObject({ code: "invalid_input" });
-    await expect(startRecording(db, a, { recordingId }, O)).rejects.toMatchObject({ code: "invalid_input" });
-    await expect(pg.query("UPDATE recordings SET started_at = now() WHERE id = $1", [recordingId])).rejects.toThrow(/recording_started_with_notice/);
-    await startRecording(db, a, { recordingId, noticeShown: true }, O);
-    expect((await db.recording.findUniqueOrThrow({ where: { id: recordingId } })).noticeShownAt).not.toBeNull();
+    await expect(startRecording(db, a, { recordingId, noticeShown: false, teacherNoticeAcknowledged: true }, O)).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(startRecording(db, a, { recordingId, noticeShown: true }, O)).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(startRecording(db, a, { recordingId, noticeShown: true, teacherNoticeAcknowledged: false }, O)).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(pg.query("UPDATE recordings SET started_at = now(), notice_shown_at = now() WHERE id = $1", [recordingId])).rejects.toThrow(/recording_started_with_notices/);
+    await startRecording(db, a, { recordingId, noticeShown: true, teacherNoticeAcknowledged: true }, O);
+    const r = await db.recording.findUniqueOrThrow({ where: { id: recordingId } });
+    expect(r).toMatchObject({ teacherNoticeAcknowledgedById: U.teacherA });
+    expect(r.noticeShownAt).not.toBeNull();
+    expect(await db.auditEvent.count({ where: { action: "RECORDING_TEACHER_NOTICE_ACKNOWLEDGED", actorId: U.teacherA } })).toBe(1);
+  });
+
+  it("the teacher notice is not consent: no consent row is created for the teacher, and student consent stays independent", async () => {
+    const id = await finishedRecording();
+    expect(await db.recordingConsent.count({ where: { recordedById: U.teacherA } })).toBe(0);
+    expect((await db.recordingParticipant.findFirstOrThrow({ where: { recordingId: id } })).audioIncluded).toBe(true);
+    await pg.query("UPDATE recording_consents SET withdrawn_at = now(), withdrawn_by_id = $1", [U.parentActive]);
+    const second = await finishedRecording();
+    expect((await db.recordingParticipant.findFirstOrThrow({ where: { recordingId: second } })).audioIncluded).toBe(false);
+  });
+
+  it("no full recording without Option C ENABLED for the Markaz (A90)", async () => {
+    await expect(createRecording(db, await actor(db, U.teacherAB), { tenantId: T.B }, O)).rejects.toMatchObject({ code: "feature_not_enabled" });
   });
 
   it("media lives in the private recordings bucket under a non-guessable key", async () => {
@@ -97,6 +117,7 @@ describe("approval workflow (A78)", () => {
     expect(await db.recording.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "APPROVED", approvalScope: "WHOLE", approvedById: U.adminA });
     const actions = (await db.auditEvent.findMany({ where: { targetId: id }, orderBy: { createdAt: "asc" } })).map((e) => [e.action, e.actorId]);
     expect(actions).toEqual([
+      ["RECORDING_TEACHER_NOTICE_ACKNOWLEDGED", U.teacherA],
       ["RECORDING_SUBMITTED", U.teacherA],
       ["RECORDING_APPROVED", U.adminA],
     ]);
@@ -136,6 +157,60 @@ describe("approval workflow (A78)", () => {
     await play(U.adminA, id);
     await play(U.teacherA, id);
     expect(await db.auditEvent.count({ where: { action: "RECORDING_APPROVAL_REVOKED", targetId: id } })).toBe(1);
+  });
+});
+
+describe("review workflow: reject and resubmit (A87)", () => {
+  it("admin rejects with a reason; the teacher fixes and resubmits; it waits for approval again", async () => {
+    const id = await finishedRecording();
+    await submitRecordingForApproval(db, await actor(db, U.teacherA), { recordingId: id }, O);
+    for (const who of [U.teacherA, U.adminB, U.superAdmin]) {
+      await expect(rejectRecording(db, await actor(db, who), { recordingId: id }, O)).rejects.toBeInstanceOf(AuthorizationError);
+    }
+    await rejectRecording(db, await actor(db, U.adminA), { recordingId: id, reason: "Wrong lesson title" }, O);
+    expect(await db.recording.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "REJECTED", rejectionReason: "Wrong lesson title", rejectedById: U.adminA });
+    await expect(play(U.parentActive, id)).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(approveRecording(db, await actor(db, U.adminA), { recordingId: id, scope: "WHOLE" }, O)).rejects.toMatchObject({ code: "invalid_state" });
+
+    await updateRecordingTitle(db, await actor(db, U.teacherA), { recordingId: id, title: "An-Naba (fixed)" });
+    await submitRecordingForApproval(db, await actor(db, U.teacherA), { recordingId: id }, O);
+    expect(await db.recording.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "PENDING_APPROVAL", title: "An-Naba (fixed)", rejectedAt: null, rejectionReason: null });
+    await expect(play(U.parentActive, id)).rejects.toBeInstanceOf(AuthorizationError); // not auto-approved
+    await approveRecording(db, await actor(db, U.adminA), { recordingId: id, scope: "WHOLE" }, O);
+    await play(U.parentActive, id);
+
+    const trail = (await db.auditEvent.findMany({ where: { targetId: id }, orderBy: { createdAt: "asc" } })).map((e) => e.action);
+    expect(trail).toEqual(["RECORDING_TEACHER_NOTICE_ACKNOWLEDGED", "RECORDING_SUBMITTED", "RECORDING_REJECTED", "RECORDING_RESUBMITTED", "RECORDING_APPROVED"]);
+  });
+
+  it("a revoked recording may be resubmitted; it is NOT re-approved automatically and old segments never return", async () => {
+    const id = await finishedRecording();
+    await submitRecordingForApproval(db, await actor(db, U.teacherA), { recordingId: id }, O);
+    await approveRecording(db, await actor(db, U.adminA), { recordingId: id, scope: "SEGMENTS", segments: [{ startMs: 0, endMs: 10_000 }] }, O);
+    const [segment] = await db.recordingSegment.findMany({ where: { recordingId: id } });
+    await registerSegmentMedia(db, storage, segment.id);
+    const s = await db.recordingSegment.findUniqueOrThrow({ where: { id: segment.id } });
+    storage.put(s.storageBucket as string, s.storageObjectKey as string, 10);
+    await finalizeSegmentMedia(db, storage, segment.id);
+    await play(U.parentActive, id, segment.id);
+
+    await revokeRecordingApproval(db, await actor(db, U.adminA), { recordingId: id }, O);
+    expect((await db.recordingSegment.findUniqueOrThrow({ where: { id: segment.id } })).withdrawnAt).not.toBeNull();
+    await submitRecordingForApproval(db, await actor(db, U.teacherA), { recordingId: id }, O);
+    expect(await db.recording.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "PENDING_APPROVAL", approvedAt: null, approvalScope: null, approvalRevokedAt: null });
+    await expect(play(U.parentActive, id, segment.id)).rejects.toBeInstanceOf(AuthorizationError);
+    await approveRecording(db, await actor(db, U.adminA), { recordingId: id, scope: "WHOLE" }, O);
+    await expect(play(U.parentActive, id, segment.id)).rejects.toBeInstanceOf(AuthorizationError); // the old segment stays withdrawn
+    await play(U.parentActive, id);
+    expect(await db.auditEvent.count({ where: { targetId: id, action: "RECORDING_RESUBMITTED" } })).toBe(1);
+  });
+
+  it("only the author resubmits; approved or pending recordings cannot be resubmitted; titles are fixed only when allowed", async () => {
+    const id = await approvedWhole();
+    await expect(submitRecordingForApproval(db, await actor(db, U.teacherA), { recordingId: id }, O)).rejects.toMatchObject({ code: "invalid_state" });
+    await expect(updateRecordingTitle(db, await actor(db, U.teacherA), { recordingId: id, title: "x" })).rejects.toMatchObject({ code: "invalid_state" });
+    await revokeRecordingApproval(db, await actor(db, U.adminA), { recordingId: id }, O);
+    await expect(submitRecordingForApproval(db, await actor(db, U.teacherAB), { recordingId: id }, O)).rejects.toBeInstanceOf(AuthorizationError);
   });
 });
 

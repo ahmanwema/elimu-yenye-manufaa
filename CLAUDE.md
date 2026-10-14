@@ -6,7 +6,7 @@ This file is the entry point for any AI assistant or engineer working on this re
 
 Elimu Yenye Manufaa is a multi-teacher, multi-institution online Islamic education platform (Qur'an, Tajwid, Hifdh, Hadith, Aqidah, Fiqh, Tafsir, Arabic language). Independent teachers and Markaz (institutions) run classes; students self-register and join via invitation links. See [docs/README.md](docs/README.md) for the full documentation map.
 
-**Status as of 2026-10-14:** recording & correction media policy (A66–A80) implemented LOCALLY — 2 new migrations not yet applied to the dev project; 511 local tests. RTC vendor still undecided (A35).
+**Status as of 2026-10-15:** recording & correction media policy (A66–A91) implemented LOCALLY — 4 new migrations not yet applied to the dev project; 539 local tests. RTC vendor still undecided (A35); XPPen pending hardware.
 
 **Status as of 2026-10-13 (dev baseline):** All Phase 1–2B features plus A62–A64 implemented. The development Supabase project `elimu-yenye-manufaa` has all 9 migrations, a private `correction-clips` bucket and public sign-ups disabled, and is verified: 24 real-Supabase tests, a 14-step UI E2E, and exact schema parity with PGlite. Local: 388 tests. First LOCAL Git baseline commit exists; no remote, nothing pushed or deployed. Not production. See PROGRESS.md.
 

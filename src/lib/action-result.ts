@@ -12,6 +12,8 @@ export type ResultCode =
   | "email_mismatch"
   | "consent_required"
   | "invalid_media"
+  | "second_admin_required"
+  | "feature_not_enabled"
   | "error";
 
 export type ActionResult<T = void> =

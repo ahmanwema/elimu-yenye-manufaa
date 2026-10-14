@@ -396,18 +396,35 @@ export function canRequestMediaDeletion(actor: Actor, target: { tenantId: string
 }
 
 /**
- * Final deletion approval: a Markaz Admin of that Markaz only — never a teacher (A73).
- * INTERIM (owner decision pending): whether an admin may approve their OWN request is not
- * decided, so it is refused (the narrowest reading). Another admin must approve.
+ * Final deletion approval: a Markaz Admin of that Markaz only — never a teacher (A73), and
+ * never the requester (A84: a second eligible admin is required; also a DB CHECK).
  */
 export function canApproveMediaDeletion(actor: Actor, request: { tenantId: string; requestedById: string }): boolean {
   return hasActiveRole(actor, request.tenantId, "MARKAZ_ADMIN") && actor.profileId !== request.requestedById;
 }
 
+/** A85: any Markaz Admin of that Markaz may DECLINE a pending request (media untouched). */
+export function canDeclineMediaDeletion(actor: Actor, request: { tenantId: string }): boolean {
+  return hasActiveRole(actor, request.tenantId, "MARKAZ_ADMIN");
+}
+
+/** A85: only the requester may CANCEL their own pending request. */
+export function canCancelMediaDeletion(actor: Actor, request: { requestedById: string }): boolean {
+  return actor.profileId === request.requestedById;
+}
+
 /**
- * Recording approval and revocation: a Markaz Admin of that Markaz (A78/A79); the teacher is
- * never the final approver. INTERIM (owner decision pending, same question as deletion): a
- * person who is both the recording's author and a Markaz Admin may not approve it.
+ * A88: choosing which historical clip becomes current — the active authoring teacher or a
+ * Markaz Admin of the correction's Markaz.
+ */
+export function canSelectCurrentClip(actor: Actor, correction: { tenantId: string; teacherProfileId: string }): boolean {
+  return isActiveAuthoringTeacher(actor, correction) || hasActiveRole(actor, correction.tenantId, "MARKAZ_ADMIN");
+}
+
+/**
+ * Recording review (approve / reject) and revocation: a Markaz Admin of that Markaz
+ * (A78/A79/A87); the teacher is never the final approver. INTERIM (owner decision pending):
+ * a person who is both the recording's author and a Markaz Admin may not review it.
  */
 export function canApproveRecording(actor: Actor, recording: { tenantId: string; teacherProfileId: string }): boolean {
   return hasActiveRole(actor, recording.tenantId, "MARKAZ_ADMIN") && actor.profileId !== recording.teacherProfileId;
@@ -415,6 +432,16 @@ export function canApproveRecording(actor: Actor, recording: { tenantId: string;
 
 export function canRevokeRecordingApproval(actor: Actor, recording: { tenantId: string }): boolean {
   return hasActiveRole(actor, recording.tenantId, "MARKAZ_ADMIN");
+}
+
+/** A90: a Markaz Admin requests Option C for their OWN Markaz; teachers never. */
+export function canRequestOptionC(actor: Actor, tenantId: unknown): boolean {
+  return isValidId(tenantId) && hasActiveRole(actor, tenantId, "MARKAZ_ADMIN");
+}
+
+/** A90: only a Super Admin approves/enables Option C. */
+export function canEnableOptionC(actor: Actor): boolean {
+  return actor.isPlatformAdmin;
 }
 
 /** Verified offline consent is recorded by a Markaz Admin of that Markaz (A71). */

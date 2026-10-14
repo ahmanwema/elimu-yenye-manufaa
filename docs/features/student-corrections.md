@@ -155,3 +155,10 @@ A parent sees a student's corrections only through an **ACTIVE** link (A48), whi
 **Deletion (A73–A75):** request (authoring teacher while active, or Markaz Admin) → approval by a Markaz Admin (interim: not the requester) → `deleted_at` + `archived_at` (playback stops) → `purge_eligible_at` = +30 days → `purgeExpiredMedia` removes the bytes and sets `purged_at`. The correction, anchors, clip metadata, requests and audit stay. An approved deletion of the primary clip does not promote an older clip (item 44).
 
 **UI:** Markaz page — teachers create corrections (note + one anchor) and upload clips; Markaz Admins see all corrections of the Markaz and approve removals. Account page — the student's own corrections; each ACTIVE child's corrections for a parent.
+
+## 2026-10-15 — decisions completed (A84–A88, A91)
+
+- **Validation:** AAC in M4A, ≤ 60 s **and ≤ 10 MB** (A91; 10 × 1024 × 1024 bytes) — checked on the stored object; an oversized file is rejected **before any of it is read**. DB CHECK `clip_finalized_max_10mb`.
+- **Current clip (A88):** deleting the current clip promotes nothing. The active authoring teacher or a Markaz Admin of the correction's Markaz may choose an earlier clip with **Make current** (`selectCurrentClip`): same correction, FINALIZED, not deleted/purged; one current clip; audited `CORRECTION_CLIP_PROMOTED`.
+- **Deletion (A84–A85):** approval by a **second** Markaz Admin (never the requester — service + DB CHECK `deletion_no_self_approval`; with a single admin the request stays pending and is labelled as awaiting a second admin). Requester may **cancel**; any Markaz Admin of the Markaz may **decline** (optional reason). DECLINED/CANCELLED never touch media.
+- **Abandoned uploads (A86):** `cleanupAbandonedUploads` removes the object, then marks clips still AWAITING_UPLOAD after **7 days** as FAILED (row kept as a tombstone), audits `ABANDONED_UPLOAD_CLEANED`; never touches finalized clips; safe to re-run. Not scheduled (item 49). AWAITING_EXTRACTION clips wait for the future worker and are not covered.

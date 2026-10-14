@@ -78,6 +78,18 @@ Not automated in the local suite: UI/E2E flows, real Supabase Auth and real Stor
 
 Not covered locally: a real browser-recorded M4A file (no ffmpeg/sample file on this machine — the parser is tested on spec-built files), and the real-Supabase run of the updated `tests/real` storage test (needs the new migrations on the dev project — owner approval).
 
+## Media policy decisions tests (2026-10-15)
+
+| Area | File |
+|---|---|
+| Under-18 boundary by date, unverified DOB, adult/minor eligibility | `tests/unit/recording-consent.test.ts` |
+| DOB entry/verification, adult & minor consent, withdrawal actors | `tests/services/consent.test.ts` |
+| 10 MB limit (exact boundary, no read of oversized files), current-clip selection | `tests/services/correction-audio.test.ts` |
+| Reject / resubmit after rejection or revocation, teacher notice, Option C gate | `tests/services/recordings.test.ts` |
+| Cancel / decline, second-admin rule (service + DB), single-admin pending, 7-day cleanup (boundary, idempotent, failure-safe) | `tests/services/media-deletion.test.ts` |
+| Option C request/enable, entitlement-only model | `tests/services/option-c.test.ts` |
+| New policy helpers; server-only entitlement table; DOB verification columns hidden | `tests/unit/policy-media.test.ts`, `tests/db/rls-media.test.ts` |
+
 ## Method
 
 Prefer integration tests running against a real (test) Postgres instance with RLS enabled — testing RLS policies by mocking them defeats the purpose, since the policies themselves are the thing under test.

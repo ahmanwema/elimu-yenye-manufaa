@@ -96,6 +96,13 @@ Everything else matched the PGlite results: RLS for tenants, students, parents (
 - **Purge safety:** bytes are removed only by `purgeExpiredMedia` after `purge_eligible_at` (30 days after approval); DB CHECKs refuse a purge timestamp before the grace period or without a deletion. Rows are never deleted.
 - **Object keys** stay random and carry no tenant/student/teacher ids (clips, recordings, segments).
 
+### 3.8 Media policy decisions (2026-10-15, A81–A91)
+
+- DOB remains server-only (new verification columns included). A Markaz Admin sees the DOB **value** only while it awaits their verification; otherwise only its state.
+- Deletion self-approval is impossible in the service **and** in the database (`deletion_no_self_approval`); cancellation only by the requester (`deletion_cancel_by_requester`).
+- `recording_entitlements` is server-only (no Data API grant). Only a Super Admin enables Option C.
+- Oversized clips (> 10 MB) are rejected from `stat` alone — no bytes are downloaded.
+
 ## 4. Recording consent & private annotation leakage
 
 - Lesson recording must have a clear consent/notice model — ~~OPEN QUESTION~~ **APPROVED 2026-10-05 (A30)**: (1) general consent during enrollment/account setup **and** (2) a clear notice when recording begins; general consent alone is not sufficient UX. This applies to any recorded audio, including Option B correction clips (A29). Retention/deletion: see §7. Still open: consent on behalf of minors (open question 17).

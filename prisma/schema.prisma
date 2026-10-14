@@ -57,15 +57,16 @@ model Tenant {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  memberships        Membership[]
-  parentStudentLinks ParentStudentLink[]
-  permissionGrants   TenantPermissionGrant[]
-  invitations        Invitation[]
-  adminAppointments  MarkazAdminAppointmentRequest[]
-  corrections        Correction[]
-  recordings         Recording[]
-  offlineConsents    RecordingConsent[]
-  deletionRequests   MediaDeletionRequest[]
+  memberships          Membership[]
+  parentStudentLinks   ParentStudentLink[]
+  permissionGrants     TenantPermissionGrant[]
+  invitations          Invitation[]
+  adminAppointments    MarkazAdminAppointmentRequest[]
+  corrections          Correction[]
+  recordings           Recording[]
+  offlineConsents      RecordingConsent[]
+  deletionRequests     MediaDeletionRequest[]
+  recordingEntitlement RecordingEntitlement?
 
   @@map("tenants")
 }
@@ -116,8 +117,13 @@ model StudentAccount {
   /// Recording-consent policy input. Minor/adult status is ALWAYS derived from this date
   /// (src/server/authz/recording-consent.ts) — there is deliberately no stored is_minor flag.
   dateOfBirth             DateTime? @map("date_of_birth") @db.Date
-  dateOfBirthRecordedById String?   @map("date_of_birth_recorded_by_id") @db.Uuid
-  dateOfBirthRecordedAt   DateTime? @map("date_of_birth_recorded_at") @db.Timestamptz(6)
+  /// Entered by the student or an ACTIVE guardian (A82).
+  dateOfBirthEnteredById  String?   @map("date_of_birth_entered_by_id") @db.Uuid
+  dateOfBirthEnteredAt    DateTime? @map("date_of_birth_entered_at") @db.Timestamptz(6)
+  /// Verified by a Markaz Admin (A82). Until set, the DOB is NOT trusted: recording
+  /// eligibility fails closed. Re-entering the DOB clears the verification.
+  dateOfBirthVerifiedById String?   @map("date_of_birth_verified_by_id") @db.Uuid
+  dateOfBirthVerifiedAt   DateTime? @map("date_of_birth_verified_at") @db.Timestamptz(6)
 
   profile               Profile                @relation(fields: [profileId], references: [id], onDelete: Cascade)
   parentLinks           ParentStudentLink[]
@@ -440,6 +446,8 @@ enum RecordingConsentMethod {
   GUARDIAN_ONLINE
   /// Recorded by a Markaz Admin after verifying offline evidence (A71).
   OFFLINE_VERIFIED
+  /// An ADULT student's own consent, given in their account/enrollment flow (A83).
+  SELF_ONLINE
 }
 
 /// One consent policy covers correction clips AND full recordings (A72). Rows are never
@@ -481,8 +489,10 @@ enum RecordingStatus {
   DRAFT
   PENDING_APPROVAL
   APPROVED
-  /// Approval revoked by a Markaz Admin. Not deletion (A79).
+  /// Approval revoked by a Markaz Admin. Not deletion (A79). The teacher may resubmit (A87).
   REVOKED
+  /// Returned by a Markaz Admin during review. The teacher may fix and resubmit (A87).
+  REJECTED
 }
 
 enum RecordingApprovalScope {
@@ -493,35 +503,43 @@ enum RecordingApprovalScope {
 }
 
 model Recording {
-  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId            String                  @map("tenant_id") @db.Uuid
+  id                            String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                      String                  @map("tenant_id") @db.Uuid
   /// The teacher who owns the teaching workflow (author).
-  teacherProfileId    String                  @map("teacher_profile_id") @db.Uuid
-  title               String?
-  status              RecordingStatus         @default(DRAFT)
+  teacherProfileId              String                  @map("teacher_profile_id") @db.Uuid
+  title                         String?
+  status                        RecordingStatus         @default(DRAFT)
   /// A30: the recording-start notice must be shown; set when capture starts.
-  noticeShownAt       DateTime?               @map("notice_shown_at") @db.Timestamptz(6)
-  startedAt           DateTime?               @map("started_at") @db.Timestamptz(6)
-  endedAt             DateTime?               @map("ended_at") @db.Timestamptz(6)
+  noticeShownAt                 DateTime?               @map("notice_shown_at") @db.Timestamptz(6)
+  /// A89: the teacher's OWN recording notice acknowledgement — distinct from, and never a
+  /// substitute for, student/guardian consent.
+  teacherNoticeAcknowledgedAt   DateTime?               @map("teacher_notice_acknowledged_at") @db.Timestamptz(6)
+  teacherNoticeAcknowledgedById String?                 @map("teacher_notice_acknowledged_by_id") @db.Uuid
+  startedAt                     DateTime?               @map("started_at") @db.Timestamptz(6)
+  endedAt                       DateTime?               @map("ended_at") @db.Timestamptz(6)
   /// Media object (written by a future, provider-neutral capture/egress worker).
-  storageBucket       String?                 @map("storage_bucket")
-  storageObjectKey    String?                 @unique @map("storage_object_key")
-  mimeType            String?                 @map("mime_type")
-  byteSize            Int?                    @map("byte_size")
-  durationMs          Int?                    @map("duration_ms")
-  mediaFinalizedAt    DateTime?               @map("media_finalized_at") @db.Timestamptz(6)
-  submittedAt         DateTime?               @map("submitted_at") @db.Timestamptz(6)
-  submittedById       String?                 @map("submitted_by_id") @db.Uuid
-  approvalScope       RecordingApprovalScope? @map("approval_scope")
-  approvedAt          DateTime?               @map("approved_at") @db.Timestamptz(6)
-  approvedById        String?                 @map("approved_by_id") @db.Uuid
-  approvalRevokedAt   DateTime?               @map("approval_revoked_at") @db.Timestamptz(6)
-  approvalRevokedById String?                 @map("approval_revoked_by_id") @db.Uuid
-  deletedAt           DateTime?               @map("deleted_at") @db.Timestamptz(6)
-  archivedAt          DateTime?               @map("archived_at") @db.Timestamptz(6)
-  purgeEligibleAt     DateTime?               @map("purge_eligible_at") @db.Timestamptz(6)
-  purgedAt            DateTime?               @map("purged_at") @db.Timestamptz(6)
-  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  storageBucket                 String?                 @map("storage_bucket")
+  storageObjectKey              String?                 @unique @map("storage_object_key")
+  mimeType                      String?                 @map("mime_type")
+  byteSize                      Int?                    @map("byte_size")
+  durationMs                    Int?                    @map("duration_ms")
+  mediaFinalizedAt              DateTime?               @map("media_finalized_at") @db.Timestamptz(6)
+  submittedAt                   DateTime?               @map("submitted_at") @db.Timestamptz(6)
+  submittedById                 String?                 @map("submitted_by_id") @db.Uuid
+  approvalScope                 RecordingApprovalScope? @map("approval_scope")
+  approvedAt                    DateTime?               @map("approved_at") @db.Timestamptz(6)
+  approvedById                  String?                 @map("approved_by_id") @db.Uuid
+  approvalRevokedAt             DateTime?               @map("approval_revoked_at") @db.Timestamptz(6)
+  approvalRevokedById           String?                 @map("approval_revoked_by_id") @db.Uuid
+  rejectedAt                    DateTime?               @map("rejected_at") @db.Timestamptz(6)
+  rejectedById                  String?                 @map("rejected_by_id") @db.Uuid
+  /// Optional explanation for the teacher.
+  rejectionReason               String?                 @map("rejection_reason")
+  deletedAt                     DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  archivedAt                    DateTime?               @map("archived_at") @db.Timestamptz(6)
+  purgeEligibleAt               DateTime?               @map("purge_eligible_at") @db.Timestamptz(6)
+  purgedAt                      DateTime?               @map("purged_at") @db.Timestamptz(6)
+  createdAt                     DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
 
   tenant           Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   teacher          Profile                @relation("RecordingTeacher", fields: [teacherProfileId], references: [id], onDelete: Restrict)
@@ -541,9 +559,11 @@ enum RecordingEligibility {
   CONSENTED
   NO_CONSENT
   DATE_OF_BIRTH_MISSING
-  /// The age threshold for "minor" has not been decided by the owner.
+  /// A82: entered but not yet verified by a Markaz Admin.
+  DATE_OF_BIRTH_UNVERIFIED
+  /// LEGACY (2026-10-14 interim, no longer produced — A81 set the threshold).
   AGE_POLICY_UNSET
-  /// Adult consent actor/flow has not been decided by the owner.
+  /// LEGACY (2026-10-14 interim, no longer produced — A83 defined adult consent).
   ADULT_CONSENT_UNDECIDED
 }
 
@@ -583,6 +603,9 @@ model RecordingSegment {
   byteSize         Int?      @map("byte_size")
   mediaFinalizedAt DateTime? @map("media_finalized_at") @db.Timestamptz(6)
   purgedAt         DateTime? @map("purged_at") @db.Timestamptz(6)
+  /// Set when the approval this segment belonged to is revoked; a withdrawn segment is never
+  /// shown to parents again (a re-approval creates new segments).
+  withdrawnAt      DateTime? @map("withdrawn_at") @db.Timestamptz(6)
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   recording Recording @relation(fields: [recordingId, tenantId], references: [id, tenantId], onDelete: Restrict)
@@ -602,6 +625,10 @@ enum MediaDeletionReason {
 enum MediaDeletionStatus {
   PENDING
   APPROVED
+  /// Declined by a Markaz Admin (A85). Media untouched.
+  DECLINED
+  /// Cancelled by the requester before approval (A85). Media untouched.
+  CANCELLED
 }
 
 /// REQUEST → MARKAZ ADMIN APPROVAL → soft delete + archive → 30-day grace → purge.
@@ -617,8 +644,15 @@ model MediaDeletionRequest {
   requestedById String              @map("requested_by_id") @db.Uuid
   requestedAt   DateTime            @map("requested_at") @db.Timestamptz(6)
   note          String?
+  /// Never the requester (A84; also a DB CHECK).
   approvedById  String?             @map("approved_by_id") @db.Uuid
   approvedAt    DateTime?           @map("approved_at") @db.Timestamptz(6)
+  declinedById  String?             @map("declined_by_id") @db.Uuid
+  declinedAt    DateTime?           @map("declined_at") @db.Timestamptz(6)
+  /// Optional explanation from the declining admin.
+  declineReason String?             @map("decline_reason")
+  cancelledById String?             @map("cancelled_by_id") @db.Uuid
+  cancelledAt   DateTime?           @map("cancelled_at") @db.Timestamptz(6)
 
   tenant    Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   clip      CorrectionAudioClip? @relation(fields: [clipId], references: [id], onDelete: Restrict)
@@ -644,6 +678,16 @@ enum AuditAction {
   CONSENT_WITHDRAWN
   DATE_OF_BIRTH_RECORDED
   CORRECTION_CLIP_REPLACED
+  DATE_OF_BIRTH_VERIFIED
+  MEDIA_DELETION_CANCELLED
+  MEDIA_DELETION_DECLINED
+  ABANDONED_UPLOAD_CLEANED
+  RECORDING_REJECTED
+  RECORDING_RESUBMITTED
+  CORRECTION_CLIP_PROMOTED
+  RECORDING_TEACHER_NOTICE_ACKNOWLEDGED
+  OPTION_C_REQUESTED
+  OPTION_C_ENABLED
 }
 
 enum AuditTargetType {
@@ -654,6 +698,7 @@ enum AuditTargetType {
   MEDIA_DELETION_REQUEST
   RECORDING_CONSENT
   STUDENT_ACCOUNT
+  RECORDING_ENTITLEMENT
 }
 
 /// Append-only (UPDATE/DELETE refused by a trigger). Never holds signed URLs, object keys
@@ -671,4 +716,32 @@ model AuditEvent {
   @@index([tenantId, createdAt])
   @@index([targetType, targetId])
   @@map("audit_events")
+}
+
+// --- Option C entitlement (A90) --------------------------------------------------------
+
+/// Feature entitlement only — no pricing, billing or payment (A34/A44 commercial terms open).
+enum RecordingEntitlementStatus {
+  /// Option C (full recording) is not available to this Markaz.
+  NOT_ENABLED
+  /// A Markaz Admin requested it; waiting for a Super Admin.
+  PENDING
+  /// A Super Admin approved/enabled it.
+  ENABLED
+}
+
+/// One row per Markaz: Markaz Admin REQUEST → Super Admin APPROVE/ENABLE (A90).
+/// No row = NOT_ENABLED. A teacher can never request or enable it.
+model RecordingEntitlement {
+  tenantId      String                     @id @map("tenant_id") @db.Uuid
+  status        RecordingEntitlementStatus @default(NOT_ENABLED)
+  requestedById String?                    @map("requested_by_id") @db.Uuid
+  requestedAt   DateTime?                  @map("requested_at") @db.Timestamptz(6)
+  enabledById   String?                    @map("enabled_by_id") @db.Uuid
+  enabledAt     DateTime?                  @map("enabled_at") @db.Timestamptz(6)
+  updatedAt     DateTime                   @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@map("recording_entitlements")
 }

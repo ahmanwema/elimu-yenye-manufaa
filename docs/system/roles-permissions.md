@@ -146,7 +146,24 @@ A Markaz Admin may remove grants in their own Markaz that are held by non-admins
 
 These are role/relationship rules (like the existing correction rule), not grantable permissions; the explicit-permission system (A47) is unchanged. Pure rules: `src/server/authz/policy.ts` §5 and `recording-consent.ts`.
 
-## 3. Parent account model — options (~~OPEN QUESTION~~ **Resolved 2026-10-05: Option 1**, A27 — see [../roadmap/open-questions.md](../roadmap/open-questions.md) item 2)
+### 2.7 Media policy decisions (2026-10-15, A81–A91)
+
+| Capability | Super Admin | Markaz Admin (own Markaz) | Authoring Teacher (active) | Student | ACTIVE Guardian |
+|---|---|---|---|---|---|
+| Enter DOB | — | — | — | own | child |
+| Verify DOB | — | ✓ (not one they entered — interim) | — | — | — |
+| Own (adult) consent / withdraw | — | — | — | ✓ own | — |
+| Minor consent / withdraw | — | offline consent only (record) | — | — | ✓ |
+| Approve deletion | — | ✓ never own request (A84) | — | — | — |
+| Decline deletion | — | ✓ | — | — | — |
+| Cancel deletion | requester only (any role that may request) | | | | |
+| Reject / approve recording | — | ✓ (not if author — interim) | — | — | — |
+| Resubmit recording | — | — | ✓ | — | — |
+| Choose current clip | — | ✓ | ✓ | — | — |
+| Request Option C | — | ✓ | ✗ | — | — |
+| Enable Option C | ✓ | — | ✗ | — | — |
+
+ — options (~~OPEN QUESTION~~ **Resolved 2026-10-05: Option 1**, A27 — see [../roadmap/open-questions.md](../roadmap/open-questions.md) item 2)
 
 - **Option 1** (**selected by A27**): Parent is its own account type, linked to one or more Student accounts via a verified relationship (e.g. invite from the student's enrollment, or verified by the teacher/Markaz). *The verification examples in brackets are still proposals, not decisions.*
 - **Option 2** (not selected): Parent is a "viewer" permission grant on an existing Student account, with no separate account type — simpler, but weaker for a parent with multiple children across different teachers.

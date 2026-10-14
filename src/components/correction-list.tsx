@@ -2,8 +2,8 @@ import { ActionForm } from "@/components/action-form";
 import { ClipUploader } from "@/components/clip-uploader";
 import { MediaPlayButton } from "@/components/media-play-button";
 import { format, type Dictionary } from "@/i18n/dictionaries";
-import { requestMediaDeletionAction } from "@/server/actions/media";
-import { canRequestMediaDeletion, isActiveAuthoringTeacher, type Actor } from "@/server/authz/policy";
+import { cancelMediaDeletionAction, requestMediaDeletionAction, selectCurrentClipAction } from "@/server/actions/media";
+import { canRequestMediaDeletion, canSelectCurrentClip, isActiveAuthoringTeacher, type Actor } from "@/server/authz/policy";
 import type { CorrectionView } from "@/server/services/corrections";
 
 type Props = { corrections: CorrectionView[]; actor: Actor; dict: Dictionary; locale: string };
@@ -27,6 +27,9 @@ export function CorrectionList({ corrections, actor, dict, locale }: Props) {
       {corrections.map((c) => {
         const author = isActiveAuthoringTeacher(actor, c);
         const mayRequestDeletion = canRequestMediaDeletion(actor, c);
+        const maySelectCurrent = canSelectCurrentClip(actor, c);
+        const liveClips = c.audioClips.filter((x) => x.status === "FINALIZED" && !x.deletedAt);
+        const noCurrent = liveClips.length > 0 && !liveClips.some((x) => x.isPrimary);
         return (
           <li key={c.id}>
             <p>
@@ -44,6 +47,7 @@ export function CorrectionList({ corrections, actor, dict, locale }: Props) {
                 {m.anchorKinds[a.kind]}: {anchorText(a.snapshot)} {a.sourceRemovedAt ? m.sourceRemoved : null}
               </p>
             ))}
+            {noCurrent && maySelectCurrent ? <p className="muted">{m.noCurrent}</p> : null}
             {c.audioClips.length > 0 ? (
               <ul className="list" aria-label={m.clips}>
                 {c.audioClips.map((clip) => {
@@ -69,7 +73,20 @@ export function CorrectionList({ corrections, actor, dict, locale }: Props) {
                           <input type="hidden" name="clipId" value={clip.id} />
                         </ActionForm>
                       ) : null}
+                      {live && !clip.isPrimary && maySelectCurrent ? (
+                        <ActionForm action={selectCurrentClipAction} submitLabel={m.makeCurrent} pendingLabel={dict.common.loading} messages={dict.results} variant="secondary" inline>
+                          <input type="hidden" name="correctionId" value={c.id} />
+                          <input type="hidden" name="clipId" value={clip.id} />
+                        </ActionForm>
+                      ) : null}
                       {clip.deletionRequests.length > 0 && !clip.deletedAt ? <span className="muted">{m.deletionPending}</span> : null}
+                      {clip.deletionRequests
+                        .filter((d) => d.requestedById === actor.profileId)
+                        .map((d) => (
+                          <ActionForm key={d.id} action={cancelMediaDeletionAction} submitLabel={m.cancelDeletion} pendingLabel={dict.common.loading} messages={dict.results} variant="secondary" inline>
+                            <input type="hidden" name="requestId" value={d.id} />
+                          </ActionForm>
+                        ))}
                     </li>
                   );
                 })}

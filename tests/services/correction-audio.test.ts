@@ -9,8 +9,9 @@ import {
   getClipPlaybackUrl,
   registerDirectCaptureClip,
   registerExtractedClip,
+  selectCurrentClip,
 } from "@/server/services/correction-audio";
-import { CORRECTION_CLIP_BUCKET } from "@/server/storage/object-storage";
+import { CORRECTION_CLIP_BUCKET, MAX_CORRECTION_CLIP_BYTES } from "@/server/storage/object-storage";
 import { asUser } from "../db/harness";
 import { actor, createTestPrisma, FakeStorage, spyDb } from "../db/prisma";
 import { T, U } from "../support/fixture";
@@ -46,8 +47,8 @@ async function finalizedDirectClip(id = correctionId, teacher: string = U.teache
 /** A recording of Markaz A with finished media in which studentX's audio was included. */
 async function recordingWithStudentAudio(tenantId: string = T.A, teacher: string = U.teacherA) {
   const { rows } = await pg.query<{ id: string }>(
-    `INSERT INTO recordings (tenant_id, teacher_profile_id, notice_shown_at, started_at, storage_bucket, storage_object_key, byte_size, duration_ms, media_finalized_at)
-     VALUES ($1, $2, now(), now(), 'recordings', 'recordings/' || gen_random_uuid(), 1000, 600000, now()) RETURNING id`,
+    `INSERT INTO recordings (tenant_id, teacher_profile_id, notice_shown_at, teacher_notice_acknowledged_at, teacher_notice_acknowledged_by_id, started_at, storage_bucket, storage_object_key, byte_size, duration_ms, media_finalized_at)
+     VALUES ($1, $2, now(), now(), $2, now(), 'recordings', 'recordings/' || gen_random_uuid(), 1000, 600000, now()) RETURNING id`,
     [tenantId, teacher],
   );
   const consent = await pg.query<{ id: string }>("SELECT id FROM recording_consents WHERE student_profile_id = $1", [U.studentX]);
@@ -91,6 +92,34 @@ describe("direct capture (Option B never needs a full recording)", () => {
     expect(storage.has(clip.storageBucket, clip.storageObjectKey)).toBe(false);
   });
 
+  it("10 MB is the limit: a valid clip of exactly 10 MB is accepted; one byte more is rejected without reading it", async () => {
+    const ok = await register();
+    const okClip = await db.correctionAudioClip.findUniqueOrThrow({ where: { id: ok.clipId } });
+    storage.put(okClip.storageBucket, okClip.storageObjectKey, buildM4a({ durationMs: 30_000, mdatBytes: MAX_CORRECTION_CLIP_BYTES - buildM4a({ durationMs: 30_000, mdatBytes: 0 }).length }));
+    expect((await storage.statObject(okClip.storageBucket, okClip.storageObjectKey)) as { byteSize: number }).toMatchObject({ byteSize: MAX_CORRECTION_CLIP_BYTES });
+    await finalizeDirectCaptureClip(db, storage, await actor(db, U.teacherA), { clipId: ok.clipId }, O);
+    expect(await db.correctionAudioClip.findUniqueOrThrow({ where: { id: ok.clipId } })).toMatchObject({ status: "FINALIZED", byteSize: MAX_CORRECTION_CLIP_BYTES });
+
+    const big = await register();
+    const bigClip = await db.correctionAudioClip.findUniqueOrThrow({ where: { id: big.clipId } });
+    storage.put(bigClip.storageBucket, bigClip.storageObjectKey, buildM4a({ durationMs: 30_000, mdatBytes: MAX_CORRECTION_CLIP_BYTES - buildM4a({ durationMs: 30_000, mdatBytes: 0 }).length + 1 }));
+    const readsBefore = storage.reads;
+    await expect(finalizeDirectCaptureClip(db, storage, await actor(db, U.teacherA), { clipId: big.clipId }, O)).rejects.toMatchObject({ code: "invalid_media" });
+    expect(storage.reads).toBe(readsBefore);
+    expect(await db.correctionAudioClip.findUniqueOrThrow({ where: { id: big.clipId } })).toMatchObject({ status: "FAILED" });
+    expect(storage.has(bigClip.storageBucket, bigClip.storageObjectKey)).toBe(false);
+  });
+
+  it("the database refuses a finalized clip over 10 MB", async () => {
+    await expect(
+      pg.query(
+        `INSERT INTO correction_audio_clips (correction_id, tenant_id, source_type, status, storage_bucket, storage_object_key, mime_type, byte_size, duration_ms, created_by_id, finalized_at)
+         VALUES ($1, $2, 'DIRECT_CAPTURE', 'FINALIZED', 'correction-clips', 'k-big', 'audio/mp4', 10485761, 1000, $3, now())`,
+        [correctionId, T.A, U.teacherA],
+      ),
+    ).rejects.toThrow(/clip_finalized_max_10mb/);
+  });
+
   it("a non-AAC file (MP3 in MP4) is rejected even when declared as M4A", async () => {
     const { clipId } = await register();
     const clip = await db.correctionAudioClip.findUniqueOrThrow({ where: { id: clipId } });
@@ -126,10 +155,10 @@ describe("consent gate (A70–A72) — one policy for clips and recordings", () 
     await expect(register()).rejects.toMatchObject({ code: "consent_required" });
   });
 
-  it("without the owner's age threshold (the shipped default), nobody is eligible", async () => {
-    await expect(
-      registerDirectCaptureClip(db, storage, await actor(db, U.teacherA), { correctionId, mimeType: "audio/mp4" }),
-    ).rejects.toMatchObject({ code: "consent_required" });
+  it("with the shipped policy (under 18 = minor) a verified, consented minor is eligible; an unverified DOB is not", async () => {
+    await registerDirectCaptureClip(db, storage, await actor(db, U.teacherA), { correctionId, mimeType: "audio/mp4" });
+    await setDob(pg, U.studentX, MINOR_DOB, false);
+    await expect(register()).rejects.toMatchObject({ code: "consent_required" });
   });
 
   it("consent withdrawn after registration: the upload never becomes media (FAILED, object removed)", async () => {
@@ -166,6 +195,58 @@ describe("multiple clips: exactly one primary, history kept (A68)", () => {
     const second = await finalizedDirectClip();
     await expect(pg.query("UPDATE correction_audio_clips SET is_primary = true WHERE id = $1", [first])).rejects.toThrow(/one_primary/);
     expect((await db.correctionAudioClip.findMany({ where: { correctionId, isPrimary: true } })).map((c) => c.id)).toEqual([second]);
+  });
+});
+
+describe("choosing the current clip explicitly (A88)", () => {
+  async function deletePrimary(clipId: string) {
+    await pg.query(
+      `UPDATE correction_audio_clips SET deleted_at = now(), archived_at = now(), purge_eligible_at = now() + interval '30 days', is_primary = false WHERE id = $1`,
+      [clipId],
+    );
+  }
+
+  it("deleting the current clip promotes nothing; the teacher or a same-Markaz admin chooses one", async () => {
+    const first = await finalizedDirectClip();
+    const second = await finalizedDirectClip();
+    const third = await finalizedDirectClip();
+    await deletePrimary(third);
+    expect(await db.correctionAudioClip.count({ where: { correctionId, isPrimary: true } })).toBe(0);
+
+    await selectCurrentClip(db, await actor(db, U.teacherA), { correctionId, clipId: first });
+    expect((await db.correctionAudioClip.findMany({ where: { correctionId, isPrimary: true } })).map((c) => c.id)).toEqual([first]);
+    await selectCurrentClip(db, await actor(db, U.adminA), { correctionId, clipId: second });
+    expect((await db.correctionAudioClip.findMany({ where: { correctionId, isPrimary: true } })).map((c) => c.id)).toEqual([second]);
+    // History is untouched: all three rows remain, the deleted one stays deleted.
+    expect(await db.correctionAudioClip.count({ where: { correctionId } })).toBe(3);
+    const audit = await db.auditEvent.findMany({ where: { action: "CORRECTION_CLIP_PROMOTED" }, orderBy: { createdAt: "asc" } });
+    expect(audit.map((a) => [a.actorId, a.targetId])).toEqual([
+      [U.teacherA, first],
+      [U.adminA, second],
+    ]);
+  });
+
+  it("refuses a clip of another correction, a deleted or purged clip, and an unfinished clip", async () => {
+    const mine = await finalizedDirectClip();
+    const other = await insertCorrection(pg, T.A, U.studentX, U.teacherA);
+    const foreign = await finalizedDirectClip(other);
+    const teacher = await actor(db, U.teacherA);
+    await expect(selectCurrentClip(db, teacher, { correctionId, clipId: foreign })).rejects.toMatchObject({ code: "not_found" });
+    const removed = await finalizedDirectClip();
+    await deletePrimary(removed);
+    await expect(selectCurrentClip(db, teacher, { correctionId, clipId: removed })).rejects.toMatchObject({ code: "invalid_state" });
+    const { clipId: unfinished } = await register();
+    await expect(selectCurrentClip(db, teacher, { correctionId, clipId: unfinished })).rejects.toMatchObject({ code: "invalid_state" });
+    expect((await db.correctionAudioClip.findMany({ where: { correctionId, isPrimary: true } })).map((c) => c.id)).toEqual([]);
+    await selectCurrentClip(db, teacher, { correctionId, clipId: mine });
+  });
+
+  it("only the active authoring teacher or a same-Markaz admin may choose", async () => {
+    const first = await finalizedDirectClip();
+    await finalizedDirectClip();
+    for (const who of [U.teacherAB, U.adminB, U.studentX, U.parentActive, U.superAdmin, M.departedTeacher]) {
+      await expect(selectCurrentClip(db, await actor(db, who), { correctionId, clipId: first })).rejects.toBeInstanceOf(AuthorizationError);
+    }
   });
 });
 

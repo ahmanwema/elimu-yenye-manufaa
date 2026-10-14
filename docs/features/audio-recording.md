@@ -110,3 +110,16 @@ No change to recording. Parent access to "approved recordings" still requires an
 - DRAFT → PENDING_APPROVAL (author teacher, media finalized) → APPROVED (Markaz Admin of that Markaz; interim: not the author; scope WHOLE, or SEGMENTS as a special case) → REVOKED (Markaz Admin). No rejection state (item 39).
 - Playback: author teacher (active) and same-Markaz admin; Super Admin audited; **parent** only if APPROVED, not deleted, ACTIVE link to a participant whose audio was included, and that child still eligible (interim reading — item 41). With SEGMENTS approval a parent gets only an approved segment's **own** object, never the whole file. Students: not granted (item 42).
 - Correction clips extracted from a recording: `source_recording_id` is now a real FK (`ON DELETE SET NULL`, added NOT VALID) — validated (same Markaz, media present, student's audio included); deleting the recording never affects a finalized clip.
+
+## 2026-10-15 — decisions completed (A81–A83, A87, A89, A90)
+
+**Consent (A81–A83):**
+- **Minor = under 18.** The DOB is entered by the student or an ACTIVE guardian and must be **verified by a Markaz Admin** (who confirms the exact value shown; re-entry clears verification). Unverified → not eligible (`DATE_OF_BIRTH_UNVERIFIED`).
+- **Adults** give and withdraw their **own** consent (`SELF_ONLINE`), possibly before verification; it counts once the DOB is verified ≥ 18. Guardian/offline consent never substitutes for an adult.
+- **Minors:** an ACTIVE guardian's consent (or verified offline consent in that Markaz). Any ACTIVE guardian may withdraw a minor's consent. When a minor turns 18, guardian consent stops counting and their own consent is needed — a direct consequence of A81/A83.
+
+**Review workflow (A87):** `DRAFT → PENDING_APPROVAL → APPROVED → REVOKED`, plus `PENDING_APPROVAL → REJECTED` (optional reason) and resubmission `REJECTED/REVOKED → PENDING_APPROVAL` by the author (title can be fixed). Resubmission clears the previous decision on the row and **withdraws** any approved segments; it is never auto-approved. Audited: SUBMITTED, APPROVED, REJECTED, APPROVAL_REVOKED, RESUBMITTED.
+
+**Teacher notice (A89):** starting capture requires both the participants' notice and the teacher's own acknowledgement (`teacher_notice_acknowledged_at/by`, audited). It is not consent and creates no consent row.
+
+**Option C (A90):** `recording_entitlements` per Markaz — NOT_ENABLED → PENDING (Markaz Admin request) → ENABLED (Super Admin). Creating or starting a recording requires ENABLED. No pricing/billing. Decline/disable are not decided (item 48).

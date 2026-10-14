@@ -1,12 +1,13 @@
 import { z } from "zod";
 import type { PrismaClient } from "@/generated/prisma/client";
-import { AuthorizationError, correctionReadAccess, isActiveAuthoringTeacher, type Actor } from "@/server/authz/policy";
+import { AuthorizationError, canSelectCurrentClip, correctionReadAccess, isActiveAuthoringTeacher, type Actor } from "@/server/authz/policy";
 import type { ConsentPolicy } from "@/server/authz/recording-consent";
 import { inspectM4a } from "@/server/media/m4a";
 import {
   ACCEPTED_CLIP_UPLOAD_TYPES,
   CORRECTION_CLIP_BUCKET,
   CORRECTION_CLIP_MIME_TYPE,
+  MAX_CORRECTION_CLIP_BYTES,
   MAX_CORRECTION_CLIP_MS,
   newCorrectionClipObjectKey,
   SIGNED_DOWNLOAD_TTL_SECONDS,
@@ -18,7 +19,7 @@ import { DomainError } from "./errors";
 
 // Standalone correction clips (A53, hybrid source A43) under the 2026-10-14 decisions:
 // - consent gate (A70–A72): no clip of a student whose audio may not be captured;
-// - AAC in M4A, at most 60 s, verified by the server on the STORED bytes (A69);
+// - AAC in M4A, at most 60 s and 10 MB, verified by the server on the STORED bytes (A69, A91);
 // - several clips per correction, exactly one live primary; a new finalized clip becomes
 //   primary and the previous one stays as history — nothing is overwritten (A68);
 // - soft-deleted clips are never played (A73–A75).
@@ -175,13 +176,16 @@ function loadClipForFinalize(db: PrismaClient, clipId: string) {
 
 type FinalizableClip = NonNullable<Awaited<ReturnType<typeof loadClipForFinalize>>>;
 
-/** Marks a clip FAILED and removes its never-finalized object (not approved media). */
+/**
+ * Removes a never-finalized object (not approved media), THEN marks the clip FAILED — so a
+ * failed removal leaves the clip awaiting and the abandoned-upload cleanup retries it.
+ */
 async function failClip(db: PrismaClient, storage: ObjectStorage, clip: FinalizableClip, from: string, now: Date) {
+  await storage.deleteObject(clip.storageBucket, clip.storageObjectKey);
   await db.correctionAudioClip.updateMany({
     where: { id: clip.id, status: from as "AWAITING_UPLOAD" | "AWAITING_EXTRACTION" },
     data: { status: "FAILED", failedAt: now },
   });
-  await storage.deleteObject(clip.storageBucket, clip.storageObjectKey);
 }
 
 async function finalize(
@@ -204,6 +208,11 @@ async function finalize(
     throw error;
   }
 
+  if (stat.byteSize > MAX_CORRECTION_CLIP_BYTES) {
+    // Rejected before reading anything: no bytes of an oversized file are downloaded.
+    await failClip(db, storage, clip, from, now);
+    throw new DomainError("invalid_media");
+  }
   const inspection = await inspectM4a((offset, length) => storage.readRange(clip.storageBucket, clip.storageObjectKey, offset, length), stat.byteSize);
   const tooLong = inspection.ok && inspection.durationUnits * BigInt(1000) > BigInt(MAX_CORRECTION_CLIP_MS) * BigInt(inspection.timescale);
   if (!inspection.ok || tooLong) {
@@ -240,6 +249,46 @@ async function finalize(
         now,
       });
     }
+  });
+}
+
+const selectSchema = z.object({ correctionId: z.uuid(), clipId: z.uuid() });
+
+/**
+ * A88: the active authoring teacher or a same-Markaz Markaz Admin chooses which historical clip
+ * becomes current — never automatic. The clip must belong to THIS correction, be FINALIZED and
+ * not deleted/purged. Exactly one current clip results; history is preserved; audited.
+ */
+export async function selectCurrentClip(db: PrismaClient, actor: Actor, input: unknown, options: { now?: Date } = {}) {
+  const parsed = selectSchema.safeParse(input);
+  if (!parsed.success) throw new DomainError("invalid_input");
+  const correction = await loadCorrection(db, parsed.data.correctionId);
+  if (!canSelectCurrentClip(actor, correction)) throw new AuthorizationError();
+  const clip = await db.correctionAudioClip.findUnique({
+    where: { id: parsed.data.clipId },
+    select: { id: true, correctionId: true, status: true, deletedAt: true, purgedAt: true, isPrimary: true },
+  });
+  if (!clip || clip.correctionId !== correction.id) throw new DomainError("not_found");
+  if (clip.status !== "FINALIZED" || clip.deletedAt || clip.purgedAt) throw new DomainError("invalid_state");
+  if (clip.isPrimary) return;
+  const now = options.now ?? new Date();
+  await db.$transaction(async (tx) => {
+    const previous = await tx.correctionAudioClip.findFirst({ where: { correctionId: correction.id, isPrimary: true }, select: { id: true } });
+    if (previous) await tx.correctionAudioClip.update({ where: { id: previous.id }, data: { isPrimary: false } });
+    const { count } = await tx.correctionAudioClip.updateMany({
+      where: { id: clip.id, correctionId: correction.id, status: "FINALIZED", deletedAt: null, purgedAt: null },
+      data: { isPrimary: true },
+    });
+    if (count !== 1) throw new DomainError("invalid_state");
+    await recordAudit(tx, {
+      actorId: actor.profileId,
+      tenantId: correction.tenantId,
+      action: "CORRECTION_CLIP_PROMOTED",
+      targetType: "CORRECTION_AUDIO_CLIP",
+      targetId: clip.id,
+      metadata: { previousClipId: previous?.id ?? null },
+      now,
+    });
   });
 }
 

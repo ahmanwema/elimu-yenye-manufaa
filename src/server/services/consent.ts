@@ -12,6 +12,7 @@ import {
   evaluateRecordingEligibility,
   minorStatus,
   RECORDING_CONSENT_POLICY,
+  type ConsentMethod,
   type ConsentPolicy,
   type EligibilityResult,
   type LiveConsent,
@@ -20,18 +21,20 @@ import {
 import { recordAudit, type Tx } from "./audit";
 import { DomainError, isUniqueViolation } from "./errors";
 
-// Recording consent & date of birth (owner decisions 2026-10-14, A70–A72).
+// Recording consent & date of birth (A70–A72, completed 2026-10-15 by A81–A83).
 //
-// - DOB is stored; minor status is derived from it (never stored).
-// - Minors: an ACTIVE-linked guardian consents online, OR a Markaz Admin records VERIFIED
-//   OFFLINE consent after checking evidence (only a reference to it is stored).
-// - One consent covers correction clips and full recordings.
-// - Withdrawal blocks FUTURE capture and sends existing affected media to the deletion
-//   review workflow — nothing is hard-deleted here.
+// - DOB is entered by the student or an ACTIVE guardian, and becomes TRUSTED only once a
+//   Markaz Admin verifies it. Re-entering it clears the verification. Minor = age < 18.
+// - Minors: an ACTIVE guardian consents online, or a Markaz Admin records VERIFIED OFFLINE
+//   consent (only a reference to the evidence is stored).
+// - Adults: the student gives — and may withdraw — their OWN consent.
+// - Withdrawal: an adult withdraws their own; for a minor, any ACTIVE guardian withdraws.
+//   Future capture is blocked and existing affected media goes to the deletion review
+//   workflow — nothing is hard-deleted here.
 //
-// INTERIM choices (owner to confirm; documented in docs/roadmap/open-questions.md):
-//   who may record a DOB; who may withdraw; guardian consent requires the guardian to STILL
-//   hold an ACTIVE link; offline consent applies only in the verifying Markaz.
+// INTERIM (owner to confirm; open-questions.md): a Markaz Admin may not verify a DOB they
+// entered themselves; verified offline consent applies only in the verifying Markaz; a
+// guardian's consent counts while that guardian still holds an ACTIVE link.
 
 export type ConsentOptions = { now?: Date; policy?: ConsentPolicy };
 
@@ -75,10 +78,14 @@ export async function getRecordingEligibility(
   options: ConsentOptions = {},
 ): Promise<EligibilityResult> {
   const { now, policy } = opts(options);
-  const student = await db.studentAccount.findUnique({ where: { profileId: studentProfileId }, select: { dateOfBirth: true } });
+  const student = await db.studentAccount.findUnique({
+    where: { profileId: studentProfileId },
+    select: { dateOfBirth: true, dateOfBirthVerifiedAt: true },
+  });
   if (!student) return { eligible: false, eligibility: "NO_CONSENT" };
   return evaluateRecordingEligibility({
     dateOfBirth: student.dateOfBirth,
+    dateOfBirthVerified: student.dateOfBirthVerifiedAt !== null,
     consents: await loadLiveConsents(db, studentProfileId),
     tenantId,
     now,
@@ -98,48 +105,83 @@ export async function requireRecordingEligibility(
   return result;
 }
 
-// --- Date of birth ---------------------------------------------------------------------
+// --- Date of birth (A82) -------------------------------------------------------------------
 
-const dobSchema = z.object({
-  studentProfileId: z.uuid(),
-  dateOfBirth: z.iso.date(),
-});
+const dobSchema = z.object({ studentProfileId: z.uuid(), dateOfBirth: z.iso.date() });
+
+function parseDob(value: string, now: Date) {
+  const dob = new Date(`${value}T00:00:00Z`);
+  if (dob.getTime() > now.getTime() || dob.getUTCFullYear() < 1900) throw new DomainError("invalid_input");
+  return dob;
+}
 
 /**
- * Who may record a DOB (INTERIM, owner to confirm): a guardian with an ACTIVE link, or a
- * Markaz Admin of a Markaz where the student is ACTIVE. The value itself is never audited.
+ * The student (for themself) or an ACTIVE guardian enters the DOB. It is NOT trusted until a
+ * Markaz Admin verifies it; entering a new value clears any previous verification. The value
+ * itself is never written to the audit trail.
  */
-export async function recordDateOfBirth(db: PrismaClient, actor: Actor, input: unknown, options: ConsentOptions = {}) {
+export async function enterDateOfBirth(db: PrismaClient, actor: Actor, input: unknown, options: ConsentOptions = {}) {
   const { now } = opts(options);
   const parsed = dobSchema.safeParse(input);
   if (!parsed.success) throw new DomainError("invalid_input");
   const { studentProfileId } = parsed.data;
-  const dob = new Date(`${parsed.data.dateOfBirth}T00:00:00Z`);
-  if (dob.getTime() > now.getTime() || dob.getUTCFullYear() < 1900) throw new DomainError("invalid_input");
-
-  let tenantId: string | null = null;
-  if (!hasActiveParentLink(actor, studentProfileId)) {
-    const adminTenants = actor.memberships.filter((m) => m.role === "MARKAZ_ADMIN" && m.status === "ACTIVE").map((m) => m.tenantId);
-    const membership = adminTenants.length
-      ? await db.membership.findFirst({
-          where: { profileId: studentProfileId, role: "STUDENT", status: "ACTIVE", tenantId: { in: adminTenants } },
-          select: { tenantId: true },
-        })
-      : null;
-    if (!membership) throw new AuthorizationError();
-    tenantId = membership.tenantId;
-  }
+  if (actor.profileId !== studentProfileId && !hasActiveParentLink(actor, studentProfileId)) throw new AuthorizationError();
+  const dob = parseDob(parsed.data.dateOfBirth, now);
 
   await db.$transaction(async (tx) => {
     const { count } = await tx.studentAccount.updateMany({
       where: { profileId: studentProfileId },
-      data: { dateOfBirth: dob, dateOfBirthRecordedById: actor.profileId, dateOfBirthRecordedAt: now },
+      data: {
+        dateOfBirth: dob,
+        dateOfBirthEnteredById: actor.profileId,
+        dateOfBirthEnteredAt: now,
+        dateOfBirthVerifiedById: null,
+        dateOfBirthVerifiedAt: null,
+      },
     });
-    if (count !== 1) throw new DomainError("not_found");
+    if (count !== 1) throw new AuthorizationError(); // no student account (e.g. an adult non-student)
+    await recordAudit(tx, {
+      actorId: actor.profileId,
+      tenantId: null,
+      action: "DATE_OF_BIRTH_RECORDED",
+      targetType: "STUDENT_ACCOUNT",
+      targetId: studentProfileId,
+      now,
+    });
+  });
+}
+
+const verifySchema = z.object({ tenantId: z.uuid(), studentProfileId: z.uuid(), dateOfBirth: z.iso.date() });
+
+/**
+ * A Markaz Admin of a Markaz where the student is ACTIVE verifies the entered DOB (A82). The
+ * admin confirms the exact value they checked: if the DOB was changed meanwhile, nothing is
+ * verified. INTERIM: an admin cannot verify a DOB they entered themselves.
+ */
+export async function verifyDateOfBirth(db: PrismaClient, actor: Actor, input: unknown, options: ConsentOptions = {}) {
+  const { now } = opts(options);
+  const parsed = verifySchema.safeParse(input);
+  if (!parsed.success) throw new DomainError("invalid_input");
+  const { tenantId, studentProfileId } = parsed.data;
+  if (!hasActiveRole(actor, tenantId, "MARKAZ_ADMIN")) throw new AuthorizationError();
+  if (!(await studentIsActiveIn(db, tenantId, studentProfileId))) throw new AuthorizationError();
+  const expected = new Date(`${parsed.data.dateOfBirth}T00:00:00Z`);
+
+  await db.$transaction(async (tx) => {
+    const { count } = await tx.studentAccount.updateMany({
+      where: {
+        profileId: studentProfileId,
+        dateOfBirth: expected,
+        dateOfBirthVerifiedAt: null,
+        dateOfBirthEnteredById: { not: actor.profileId },
+      },
+      data: { dateOfBirthVerifiedById: actor.profileId, dateOfBirthVerifiedAt: now },
+    });
+    if (count !== 1) throw new DomainError("invalid_state");
     await recordAudit(tx, {
       actorId: actor.profileId,
       tenantId,
-      action: "DATE_OF_BIRTH_RECORDED",
+      action: "DATE_OF_BIRTH_VERIFIED",
       targetType: "STUDENT_ACCOUNT",
       targetId: studentProfileId,
       now,
@@ -151,33 +193,30 @@ export async function recordDateOfBirth(db: PrismaClient, actor: Actor, input: u
 
 const studentSchema = z.object({ studentProfileId: z.uuid() });
 
-/** A guardian with an ACTIVE link consents online (A71 default path). */
-export async function giveGuardianConsent(db: PrismaClient, actor: Actor, input: unknown, options: ConsentOptions = {}) {
-  const { now } = opts(options);
-  const parsed = studentSchema.safeParse(input);
-  if (!parsed.success) throw new DomainError("invalid_input");
-  const { studentProfileId } = parsed.data;
-  if (!hasActiveParentLink(actor, studentProfileId)) throw new AuthorizationError();
+async function createConsent(
+  db: PrismaClient,
+  data: {
+    studentProfileId: string;
+    method: ConsentMethod;
+    recordedById: string;
+    guardianProfileId?: string;
+    tenantId?: string;
+    offlineConsenterDescription?: string;
+    evidenceReference?: string;
+  },
+  audit: { action: "CONSENT_GIVEN" | "CONSENT_OFFLINE_VERIFIED"; tenantId: string | null },
+  now: Date,
+) {
   try {
     return await db.$transaction(async (tx) => {
-      const consent = await tx.recordingConsent.create({
-        data: {
-          studentProfileId,
-          method: "GUARDIAN_ONLINE",
-          guardianProfileId: actor.profileId,
-          recordedById: actor.profileId,
-          grantedAt: now,
-          createdAt: now,
-        },
-        select: { id: true },
-      });
+      const consent = await tx.recordingConsent.create({ data: { ...data, grantedAt: now, createdAt: now }, select: { id: true } });
       await recordAudit(tx, {
-        actorId: actor.profileId,
-        tenantId: null,
-        action: "CONSENT_GIVEN",
+        actorId: data.recordedById,
+        tenantId: audit.tenantId,
+        action: audit.action,
         targetType: "RECORDING_CONSENT",
         targetId: consent.id,
-        metadata: { method: "GUARDIAN_ONLINE" },
+        metadata: { method: data.method },
         now,
       });
       return consent.id;
@@ -186,6 +225,42 @@ export async function giveGuardianConsent(db: PrismaClient, actor: Actor, input:
     if (isUniqueViolation(error)) throw new DomainError("conflict");
     throw error;
   }
+}
+
+/** A guardian with an ACTIVE link consents online for a minor (A71). */
+export async function giveGuardianConsent(db: PrismaClient, actor: Actor, input: unknown, options: ConsentOptions = {}) {
+  const { now } = opts(options);
+  const parsed = studentSchema.safeParse(input);
+  if (!parsed.success) throw new DomainError("invalid_input");
+  const { studentProfileId } = parsed.data;
+  if (!hasActiveParentLink(actor, studentProfileId)) throw new AuthorizationError();
+  return createConsent(
+    db,
+    { studentProfileId, method: "GUARDIAN_ONLINE", guardianProfileId: actor.profileId, recordedById: actor.profileId },
+    { action: "CONSENT_GIVEN", tenantId: null },
+    now,
+  );
+}
+
+/**
+ * A student gives their OWN consent (A83). It counts only once the student is a VERIFIED
+ * adult; it can be given during enrollment, before verification. A student whose verified DOB
+ * shows a minor cannot self-consent (a guardian must).
+ */
+export async function giveOwnConsent(db: PrismaClient, actor: Actor, options: ConsentOptions = {}) {
+  const { now, policy } = opts(options);
+  const student = await db.studentAccount.findUnique({
+    where: { profileId: actor.profileId },
+    select: { dateOfBirth: true, dateOfBirthVerifiedAt: true },
+  });
+  if (!student) throw new AuthorizationError();
+  if (student.dateOfBirthVerifiedAt && minorStatus(student.dateOfBirth, now, policy) === "MINOR") throw new DomainError("invalid_state");
+  return createConsent(
+    db,
+    { studentProfileId: actor.profileId, method: "SELF_ONLINE", recordedById: actor.profileId },
+    { action: "CONSENT_GIVEN", tenantId: null },
+    now,
+  );
 }
 
 const offlineSchema = z.object({
@@ -196,9 +271,8 @@ const offlineSchema = z.object({
 });
 
 /**
- * A Markaz Admin records VERIFIED OFFLINE consent after checking evidence (A71). Only a
- * short description of who consented and a reference to the evidence are stored — never the
- * evidence itself. Applies in this Markaz only (INTERIM, owner to confirm).
+ * A Markaz Admin records VERIFIED OFFLINE consent for a minor after checking evidence (A71).
+ * Only who consented and a reference to the evidence are stored — never the evidence.
  */
 export async function recordOfflineConsent(db: PrismaClient, actor: Actor, input: unknown, options: ConsentOptions = {}) {
   const { now } = opts(options);
@@ -207,49 +281,33 @@ export async function recordOfflineConsent(db: PrismaClient, actor: Actor, input
   const { tenantId, studentProfileId, consenterDescription, evidenceReference } = parsed.data;
   if (!canRecordOfflineConsent(actor, tenantId)) throw new AuthorizationError();
   if (!(await studentIsActiveIn(db, tenantId, studentProfileId))) throw new AuthorizationError();
-  try {
-    return await db.$transaction(async (tx) => {
-      const consent = await tx.recordingConsent.create({
-        data: {
-          studentProfileId,
-          method: "OFFLINE_VERIFIED",
-          tenantId,
-          offlineConsenterDescription: consenterDescription,
-          evidenceReference,
-          recordedById: actor.profileId,
-          grantedAt: now,
-          createdAt: now,
-        },
-        select: { id: true },
-      });
-      await recordAudit(tx, {
-        actorId: actor.profileId,
-        tenantId,
-        action: "CONSENT_OFFLINE_VERIFIED",
-        targetType: "RECORDING_CONSENT",
-        targetId: consent.id,
-        now,
-      });
-      return consent.id;
-    });
-  } catch (error) {
-    if (isUniqueViolation(error)) throw new DomainError("conflict");
-    throw error;
-  }
+  return createConsent(
+    db,
+    {
+      studentProfileId,
+      method: "OFFLINE_VERIFIED",
+      tenantId,
+      offlineConsenterDescription: consenterDescription,
+      evidenceReference,
+      recordedById: actor.profileId,
+    },
+    { action: "CONSENT_OFFLINE_VERIFIED", tenantId },
+    now,
+  );
 }
 
-// --- Withdrawal --------------------------------------------------------------------------
+// --- Withdrawal (A83) ------------------------------------------------------------------------
 
 const consentIdSchema = z.object({ consentId: z.uuid() });
 
 /**
- * Withdraws a consent (A72). Who (INTERIM, owner to confirm): online consent — any guardian
- * with an ACTIVE link to the student; offline consent — a Markaz Admin of its Markaz.
+ * Withdraws a consent. An adult withdraws their own (SELF_ONLINE); for a minor, any guardian
+ * with an ACTIVE link withdraws a guardian or verified-offline consent.
  *
  * Effects: future capture is blocked by the eligibility check. Every live clip / recording of
  * the student in a Markaz where they are no longer eligible gets a PENDING deletion request
- * (reason CONSENT_WITHDRAWN) for a Markaz Admin to review. Nothing is deleted here.
- * Returns how many items were sent to review.
+ * (reason CONSENT_WITHDRAWN) for review. Nothing is deleted here. Returns how many items were
+ * sent to review.
  */
 export async function withdrawConsent(db: PrismaClient, actor: Actor, input: unknown, options: ConsentOptions = {}) {
   const { now, policy } = opts(options);
@@ -261,9 +319,9 @@ export async function withdrawConsent(db: PrismaClient, actor: Actor, input: unk
   });
   if (!consent) throw new AuthorizationError();
   const allowed =
-    consent.method === "GUARDIAN_ONLINE"
-      ? hasActiveParentLink(actor, consent.studentProfileId)
-      : consent.tenantId !== null && hasActiveRole(actor, consent.tenantId, "MARKAZ_ADMIN");
+    consent.method === "SELF_ONLINE"
+      ? actor.profileId === consent.studentProfileId
+      : hasActiveParentLink(actor, consent.studentProfileId);
   if (!allowed) throw new AuthorizationError();
   if (consent.withdrawnAt) throw new DomainError("invalid_state");
 
@@ -354,12 +412,18 @@ async function flagMediaForReview(
 
 // --- Read models for the UI ----------------------------------------------------------------
 
+export type DobState = "MISSING" | "PENDING_VERIFICATION" | "VERIFIED";
+
 export type ConsentSummary = {
   studentProfileId: string;
-  dateOfBirthRecorded: boolean;
+  dateOfBirthState: DobState;
+  /** Derived from the DOB (verified or not); trusted only when the state is VERIFIED. */
   minorStatus: MinorStatus;
-  consents: { id: string; method: "GUARDIAN_ONLINE" | "OFFLINE_VERIFIED"; tenantId: string | null; mine: boolean; grantedAt: Date }[];
+  consents: { id: string; method: ConsentMethod; tenantId: string | null; mine: boolean; grantedAt: Date }[];
 };
+
+const dobState = (s: { dateOfBirth: Date | null; dateOfBirthVerifiedAt: Date | null }): DobState =>
+  !s.dateOfBirth ? "MISSING" : s.dateOfBirthVerifiedAt ? "VERIFIED" : "PENDING_VERIFICATION";
 
 async function summarize(
   db: PrismaClient,
@@ -367,13 +431,15 @@ async function summarize(
   studentProfileIds: string[],
   filter: (c: { method: string; tenantId: string | null }) => boolean,
   options: ConsentOptions,
-): Promise<ConsentSummary[]> {
+) {
   const { now, policy } = opts(options);
   const students = await db.studentAccount.findMany({
     where: { profileId: { in: studentProfileIds } },
     select: {
       profileId: true,
       dateOfBirth: true,
+      dateOfBirthVerifiedAt: true,
+      dateOfBirthEnteredById: true,
       recordingConsents: {
         where: { withdrawnAt: null },
         select: { id: true, method: true, tenantId: true, guardianProfileId: true, recordedById: true, grantedAt: true },
@@ -381,38 +447,58 @@ async function summarize(
     },
   });
   return students.map((s) => ({
-    studentProfileId: s.profileId,
-    dateOfBirthRecorded: s.dateOfBirth !== null,
-    minorStatus: minorStatus(s.dateOfBirth, now, policy),
-    consents: s.recordingConsents.filter(filter).map((c) => ({
-      id: c.id,
-      method: c.method,
-      tenantId: c.tenantId,
-      mine: c.guardianProfileId === actor.profileId || c.recordedById === actor.profileId,
-      grantedAt: c.grantedAt,
-    })),
+    student: s,
+    summary: {
+      studentProfileId: s.profileId,
+      dateOfBirthState: dobState(s),
+      minorStatus: minorStatus(s.dateOfBirth, now, policy),
+      consents: s.recordingConsents.filter(filter).map((c) => ({
+        id: c.id,
+        method: c.method,
+        tenantId: c.tenantId,
+        mine: c.guardianProfileId === actor.profileId || c.recordedById === actor.profileId,
+        grantedAt: c.grantedAt,
+      })),
+    } satisfies ConsentSummary,
   }));
 }
 
-/** For a guardian: consent state of each ACTIVE-linked child (online consents + any offline). */
-export async function listMyChildrenConsent(db: PrismaClient, actor: Actor, options: ConsentOptions = {}) {
-  const children = actor.parentLinks.filter((l) => l.status === "ACTIVE").map((l) => l.studentProfileId);
-  if (children.length === 0) return [];
-  return summarize(db, actor, children, () => true, options);
+/** For a student: their own DOB state and consents (A83). */
+export async function getMyConsent(db: PrismaClient, actor: Actor, options: ConsentOptions = {}): Promise<ConsentSummary | null> {
+  const [row] = await summarize(db, actor, [actor.profileId], () => true, options);
+  return row?.summary ?? null;
 }
 
-/** For a Markaz Admin: consent state of the Markaz's ACTIVE students (offline consents of this Markaz + online). */
+/** For a guardian: consent state of each ACTIVE-linked child. */
+export async function listMyChildrenConsent(db: PrismaClient, actor: Actor, options: ConsentOptions = {}): Promise<ConsentSummary[]> {
+  const children = actor.parentLinks.filter((l) => l.status === "ACTIVE").map((l) => l.studentProfileId);
+  if (children.length === 0) return [];
+  return (await summarize(db, actor, children, () => true, options)).map((r) => r.summary);
+}
+
+/**
+ * For a Markaz Admin: the Markaz's ACTIVE students. The DOB VALUE is included only while it
+ * awaits verification (the admin must see what they verify); otherwise only its state.
+ */
 export async function listTenantConsentOverview(db: PrismaClient, actor: Actor, tenantId: unknown, options: ConsentOptions = {}) {
   if (!isValidId(tenantId) || !canRecordOfflineConsent(actor, tenantId)) throw new AuthorizationError();
   const members = await db.membership.findMany({
     where: { tenantId, role: "STUDENT", status: "ACTIVE" },
     select: { profileId: true },
   });
-  return summarize(
+  const rows = await summarize(
     db,
     actor,
     members.map((m) => m.profileId),
-    (c) => c.method === "GUARDIAN_ONLINE" || c.tenantId === tenantId,
+    (c) => c.method !== "OFFLINE_VERIFIED" || c.tenantId === tenantId,
     options,
   );
+  return rows.map(({ student, summary }) => ({
+    ...summary,
+    dateOfBirthToVerify:
+      summary.dateOfBirthState === "PENDING_VERIFICATION" && student.dateOfBirth
+        ? student.dateOfBirth.toISOString().slice(0, 10)
+        : null,
+    enteredByMe: student.dateOfBirthEnteredById === actor.profileId,
+  }));
 }

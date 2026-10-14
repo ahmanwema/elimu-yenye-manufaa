@@ -14,7 +14,7 @@ export const M = {
   adminA2: "00000000-0000-4000-8000-0000000000e2", // a second Markaz Admin of A
 } as const;
 
-/** TEST-ONLY consent threshold. The real one is an open owner decision (null in the app). */
+/** The approved policy (A81: minor = under 18). Kept as a named constant for readability. */
 export const TEST_POLICY = { minorAgeThresholdYears: 18 } as const;
 export const MINOR_DOB = "2015-03-01";
 export const ADULT_DOB = "1990-03-01";
@@ -31,11 +31,32 @@ export async function seedMedia(pg: PGlite) {
   await pg.query(`INSERT INTO memberships (tenant_id, profile_id, role, status) VALUES ($1, $2, 'STUDENT', 'ACTIVE')`, [T.B, U.studentX]);
 }
 
-export async function setDob(pg: PGlite, studentProfileId: string, dob: string) {
+/** Owner-path DOB: entered by the student and (by default) verified by adminA (A82). */
+export async function setDob(pg: PGlite, studentProfileId: string, dob: string, verified = true) {
   await pg.query(
-    `UPDATE student_accounts SET date_of_birth = $2, date_of_birth_recorded_by_id = $3, date_of_birth_recorded_at = now() WHERE profile_id = $1`,
-    [studentProfileId, dob, U.adminA],
+    `UPDATE student_accounts SET date_of_birth = $2, date_of_birth_entered_by_id = $1, date_of_birth_entered_at = now(),
+       date_of_birth_verified_by_id = CASE WHEN $3 THEN $4::uuid END, date_of_birth_verified_at = CASE WHEN $3 THEN now() END
+     WHERE profile_id = $1`,
+    [studentProfileId, dob, verified, U.adminA],
   );
+}
+
+/** Owner-path Option C entitlement (A90) — tests of recordings need it ENABLED. */
+export async function enableOptionCFor(pg: PGlite, tenantId: string) {
+  await pg.query(
+    `INSERT INTO recording_entitlements (tenant_id, status, requested_by_id, requested_at, enabled_by_id, enabled_at)
+     VALUES ($1, 'ENABLED', $2, now(), $3, now())`,
+    [tenantId, U.adminA, U.superAdmin],
+  );
+}
+
+/** Owner-path adult self-consent (A83). */
+export async function insertSelfConsent(pg: PGlite, studentProfileId: string) {
+  const { rows } = await pg.query<{ id: string }>(
+    `INSERT INTO recording_consents (student_profile_id, method, recorded_by_id, granted_at) VALUES ($1, 'SELF_ONLINE', $1, now()) RETURNING id`,
+    [studentProfileId],
+  );
+  return rows[0].id;
 }
 
 /** Live guardian consent from parentActive (owner-path, bypassing the service). */

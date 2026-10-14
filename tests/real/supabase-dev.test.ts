@@ -365,9 +365,9 @@ describe("Storage on real Supabase (private dev bucket)", () => {
   // Requires the 2026-10-14 migrations on the development project (owner approval).
   it("signed upload → server M4A inspection → finalize → signed read; authorization decides who gets a URL", async () => {
     const storage = createSupabaseObjectStorage();
-    // Consent prerequisites (A70–A72), set as the owner; TEST-ONLY age threshold.
+    // Consent prerequisites (A70–A72, A81–A82): a VERIFIED minor DOB + guardian consent, set as the owner.
     await sql.query(
-      `UPDATE student_accounts SET date_of_birth = '2015-03-01', date_of_birth_recorded_by_id = $2, date_of_birth_recorded_at = now() WHERE profile_id = $1`,
+      `UPDATE student_accounts SET date_of_birth = '2015-03-01', date_of_birth_entered_by_id = $1, date_of_birth_entered_at = now(), date_of_birth_verified_by_id = $2, date_of_birth_verified_at = now() WHERE profile_id = $1`,
       [ID.studentX, ID.adminA],
     );
     await sql.query(

@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   canApproveMediaDeletion,
   canApproveRecording,
+  canCancelMediaDeletion,
+  canDeclineMediaDeletion,
+  canEnableOptionC,
+  canRequestOptionC,
+  canSelectCurrentClip,
   canReadCorrection,
   canRecordOfflineConsent,
   canRequestMediaDeletion,
@@ -76,7 +81,33 @@ describe("deletion and approval authority (A73, A78)", () => {
     expect(canRequestMediaDeletion(actorFor(U.superAdmin), target)).toBe(false);
   });
 
-  it("only a same-Markaz admin APPROVES deletion — never a teacher; not their own request (interim)", () => {
+  it("decline: any same-Markaz admin; cancel: only the requester (A85)", () => {
+    expect(canDeclineMediaDeletion(actorFor(U.adminA), { tenantId: T.A })).toBe(true);
+    expect(canDeclineMediaDeletion(actorFor(U.adminB), { tenantId: T.A })).toBe(false);
+    expect(canDeclineMediaDeletion(actorFor(U.teacherA), { tenantId: T.A })).toBe(false);
+    expect(canCancelMediaDeletion(actorFor(U.teacherA), { requestedById: U.teacherA })).toBe(true);
+    expect(canCancelMediaDeletion(actorFor(U.adminA), { requestedById: U.teacherA })).toBe(false);
+  });
+
+  it("current-clip selection: active author or same-Markaz admin (A88)", () => {
+    const c = { tenantId: T.A, teacherProfileId: U.teacherA };
+    expect(canSelectCurrentClip(actorFor(U.teacherA), c)).toBe(true);
+    expect(canSelectCurrentClip(actorFor(U.adminA), c)).toBe(true);
+    for (const a of [departedTeacher, actorFor(U.teacherAB), actorFor(U.adminB), actorFor(U.superAdmin), actorFor(U.parentActive)]) {
+      expect(canSelectCurrentClip(a, c)).toBe(false);
+    }
+  });
+
+  it("Option C: a Markaz Admin requests for their own Markaz; only a Super Admin enables (A90)", () => {
+    expect(canRequestOptionC(actorFor(U.adminA), T.A)).toBe(true);
+    expect(canRequestOptionC(actorFor(U.adminA), T.B)).toBe(false);
+    expect(canRequestOptionC(actorFor(U.teacherA), T.A)).toBe(false);
+    expect(canRequestOptionC(actorFor(U.superAdmin), T.A)).toBe(false);
+    expect(canEnableOptionC(actorFor(U.superAdmin))).toBe(true);
+    expect(canEnableOptionC(actorFor(U.adminA))).toBe(false);
+  });
+
+  it("only a same-Markaz admin APPROVES deletion — never a teacher, never the requester (A84)", () => {
     expect(canApproveMediaDeletion(actorFor(U.adminA), { tenantId: T.A, requestedById: U.teacherA })).toBe(true);
     expect(canApproveMediaDeletion(actorFor(U.teacherA), { tenantId: T.A, requestedById: U.adminA })).toBe(false);
     expect(canApproveMediaDeletion(actorFor(U.adminB), { tenantId: T.A, requestedById: U.teacherA })).toBe(false);

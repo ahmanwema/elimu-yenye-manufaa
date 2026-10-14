@@ -7,12 +7,12 @@ import { MediaPlayButton } from "@/components/media-play-button";
 import { getDictionary, getLocale } from "@/i18n/server";
 import { format } from "@/i18n/dictionaries";
 import { signOut } from "@/server/actions/auth";
-import { giveGuardianConsentAction, recordDateOfBirthAction, withdrawConsentAction } from "@/server/actions/media";
+import { enterDateOfBirthAction, giveGuardianConsentAction, giveOwnConsentAction, withdrawConsentAction } from "@/server/actions/media";
 import { requestLinkAction, updateMyNameAction, withdrawMyLinkAction } from "@/server/actions/workspace";
 import { getCurrentActor } from "@/server/auth";
 import { getDb } from "@/server/db";
 import { listMyTenants } from "@/server/data/tenants";
-import { listMyChildrenConsent } from "@/server/services/consent";
+import { getMyConsent, listMyChildrenConsent } from "@/server/services/consent";
 import { listStudentCorrections } from "@/server/services/corrections";
 import { listMyParentLinks } from "@/server/services/parent-links";
 import { listParentVisibleRecordings } from "@/server/services/recordings";
@@ -58,8 +58,9 @@ async function AccountBody() {
     }),
   ]);
   const activeChildren = links.filter((l) => l.studentProfileId !== null);
-  const [myCorrections, childConsent, childCorrections, childRecordings] = await Promise.all([
+  const [myCorrections, myConsent, childConsent, childCorrections, childRecordings] = await Promise.all([
     profile?.studentAccount ? listStudentCorrections(db, actor, actor.profileId) : [],
+    profile?.studentAccount ? getMyConsent(db, actor) : null,
     activeChildren.length > 0 ? listMyChildrenConsent(db, actor) : [],
     Promise.all(activeChildren.map((l) => listStudentCorrections(db, actor, l.studentProfileId))),
     activeChildren.length > 0 ? listParentVisibleRecordings(db, actor) : [],
@@ -114,6 +115,39 @@ async function AccountBody() {
         </section>
       ) : null}
 
+      {myConsent ? (
+        <section className="card" aria-labelledby="my-consent">
+          <h2 id="my-consent">{m.ownConsentHeading}</h2>
+          <p className="muted">{m.ownConsentNote}</p>
+          <p>{m.dobStates[myConsent.dateOfBirthState]}</p>
+          <ActionForm action={enterDateOfBirthAction} submitLabel={m.dobSave} pendingLabel={dict.common.loading} messages={dict.results}>
+            <input type="hidden" name="studentProfileId" value={actor.profileId} />
+            <label htmlFor="my-dob">{m.dob}</label>
+            <input id="my-dob" name="dateOfBirth" type="date" required />
+          </ActionForm>
+          {myConsent.consents.length > 0 ? (
+            <ul className="list">
+              {myConsent.consents.map((c) => (
+                <li key={c.id} className="row">
+                  <span>{m.methods[c.method]}</span>
+                  {c.method === "SELF_ONLINE" ? (
+                    <ActionForm action={withdrawConsentAction} submitLabel={m.withdrawConsent} pendingLabel={dict.common.loading} messages={dict.results} variant="secondary" inline>
+                      <input type="hidden" name="consentId" value={c.id} />
+                    </ActionForm>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted">{m.consentNone}</p>
+          )}
+          {!myConsent.consents.some((c) => c.method === "SELF_ONLINE") &&
+          !(myConsent.dateOfBirthState === "VERIFIED" && myConsent.minorStatus === "MINOR") ? (
+            <ActionForm action={giveOwnConsentAction} submitLabel={m.giveOwnConsent} pendingLabel={dict.common.loading} messages={dict.results} />
+          ) : null}
+        </section>
+      ) : null}
+
       {profile?.studentAccount ? (
         <section className="card" aria-labelledby="my-corrections">
           <h2 id="my-corrections">{m.myCorrectionsHeading}</h2>
@@ -130,9 +164,10 @@ async function AccountBody() {
             <h3>{m.consentHeading}</h3>
             <p className="muted">{m.consentNote}</p>
             <p>
-              {consent?.dateOfBirthRecorded ? m.dobRecorded : m.dobMissing} — {m.minorStatus[consent?.minorStatus ?? "UNKNOWN"]}
+              {m.dobStates[consent?.dateOfBirthState ?? "MISSING"]}
+              {consent?.dateOfBirthState === "VERIFIED" ? ` — ${m.minorStatus[consent.minorStatus]}` : null}
             </p>
-            <ActionForm action={recordDateOfBirthAction} submitLabel={m.dobSave} pendingLabel={dict.common.loading} messages={dict.results}>
+            <ActionForm action={enterDateOfBirthAction} submitLabel={m.dobSave} pendingLabel={dict.common.loading} messages={dict.results}>
               <input type="hidden" name="studentProfileId" value={child.studentProfileId ?? ""} />
               <label htmlFor={`dob-${child.id}`}>{m.dob}</label>
               <input id={`dob-${child.id}`} name="dateOfBirth" type="date" required />
@@ -142,7 +177,7 @@ async function AccountBody() {
                 {consent.consents.map((c) => (
                   <li key={c.id} className="row">
                     <span>{m.methods[c.method]}</span>
-                    {c.method === "GUARDIAN_ONLINE" ? (
+                    {c.method !== "SELF_ONLINE" ? (
                       <ActionForm action={withdrawConsentAction} submitLabel={m.withdrawConsent} pendingLabel={dict.common.loading} messages={dict.results} variant="secondary" inline>
                         <input type="hidden" name="consentId" value={c.id} />
                       </ActionForm>

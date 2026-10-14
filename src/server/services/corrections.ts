@@ -114,7 +114,7 @@ const correctionSelect = {
       finalizedAt: true,
       deletedAt: true,
       purgedAt: true,
-      deletionRequests: { where: { status: "PENDING" as const }, select: { id: true } },
+      deletionRequests: { where: { status: "PENDING" as const }, select: { id: true, requestedById: true } },
     },
     orderBy: { createdAt: "desc" as const },
   },
