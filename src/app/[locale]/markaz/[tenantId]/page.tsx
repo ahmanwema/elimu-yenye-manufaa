@@ -2,10 +2,23 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ActionForm } from "@/components/action-form";
+import { CorrectionList } from "@/components/correction-list";
 import { InviteCreateForm } from "@/components/invite-create-form";
 import { format } from "@/i18n/dictionaries";
 import { getDictionary, getLocale } from "@/i18n/server";
 import { revokeInvite } from "@/server/actions/invitations";
+import {
+  approveMediaDeletionAction,
+  approveRecordingAction,
+  createCorrectionAction,
+  createRecordingAction,
+  recordDateOfBirthAction,
+  recordOfflineConsentAction,
+  requestMediaDeletionAction,
+  revokeRecordingApprovalAction,
+  submitRecordingAction,
+  withdrawConsentAction,
+} from "@/server/actions/media";
 import {
   activateLinkAction,
   createLinkAction,
@@ -18,6 +31,9 @@ import {
 import { getCurrentActor } from "@/server/auth";
 import {
   AuthorizationError,
+  canApproveMediaDeletion,
+  canApproveRecording,
+  canRequestMediaDeletion,
   GRANTABLE_PERMISSIONS,
   hasActiveRole,
   hasGrantedPermission,
@@ -27,7 +43,11 @@ import {
 import { getDb } from "@/server/db";
 import { getTenant } from "@/server/data/tenants";
 import { listAppointmentCandidates, listTenantAppointmentRequests } from "@/server/services/appointments";
+import { listTenantConsentOverview } from "@/server/services/consent";
+import { ANCHOR_KINDS, listTenantCorrections } from "@/server/services/corrections";
 import { listPendingInvitations } from "@/server/services/invitations";
+import { listPendingDeletionRequests } from "@/server/services/media-deletion";
+import { listTenantRecordings } from "@/server/services/recordings";
 import { listTenantParentLinks } from "@/server/services/parent-links";
 import { listTeacherDelegation } from "@/server/services/permissions";
 import { listStudentRoster } from "@/server/services/roster";
@@ -74,11 +94,20 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
     revoke: hasGrantedPermission(actor, tenantId, "parent_link.revoke"),
     appoint: hasTenantPermission(actor, tenantId, "tenant.admin_appointment.request"),
     delegate: actor.isPlatformAdmin || hasActiveRole(actor, tenantId, "MARKAZ_ADMIN"),
+    teach: hasActiveRole(actor, tenantId, "TEACHER"),
+    administer: hasActiveRole(actor, tenantId, "MARKAZ_ADMIN"),
   };
   const targets = invitableTargets(actor, tenantId);
   const canLinks =
     hasTenantPermission(actor, tenantId, "tenant.parent_links.read") || can.create || can.verify || can.activate || can.revoke;
 
+  const [corrections, recordings, consentOverview, deletionRequests] = await Promise.all([
+    can.teach || can.administer ? listTenantCorrections(db, actor, tenantId) : null,
+    can.teach || can.administer ? listTenantRecordings(db, actor, tenantId) : null,
+    can.administer ? listTenantConsentOverview(db, actor, tenantId) : null,
+    can.administer ? listPendingDeletionRequests(db, actor, tenantId) : null,
+  ]);
+  const m = dict.media;
   const [roster, invitations, links, candidates, requests, verifiers] = await Promise.all([
     can.roster || can.create ? listStudentRoster(db, actor, tenantId).catch(() => null) : null,
     targets.length > 0 ? listPendingInvitations(db, actor, tenantId) : null,
@@ -107,6 +136,174 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
             <ul className="list">
               {roster.map((s) => (
                 <li key={s.profileId}>{name(s.displayName)}</li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
+      {corrections ? (
+        <section className="card" aria-labelledby="corrections">
+          <h2 id="corrections">{m.correctionsHeading}</h2>
+          <p className="muted">{m.correctionsNote}</p>
+          {can.teach && studentOptions.length > 0 ? (
+            <>
+              <h3>{m.newCorrection}</h3>
+              <ActionForm action={createCorrectionAction} submitLabel={m.create} pendingLabel={dict.common.loading} messages={dict.results}>
+                <input type="hidden" name="tenantId" value={tenant.id} />
+                <label htmlFor="correctionStudent">{m.student}</label>
+                <select id="correctionStudent" name="studentProfileId" required>
+                  {studentOptions.map((s) => (
+                    <option key={s.profileId} value={s.profileId}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+                <label htmlFor="correctionNote">{m.note}</label>
+                <textarea id="correctionNote" name="note" maxLength={4000} rows={3} />
+                <label htmlFor="anchorKind">{m.anchorKind}</label>
+                <select id="anchorKind" name="anchorKind" defaultValue="">
+                  <option value="">{m.noAnchor}</option>
+                  {ANCHOR_KINDS.map((k) => (
+                    <option key={k} value={k}>
+                      {m.anchorKinds[k]}
+                    </option>
+                  ))}
+                </select>
+                <label htmlFor="anchorLabel">{m.anchorLabel}</label>
+                <input id="anchorLabel" name="anchorLabel" maxLength={500} />
+                <label htmlFor="anchorRefId">{m.anchorRef}</label>
+                <input id="anchorRefId" name="anchorRefId" maxLength={200} dir="ltr" />
+              </ActionForm>
+            </>
+          ) : null}
+          <CorrectionList corrections={corrections} actor={actor} dict={dict} locale={locale} />
+        </section>
+      ) : null}
+
+      {consentOverview ? (
+        <section className="card" aria-labelledby="consent">
+          <h2 id="consent">{m.consentHeading}</h2>
+          <p className="muted">{m.consentNote}</p>
+          {consentOverview.length === 0 ? (
+            <p className="muted">{dict.markaz.noStudents}</p>
+          ) : (
+            <ul className="list">
+              {consentOverview.map((s) => (
+                <li key={s.studentProfileId}>
+                  <p>
+                    <strong>{name(roster?.find((r) => r.profileId === s.studentProfileId)?.displayName)}</strong> —{" "}
+                    {s.dateOfBirthRecorded ? m.dobRecorded : m.dobMissing} — {m.minorStatus[s.minorStatus]}
+                  </p>
+                  <ActionForm action={recordDateOfBirthAction} submitLabel={m.dobSave} pendingLabel={dict.common.loading} messages={dict.results} inline>
+                    <input type="hidden" name="studentProfileId" value={s.studentProfileId} />
+                    <label htmlFor={`dob-${s.studentProfileId}`}>{m.dob}</label>
+                    <input id={`dob-${s.studentProfileId}`} name="dateOfBirth" type="date" required />
+                  </ActionForm>
+                  {s.consents.length === 0 ? <p className="muted">{m.consentNone}</p> : null}
+                  <ul className="list">
+                    {s.consents.map((c) => (
+                      <li key={c.id} className="row">
+                        <span>{m.methods[c.method]}</span>
+                        {c.method === "OFFLINE_VERIFIED" ? (
+                          <ActionForm action={withdrawConsentAction} submitLabel={m.withdrawConsent} pendingLabel={dict.common.loading} messages={dict.results} variant="secondary" inline>
+                            <input type="hidden" name="consentId" value={c.id} />
+                          </ActionForm>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                  {!s.consents.some((c) => c.method === "OFFLINE_VERIFIED") ? (
+                    <details>
+                      <summary>{m.offlineHeading}</summary>
+                      <ActionForm action={recordOfflineConsentAction} submitLabel={m.offlineSubmit} pendingLabel={dict.common.loading} messages={dict.results}>
+                        <input type="hidden" name="tenantId" value={tenant.id} />
+                        <input type="hidden" name="studentProfileId" value={s.studentProfileId} />
+                        <label htmlFor={`who-${s.studentProfileId}`}>{m.offlineWho}</label>
+                        <input id={`who-${s.studentProfileId}`} name="consenterDescription" maxLength={200} required />
+                        <label htmlFor={`ev-${s.studentProfileId}`}>{m.offlineEvidence}</label>
+                        <input id={`ev-${s.studentProfileId}`} name="evidenceReference" maxLength={200} required />
+                      </ActionForm>
+                    </details>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
+      {deletionRequests ? (
+        <section className="card" aria-labelledby="deletions">
+          <h2 id="deletions">{m.deletionHeading}</h2>
+          <p className="muted">{m.deletionNote}</p>
+          {deletionRequests.length === 0 ? (
+            <p className="muted">{m.noDeletion}</p>
+          ) : (
+            <ul className="list">
+              {deletionRequests.map((d) => (
+                <li key={d.id} className="row">
+                  <span>
+                    {d.clip
+                      ? `${m.clips} — ${name(d.clip.correction.student.profile.displayName)}`
+                      : `${m.recordingsHeading} — ${d.recording?.title ?? m.untitled}`}{" "}
+                    <span className="muted">({m.reasons[d.reason]})</span>
+                  </span>
+                  {canApproveMediaDeletion(actor, { tenantId: tenant.id, requestedById: d.requestedById }) ? (
+                    <ActionForm action={approveMediaDeletionAction} submitLabel={m.approveDeletion} pendingLabel={dict.common.loading} messages={dict.results} variant="secondary" inline>
+                      <input type="hidden" name="requestId" value={d.id} />
+                    </ActionForm>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
+      {recordings ? (
+        <section className="card" aria-labelledby="recordings">
+          <h2 id="recordings">{m.recordingsHeading}</h2>
+          <p className="muted">{m.recordingsNote}</p>
+          {can.teach ? (
+            <ActionForm action={createRecordingAction} submitLabel={m.createRecording} pendingLabel={dict.common.loading} messages={dict.results}>
+              <input type="hidden" name="tenantId" value={tenant.id} />
+              <label htmlFor="recordingTitle">{m.recordingTitle}</label>
+              <input id="recordingTitle" name="title" maxLength={200} />
+            </ActionForm>
+          ) : null}
+          {recordings.length === 0 ? (
+            <p className="muted">{m.noRecordings}</p>
+          ) : (
+            <ul className="list">
+              {recordings.map((r) => (
+                <li key={r.id} className="row">
+                  <span>
+                    {r.title ?? m.untitled} — {r.deletedAt ? m.clipRemoved : m.recordingStatus[r.status]}{" "}
+                    <span className="muted">({name(r.teacher.displayName)})</span>
+                  </span>
+                  {r.status === "DRAFT" && r.teacherProfileId === actor.profileId && !r.deletedAt ? (
+                    <ActionForm action={submitRecordingAction} submitLabel={m.submit} pendingLabel={dict.common.loading} messages={dict.results} inline>
+                      <input type="hidden" name="recordingId" value={r.id} />
+                    </ActionForm>
+                  ) : null}
+                  {r.status === "PENDING_APPROVAL" && !r.deletedAt && canApproveRecording(actor, r) ? (
+                    <ActionForm action={approveRecordingAction} submitLabel={m.approve} pendingLabel={dict.common.loading} messages={dict.results} inline>
+                      <input type="hidden" name="recordingId" value={r.id} />
+                    </ActionForm>
+                  ) : null}
+                  {r.status === "APPROVED" && can.administer ? (
+                    <ActionForm action={revokeRecordingApprovalAction} submitLabel={m.revoke} pendingLabel={dict.common.loading} messages={dict.results} variant="secondary" inline>
+                      <input type="hidden" name="recordingId" value={r.id} />
+                    </ActionForm>
+                  ) : null}
+                  {!r.deletedAt && r.deletionRequests.length === 0 && canRequestMediaDeletion(actor, r) && r.mediaFinalizedAt ? (
+                    <ActionForm action={requestMediaDeletionAction} submitLabel={m.requestDeletion} pendingLabel={dict.common.loading} messages={dict.results} variant="secondary" inline>
+                      <input type="hidden" name="recordingId" value={r.id} />
+                    </ActionForm>
+                  ) : null}
+                  {r.deletionRequests.length > 0 && !r.deletedAt ? <span className="muted">{m.deletionPending}</span> : null}
+                </li>
               ))}
             </ul>
           )}

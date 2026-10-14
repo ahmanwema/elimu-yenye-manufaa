@@ -110,7 +110,10 @@ describe("correction visibility", () => {
     [U.teacherA, true],
     [U.parentActive, true],
     [U.parentVerified, false],
-    [U.adminA, false],
+    // 2026-10-14 (A66) supersedes A17 here: a same-Markaz admin may read. The Super Admin
+    // stays false in this UN-audited check — their access requires the audit (policy-media.test).
+    [U.adminA, true],
+    [U.adminB, false],
     [U.superAdmin, false],
     [U.teacherAB, false],
   ])("%s → %s", (who, expected) => {

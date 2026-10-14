@@ -45,3 +45,12 @@ If in any doubt, stop. Then repeat steps 4–5 with that project's values.
 ## Known risk to check first
 
 On hosted Supabase the `postgres` role (used by Prisma) bypasses RLS. That is expected and documented (security.md §2.1); RLS parity applies to Data API traffic only.
+
+## Pending owner-approved changes to the development project (2026-10-14)
+
+Nothing below has been applied. Each needs explicit owner approval:
+
+1. Apply migrations `20261014000000_recording_correction_media` and `20261014000100_recording_correction_media_rls` (`npm run db:deploy:dev`). They are additive; the two new FKs on `correction_audio_clips` are NOT VALID, so existing rows are not rejected.
+2. Bucket `correction-clips`: optionally restrict allowed MIME types to `audio/mp4` (plus `audio/x-m4a` if browsers send it). **Do not set a file-size limit** — none is approved (open question 38). The server already validates the stored bytes.
+3. Create a **private** bucket `recordings` (only when recording capture is authorized; nothing writes to it yet).
+4. Re-run `npm run test:dev-supabase` (the storage test now uploads a real M4A structure and sets consent first) and `scripts/compare-schema.mjs`. Note: `audit_events` is append-only, so any audited action on the dev project leaves permanent audit rows; the real test avoids audited actions.

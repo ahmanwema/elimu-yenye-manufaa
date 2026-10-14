@@ -65,3 +65,7 @@ Same private-annotation exclusion rules as live class apply identically to repla
 ## Open questions
 
 Final recording/annotation storage architecture (shared with [audio-recording.md](audio-recording.md) and [student-corrections.md](student-corrections.md)) remains open per brief Part 11.1. *2026-10-05: the correction-storage tier is decided (Option B default, Option C full-session recording as optional add-on — A29). Still open: whether full-class audio replay exists only when Option C is enabled (open question 18), and the technical storage design.*
+
+## 2026-10-14
+
+Student access to full lesson recordings is not decided (open question 42); the 2026-10-14 recording foundation grants it to no student. See [audio-recording.md](audio-recording.md).

@@ -13,6 +13,7 @@ import { getClipPlaybackUrl, finalizeDirectCaptureClip, registerDirectCaptureCli
 import { createSupabaseObjectStorage } from "@/server/storage/supabase-storage";
 import { CORRECTION_CLIP_BUCKET } from "@/server/storage/object-storage";
 import { ensureAuthUserForInvitation } from "@/server/supabase-admin";
+import { buildM4a } from "../support/m4a";
 
 // ============================================================================================
 // REAL development Supabase verification (A65). Uses ONLY test accounts at @example.com with
@@ -139,6 +140,9 @@ afterAll(async () => {
     const u = created.users;
     if (u.length) {
       await sql.query(`DELETE FROM parent_student_links WHERE parent_profile_id = ANY($1) OR student_profile_id = ANY($1)`, [u]);
+      // Consent rows reference student/parent accounts (RESTRICT). Audit events are append-only
+      // by design: this test therefore never triggers an audited action (e.g. a Super Admin read).
+      await sql.query(`DELETE FROM recording_consents WHERE student_profile_id = ANY($1)`, [u]);
       for (const table of ["platform_admins", "student_accounts", "parent_accounts"]) {
         await sql.query(`DELETE FROM ${table} WHERE profile_id = ANY($1)`, [u]);
       }
@@ -358,31 +362,44 @@ describe("Storage on real Supabase (private dev bucket)", () => {
     expect(data?.public).toBe(false);
   });
 
-  it("signed upload → finalize → signed read; authorization decides who gets a URL", async () => {
+  // Requires the 2026-10-14 migrations on the development project (owner approval).
+  it("signed upload → server M4A inspection → finalize → signed read; authorization decides who gets a URL", async () => {
     const storage = createSupabaseObjectStorage();
+    // Consent prerequisites (A70–A72), set as the owner; TEST-ONLY age threshold.
+    await sql.query(
+      `UPDATE student_accounts SET date_of_birth = '2015-03-01', date_of_birth_recorded_by_id = $2, date_of_birth_recorded_at = now() WHERE profile_id = $1`,
+      [ID.studentX, ID.adminA],
+    );
+    await sql.query(
+      `INSERT INTO recording_consents (student_profile_id, method, guardian_profile_id, recorded_by_id, granted_at) VALUES ($1, 'GUARDIAN_ONLINE', $2, $2, now())`,
+      [ID.studentX, ID.parentActive],
+    );
+    const policy = { policy: { minorAgeThresholdYears: 18 } };
     const { rows } = await sql.query(
       `INSERT INTO corrections (tenant_id, student_profile_id, teacher_profile_id, captured_at) VALUES ($1, $2, $3, now()) RETURNING id`,
       [T.A, ID.studentX, ID.teacherA],
     );
     const { clipId, uploadUrl } = await registerDirectCaptureClip(db, storage, await actorOf("teacherA"), {
       correctionId: rows[0].id,
-      mimeType: "audio/webm",
-    });
+      mimeType: "audio/mp4",
+    }, policy);
     const clip = await db.correctionAudioClip.findUniqueOrThrow({ where: { id: clipId } });
     created.objects.push(clip.storageObjectKey);
-    const body = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
-    const put = await fetch(uploadUrl, { method: "PUT", headers: { "content-type": "audio/webm" }, body });
+    const body = buildM4a({ durationMs: 2500 });
+    const put = await fetch(uploadUrl, { method: "PUT", headers: { "content-type": "audio/mp4" }, body: new Blob([body as BlobPart]) });
     expect(put.ok).toBe(true);
-    await finalizeDirectCaptureClip(db, storage, await actorOf("teacherA"), { clipId, durationMs: 100 });
-    expect((await db.correctionAudioClip.findUniqueOrThrow({ where: { id: clipId } })).byteSize).toBe(8);
+    // The server reads the stored bytes with ranged reads (readRange) to verify AAC/M4A ≤ 60 s.
+    await finalizeDirectCaptureClip(db, storage, await actorOf("teacherA"), { clipId }, policy);
+    expect(await db.correctionAudioClip.findUniqueOrThrow({ where: { id: clipId } })).toMatchObject({ byteSize: body.length, durationMs: 2500 });
 
-    for (const who of ["studentX", "teacherA", "parentActive"] as const) {
+    for (const who of ["studentX", "teacherA", "adminA", "parentActive"] as const) {
       const { url } = await getClipPlaybackUrl(db, storage, await actorOf(who), clipId);
       const res = await fetch(url);
       expect(res.status, who).toBe(200);
       expect(new Uint8Array(await res.arrayBuffer())).toEqual(body);
     }
-    for (const who of ["studentY", "adminA", "adminB", "parentVerified", "parentPending", "superAdmin"] as const) {
+    // Super Admin access is allowed but always audited (append-only) — covered by the local suite.
+    for (const who of ["studentY", "adminB", "parentVerified", "parentPending"] as const) {
       await expect(getClipPlaybackUrl(db, storage, await actorOf(who), clipId), who).rejects.toBeInstanceOf(AuthorizationError);
     }
   });

@@ -60,13 +60,17 @@ export function spyDb(db: PrismaClient): { db: PrismaClient; calls: string[] } {
 
 /** In-memory ObjectStorage for tests. `put` simulates a client upload / worker copy. */
 export class FakeStorage implements ObjectStorage {
-  readonly objects = new Map<string, number>();
+  readonly objects = new Map<string, Uint8Array>();
   readonly signedDownloads: string[] = [];
-  put(bucket: string, key: string, byteSize: number) {
-    this.objects.set(`${bucket}/${key}`, byteSize);
+  readonly deleted: string[] = [];
+  put(bucket: string, key: string, content: number | Uint8Array) {
+    this.objects.set(`${bucket}/${key}`, typeof content === "number" ? new Uint8Array(content) : content);
   }
   delete(bucket: string, key: string) {
     this.objects.delete(`${bucket}/${key}`);
+  }
+  has(bucket: string, key: string) {
+    return this.objects.has(`${bucket}/${key}`);
   }
   async createSignedUploadUrl(bucket: string, key: string) {
     return { url: `https://storage.test/upload/${bucket}/${key}?sig=x` };
@@ -76,7 +80,16 @@ export class FakeStorage implements ObjectStorage {
     return { url: `https://storage.test/download/${bucket}/${key}?ttl=${expiresInSeconds}` };
   }
   async statObject(bucket: string, key: string) {
-    const size = this.objects.get(`${bucket}/${key}`);
-    return size === undefined ? ({ exists: false } as const) : ({ exists: true, byteSize: size } as const);
+    const bytes = this.objects.get(`${bucket}/${key}`);
+    return bytes === undefined ? ({ exists: false } as const) : ({ exists: true, byteSize: bytes.length } as const);
+  }
+  async readRange(bucket: string, key: string, offset: number, length: number) {
+    const bytes = this.objects.get(`${bucket}/${key}`);
+    if (!bytes) throw new Error("no such object");
+    return bytes.slice(offset, offset + length);
+  }
+  async deleteObject(bucket: string, key: string) {
+    this.deleted.push(`${bucket}/${key}`);
+    this.objects.delete(`${bucket}/${key}`);
   }
 }

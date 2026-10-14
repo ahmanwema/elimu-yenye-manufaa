@@ -123,8 +123,35 @@ A parent sees a student's corrections only through an **ACTIVE** link (A48), whi
 - ~~Final approval of Option B vs A vs C (or a tiered offering)~~ — **Resolved 2026-10-05** (A29; [../roadmap/open-questions.md](../roadmap/open-questions.md) item 4).
 - ~~Whether a removed student retains access to their historical corrections~~ — **Resolved 2026-10-05** (A32; item 10).
 - ~~Recording consent mechanism~~ — **Resolved at business level 2026-10-05** (A30; item 7).
-- Option B clip source and lifecycle, including dependence on a parent recording — item 15.
-- Who may delete correction clips, and deletion mechanics — item 16.
-- Teacher-departure access to authored corrections — item 19.
-- Visibility of a retained correction when its anchor page is removed restricted content — item 20.
-- Whether a linked Parent may see private corrections (A17 currently says student + teacher only) — item 14.
+- ~~Option B clip source and lifecycle~~ — **Resolved 2026-10-13** (A43, A53; item 15).
+- ~~Who may delete correction clips, and deletion mechanics~~ — **Resolved 2026-10-14** (A73–A75; item 16). Admin self-approval still open (item 36).
+- ~~Teacher-departure access to authored corrections~~ — **Resolved 2026-10-14** (A66; item 19).
+- ~~Visibility of a retained correction when its anchor page is removed~~ — **Resolved 2026-10-14** (A67, A76; item 20).
+- ~~Whether a linked Parent may see private corrections~~ — **Resolved** (A41/A48: ACTIVE parent; A66: across all of the child's Markaz).
+
+## 2026-10-14 — owner decisions implemented (A66–A76)
+
+*Supersedes, for access, the acceptance criterion above ("student and teacher, and no other account"), which predates A41 and A66.*
+
+**Who reads a correction and its audio (A66)** — enforced on the server (`correctionReadAccess`) and mirrored by RLS:
+
+| Actor | Access |
+|---|---|
+| Student (owner) | Always, also after leaving the Markaz (A32) |
+| Authoring teacher | Only while an ACTIVE teacher of that Markaz |
+| Departed teacher / other teachers | No |
+| Markaz Admin of the correction's Markaz | Yes |
+| Markaz Admin of another Markaz | No |
+| Parent with ACTIVE link | Yes — in **every** Markaz where the child has corrections |
+| PENDING / VERIFIED / REVOKED parent | No |
+| Super Admin | Yes, server path only, **audited on every read** (no Data API access) |
+
+**Content (A67):** `corrections.annotation` (content-neutral JSON), `corrections.note`, `captured_at`, plus `correction_anchors` (LESSON / PAGE / CHUNK / SEGMENT / TIMESTAMP; `ref_id` is an opaque id — **no foreign key**, the content models do not exist yet; `position` JSON; required `snapshot` JSON). When content is removed, `markAnchorSourceRemoved` sets `source_removed_at`; nothing is deleted (A76).
+
+**Clips (A68–A69):** many per correction; exactly one live finalized **primary** (partial unique index + CHECK). A newly finalized clip becomes primary; the previous one stays playable history (audit `CORRECTION_CLIP_REPLACED`). Upload must declare an M4A type; on finalize the server **reads the stored bytes** (ranged reads of the MP4 boxes only) and accepts only AAC (`mp4a` + esds AAC object type), audio-only, duration from the container **≤ 60 000 ms**; otherwise the clip becomes FAILED and its object is removed. No file-size limit (none approved). Limitation: fragmented MP4 without a declared total duration is rejected.
+
+**Consent gate (A70–A72):** registering, extracting and finalizing a clip all require the student's recording eligibility in that Markaz. See [audio-recording.md](audio-recording.md).
+
+**Deletion (A73–A75):** request (authoring teacher while active, or Markaz Admin) → approval by a Markaz Admin (interim: not the requester) → `deleted_at` + `archived_at` (playback stops) → `purge_eligible_at` = +30 days → `purgeExpiredMedia` removes the bytes and sets `purged_at`. The correction, anchors, clip metadata, requests and audit stay. An approved deletion of the primary clip does not promote an older clip (item 44).
+
+**UI:** Markaz page — teachers create corrections (note + one anchor) and upload clips; Markaz Admins see all corrections of the Markaz and approve removals. Account page — the student's own corrections; each ACTIVE child's corrections for a parent.

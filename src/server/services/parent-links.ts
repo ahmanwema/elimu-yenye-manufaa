@@ -328,15 +328,18 @@ export async function listMyParentLinks(db: PrismaClient, actor: Actor) {
     select: {
       id: true,
       status: true,
+      studentProfileId: true,
       tenant: { select: { name: true } },
       student: { select: { profile: { select: { displayName: true } } } },
     },
     orderBy: { createdAt: "asc" },
   });
+  // Only an ACTIVE link reveals who the child is.
   return links.map((l) => ({
     id: l.id,
     status: l.status,
     markazName: l.tenant.name,
     studentName: l.status === "ACTIVE" ? l.student.profile.displayName : null,
+    studentProfileId: l.status === "ACTIVE" ? l.studentProfileId : null,
   }));
 }

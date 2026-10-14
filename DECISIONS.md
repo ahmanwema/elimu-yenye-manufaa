@@ -9,7 +9,7 @@ Statuses used throughout the documentation:
 - **OPEN QUESTION** — unresolved, needs an owner decision before design/implementation can proceed in that area.
 - **DEFERRED** — intentionally out of scope for now; revisit later.
 
-Last updated: 2026-10-13 (fourth update: delegation, child proposal, self-request, Supabase environment — A62–A65, §1.5).
+Last updated: 2026-10-14 (recording & correction media — A66–A80, §1.6). Previous: 2026-10-13 (fourth update: delegation, child proposal, self-request, Supabase environment — A62–A65, §1.5).
 
 History: 2026-09-30 initial documentation pass. 2026-10-05 owner business decisions BR-01–BR-13 reconciled (A26–A38, §1.1).
 
@@ -87,6 +87,35 @@ These come directly from the project owner's brief and are treated as fixed requ
 | A63 | **Parent invitation proposing a child** requires BOTH `invitation.create` AND `parent_link.create` in that Markaz. Without a child, the right to invite is enough. The result is only ever a PENDING link. | Owner decision B (2026-10-13, 4th) |
 | A64 | **Parent self-request** identifies the child by Markaz code + student email, OR Markaz code + student ID / registration number. The response must not reveal whether the Markaz, student, email, ID or relationship exists. | Owner decision C (2026-10-13, 4th) |
 | A65 | **Supabase environment:** one project only for now, `elimu-yenye-manufaa`. Supabase project `elimu-yenye-manufaa` is currently used as the development environment. It must not be treated as production until the project owner explicitly approves production readiness. | Owner decision (2026-10-13, 4th) |
+| A66 | **Correction-media ownership & access.** Readers: the student (always); a parent with an **ACTIVE** link — across **all** Markaz where the child has corrections (intentional, not scoped to the link's Markaz); the authoring teacher **only while an ACTIVE teacher** of that Markaz (a departed teacher loses access; the media/history belongs to the Markaz); a **Markaz Admin of that Markaz** (never another Markaz's); a **Super Admin** for support/audit across tenants — **every Super Admin correction-media / recording-media read writes an audit event**. PENDING / VERIFIED / REVOKED parents: no access. | Owner decision (2026-10-14) |
+| A67 | **Option B correction content:** annotation + note/context + correction timestamp + short audio clip; **flexible anchors** (lesson, page, chunk, segment, timestamp) that can later attach to real content entities without fake foreign keys, with a **historical snapshot** so the correction stays understandable if the content is removed. | Owner decision (2026-10-14) |
+| A68 | **Multiple clips per correction**, exactly one **primary/current**; replacing a clip never overwrites — the old clip stays as history and the new finalized clip becomes primary. | Owner decision (2026-10-14) |
+| A69 | **Correction clip format:** AAC audio in an M4A container, **maximum 60 seconds**, validated at the application/service layer. **No maximum file size is approved.** | Owner decision (2026-10-14) |
+| A70 | **Minors:** date of birth is stored; minor/adult status is **derived** from it (no manually maintained is_minor flag). | Owner decision (2026-10-14) |
+| A71 | **Minor consent:** default — an ACTIVE parent/guardian consents (online); alternative — a Markaz Admin records **verified offline consent** after checking evidence. Online and verified-offline consent are distinguished; who gave, who recorded/verified, when and method are auditable; only a reference to the evidence is stored. | Owner decision (2026-10-14) |
+| A72 | **Consent scope & effects:** one consent policy covers correction clips **and** full recordings. The recording-start notice (A30) is still required. Without valid consent a student may join, listen, participate and receive live mic permission, but their audio must **not** be included in recorded media (live mic permission and recording eligibility are separate). **Withdrawal** blocks future recording and correction-audio capture and sends existing affected media into the deletion/review workflow — no immediate hard delete. | Owner decision (2026-10-14) |
+| A73 | **Deletion authority:** deletion may be **requested** by the authoring Teacher or a Markaz Admin; **final approval only by a Markaz Admin** (never a Teacher). Whether an admin may approve their **own** request is **not decided** (OQ36). | Owner decision (2026-10-14) |
+| A74 | **Deletion lifecycle:** REQUEST → MARKAZ ADMIN APPROVAL → SOFT DELETE / RESTRICT → ARCHIVE → **30-day grace period** → PHYSICAL MEDIA PURGE. Normal playback stops at approved soft deletion. "Permanent deletion" removes the storage object only; historical metadata and audit/history records remain. | Owner decision (2026-10-14) |
+| A75 | **Referenced media:** media belonging to an academic correction/history record is restricted, its metadata/history retained, and its bytes purged later under A74 — correction history is never destroyed by a media purge. | Owner decision (2026-10-14) |
+| A76 | **Anchor deletion:** removing referenced lesson/page/chunk content never deletes the correction; a historical snapshot explains what it referred to. | Owner decision (2026-10-14) |
+| A77 | **Full recordings stay provider-neutral** (A35 unchanged): metadata, tenant ownership, teacher author, approval state and audit, participants/consent eligibility, parent visibility checks, optional segments, extraction provenance, deletion lifecycle — no Agora/LiveKit recording, egress, worker, transcoding or capture. | Owner decision (2026-10-14) |
+| A78 | **Recording approval:** the Teacher owns the teaching workflow and may **submit**; a **Markaz Admin** reviews, **approves** and may later **revoke**. Default approval covers the **whole recording**; **segment approval** is a special case. A parent sees a recording only if it is APPROVED **and** the link is ACTIVE **and** applicable consent rules are satisfied — never merely because the object exists. | Owner decision (2026-10-14) |
+| A79 | **Approval revocation is not deletion:** revoked media stays stored/history-retained under the retention rules but is hidden from ordinary parent visibility. States: DRAFT → PENDING_APPROVAL → APPROVED → REVOKED (no rejection/return workflow approved). | Owner decision (2026-10-14) |
+| A80 | **Mandatory audit events:** Super Admin media access, recording approval and revocation, deletion request and approval, physical purge, verified offline consent, consent withdrawal (actor, tenant, action, target type/id, time; never secrets or signed URLs). | Owner decision (2026-10-14) |
+
+### 1.6 Supersession and refinement record (2026-10-14, recording & correction media)
+
+| Earlier entry | Earlier content (summary) | New decision | Relationship |
+|---|---|---|---|
+| A17 (as amended by A41) | Private correction: student + teacher (+ ACTIVE parent). Markaz Admins excluded. | A66 | **Superseded in part:** a Markaz Admin of the correction's own Markaz may read; a Super Admin may read with a mandatory audit event; the authoring teacher only while ACTIVE. |
+| OQ15 | Option B clip source and lifecycle. | A43 (2026-10-13) | Already resolved; the tracker row was stale and is now marked resolved. |
+| OQ16 | Authorized deleter; deletion mechanics. | A73–A75 | **Resolved**, except whether an admin may approve their own request (new OQ36). |
+| OQ17 | Consent for minors. | A70–A72 | **Resolved**, except the age threshold (OQ34) and the adult consent flow (OQ35). |
+| OQ19 | Teacher departure. | A66 | **Resolved:** departed teacher loses access; media/history belongs to the Markaz. |
+| OQ20 | Anchor removal for retained corrections. | A67, A76 | **Resolved:** historical snapshot; the correction is never deleted. |
+| OQ23 | What makes a recording "approved". | A78, A79 | **Resolved.** |
+| AS-IS audit finding M1 | Parent visibility ignored the link's Markaz. | A66 | **Confirmed intentional:** ACTIVE parent access spans all of the child's Markaz. |
+| A31 | Recordings kept until an authorized user deletes them (mechanics open). | A73–A75 | **Refined:** mechanics and authority now defined. |
 
 ### 1.5 Supersession and refinement record (2026-10-13, fourth update)
 
@@ -148,7 +177,10 @@ Historical entries are kept, not deleted. This table records which earlier entri
 | A15 (Approved) | Class capacity varies by plan. | A33 | **Refined, not superseded** — no concrete numbers until pilot/cost testing. |
 | A21 (Approved) | Free/paid plans, monthly subscriptions, course payments, M-Pesa, Airtel Money; tuition emphasis. | A34 | **Refined, not superseded** — A34 adds the requirement that the commercial concepts stay distinct. |
 
-## 2. Current authorization scope (as of 2026-10-13)
+## 2. Current authorization scope (as of 2026-10-14)
+
+**Authorized (2026-10-14, fifth authorization):** LOCAL implementation of the recording & correction media decisions A66–A80 (schema, local migrations, RLS SQL, services, UI, tests, docs) and ONE local commit after all checks pass. NOT authorized: applying migrations to or changing the real Supabase development project without explicit owner approval, production, deploy, push, choosing the RTC vendor, provider-specific recording/egress, payments. (Earlier: the RTC pilot authorizations of 2026-10-13/14 — closed.)
+
 
 **Authorized (2026-10-13, fourth authorization):** implementation of A62–A64; use of Supabase project `elimu-yenye-manufaa` **strictly as development** (migrations, Auth/RLS/Storage verification, dev-only data and dev URLs); one LOCAL baseline Git commit after verification. NOT authorized: production launch, real users, production data or domains, deploy, push, remote, RTC, payments. Supabase project `elimu-yenye-manufaa` is currently used as the development environment. It must not be treated as production until the project owner explicitly approves production readiness.
 
@@ -158,7 +190,7 @@ Historical entries are kept, not deleted. This table records which earlier entri
 
 **Authorized (2026-10-13, first authorization): LOCAL Phase 1 foundation implementation** — Next.js/TypeScript project, Prisma setup, local/environment-safe Supabase integration structure, authentication architecture, profiles, Markaz/tenant model, tenant-scoped memberships, roles foundation, multi-Markaz Teacher support, Parent account type and Parent–Student link foundation, Student membership foundation, tenant isolation, RLS design/migration *files*, negative authorization tests, basic PWA foundation, documentation reconciliation, lint/typecheck/test setup. Installing packages locally, generating (not applying to any live DB) migrations, and running local tests/lint/typecheck/build are allowed.
 
-**Still NOT authorized:** production database access, applying migrations to any live database, creating/configuring a Supabase production project, live storage buckets, Vercel deployment, live domains, Agora/LiveKit integration, Live Class, whiteboard, recording, correction clips, Option C, payments/pricing, native apps, choosing a Qur'an source, **initializing Git**, committing, pushing.
+**Still NOT authorized (as of 2026-10-14; corrected — this list was stale):** production database access; any production Supabase project; applying new migrations or bucket/settings changes to the development project without explicit owner approval; Vercel deployment; live domains; production Agora/LiveKit integration (the closed RTC pilot was separately authorized); Live Class; whiteboard; provider-specific recording capture/egress; payments/pricing; native apps; choosing a Qur'an source; adding a Git remote; pushing. (Git init, local commits and the correction-audio/recording-policy foundation were authorized later — see above.)
 
 Earlier scope (2026-09-30, Brief Part 15): documentation and analysis only. Kept for history.
 
@@ -205,6 +237,8 @@ New owner questions surfaced while reconciling the 2026-10-05 decisions are list
 2026-10-13 (parent workflow): items 14, 27, 28, 29, 30 resolved. Items 31–33 record interim engineering choices awaiting confirmation.
 
 2026-10-13 (fourth update): items 31, 32, 33 resolved (A62, A63, A64).
+
+2026-10-14 (recording & correction media): items 15 (stale), 16, 17, 19, 20, 23 resolved by A66–A80. New items 34–45 record what those decisions leave open and the interim (fail-closed) behaviour in code.
 
 ## 5. Deferred
 

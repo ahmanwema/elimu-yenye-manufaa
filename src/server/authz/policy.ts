@@ -334,17 +334,90 @@ export function canReadStudentDetail(
   );
 }
 
+// ---------------------------------------------------------------------------------
+// 5. Correction & recording media (owner decisions 2026-10-14, A66–A80).
+// ---------------------------------------------------------------------------------
+
 /**
- * Correction visibility (A17 as amended by A41): the student (always — A32), an
- * ACTIVE-linked parent, and the authoring teacher while they hold an ACTIVE teacher
- * membership in that Markaz (teacher departure is open — OQ19 — so deny by default).
- * Markaz Admins and platform admins are excluded. Mirrors the RLS policy corrections_select.
+ * ALLOW_AUDITED = allowed only if the mandatory audit event is written first (Super Admin
+ * support/audit access, A66). Callers must never treat it as plain ALLOW.
  */
-export function canReadCorrection(
-  actor: Actor,
-  correction: { tenantId: string; studentProfileId: string; teacherProfileId: string },
-): boolean {
-  if (actor.profileId === correction.studentProfileId) return true;
-  if (hasActiveParentLink(actor, correction.studentProfileId)) return true;
-  return actor.profileId === correction.teacherProfileId && hasActiveRole(actor, correction.tenantId, "TEACHER");
+export type MediaReadAccess = "DENY" | "ALLOW" | "ALLOW_AUDITED";
+
+type CorrectionRef = { tenantId: string; studentProfileId: string; teacherProfileId: string };
+
+/**
+ * Correction (and correction-media) read access (A66, superseding A17's "student + teacher"):
+ * - the student, always — also after leaving the Markaz (A32);
+ * - a parent with an ACTIVE link — across ALL of the child's Markaz, by decision;
+ * - the authoring teacher only while an ACTIVE teacher of that Markaz (departed → denied;
+ *   the history belongs to the Markaz);
+ * - a Markaz Admin of THAT Markaz (never another Markaz's);
+ * - a Super Admin — audited.
+ */
+export function correctionReadAccess(actor: Actor, correction: CorrectionRef): MediaReadAccess {
+  if (actor.profileId === correction.studentProfileId) return "ALLOW";
+  if (hasActiveParentLink(actor, correction.studentProfileId)) return "ALLOW";
+  if (actor.profileId === correction.teacherProfileId && hasActiveRole(actor, correction.tenantId, "TEACHER")) return "ALLOW";
+  if (hasActiveRole(actor, correction.tenantId, "MARKAZ_ADMIN")) return "ALLOW";
+  if (actor.isPlatformAdmin) return "ALLOW_AUDITED";
+  return "DENY";
+}
+
+/**
+ * Plain (un-audited) correction visibility. Mirrors the RLS policy corrections_select, which
+ * deliberately has no Super Admin branch: a Data API read could not write the audit event.
+ */
+export function canReadCorrection(actor: Actor, correction: CorrectionRef): boolean {
+  return correctionReadAccess(actor, correction) === "ALLOW";
+}
+
+/** Only the correction's own teacher, while an ACTIVE teacher of that Markaz, adds audio. */
+export function isActiveAuthoringTeacher(actor: Actor, item: { tenantId: string; teacherProfileId: string }): boolean {
+  return actor.profileId === item.teacherProfileId && hasActiveRole(actor, item.tenantId, "TEACHER");
+}
+
+/**
+ * Staff access to a full recording (A77): the authoring teacher while active, a Markaz Admin
+ * of that Markaz, a Super Admin (audited). Parent access has extra gates (approval, ACTIVE
+ * link, consent) and is decided in src/server/services/recordings.ts. Student access to full
+ * recordings is NOT decided and therefore not granted.
+ */
+export function recordingStaffAccess(actor: Actor, recording: { tenantId: string; teacherProfileId: string }): MediaReadAccess {
+  if (isActiveAuthoringTeacher(actor, recording)) return "ALLOW";
+  if (hasActiveRole(actor, recording.tenantId, "MARKAZ_ADMIN")) return "ALLOW";
+  if (actor.isPlatformAdmin) return "ALLOW_AUDITED";
+  return "DENY";
+}
+
+/** Deletion may be REQUESTED by the authoring teacher (while active) or a Markaz Admin (A73). */
+export function canRequestMediaDeletion(actor: Actor, target: { tenantId: string; teacherProfileId: string }): boolean {
+  return isActiveAuthoringTeacher(actor, target) || hasActiveRole(actor, target.tenantId, "MARKAZ_ADMIN");
+}
+
+/**
+ * Final deletion approval: a Markaz Admin of that Markaz only — never a teacher (A73).
+ * INTERIM (owner decision pending): whether an admin may approve their OWN request is not
+ * decided, so it is refused (the narrowest reading). Another admin must approve.
+ */
+export function canApproveMediaDeletion(actor: Actor, request: { tenantId: string; requestedById: string }): boolean {
+  return hasActiveRole(actor, request.tenantId, "MARKAZ_ADMIN") && actor.profileId !== request.requestedById;
+}
+
+/**
+ * Recording approval and revocation: a Markaz Admin of that Markaz (A78/A79); the teacher is
+ * never the final approver. INTERIM (owner decision pending, same question as deletion): a
+ * person who is both the recording's author and a Markaz Admin may not approve it.
+ */
+export function canApproveRecording(actor: Actor, recording: { tenantId: string; teacherProfileId: string }): boolean {
+  return hasActiveRole(actor, recording.tenantId, "MARKAZ_ADMIN") && actor.profileId !== recording.teacherProfileId;
+}
+
+export function canRevokeRecordingApproval(actor: Actor, recording: { tenantId: string }): boolean {
+  return hasActiveRole(actor, recording.tenantId, "MARKAZ_ADMIN");
+}
+
+/** Verified offline consent is recorded by a Markaz Admin of that Markaz (A71). */
+export function canRecordOfflineConsent(actor: Actor, tenantId: unknown): boolean {
+  return isValidId(tenantId) && hasActiveRole(actor, tenantId, "MARKAZ_ADMIN");
 }

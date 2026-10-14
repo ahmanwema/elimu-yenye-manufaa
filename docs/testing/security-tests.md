@@ -60,7 +60,23 @@ Service tests run **real Prisma Client over PGlite** (`pglite-prisma-adapter`, t
 
 **Mutation check (2026-10-13):** six deliberate weakenings were each caught by the suite: grant ignores role eligibility (2 failures), parent access on any non-revoked link (10), self-verification allowed (1), invite email check skipped (1), RLS grant ignores revocation (1), Markaz Admin may review appointments (1). All files restored; 275/275 pass.
 
-Not automated yet: UI/E2E flows, real Supabase Auth (OTP emails, `/auth/confirm`), real Storage signed URLs.
+Not automated in the local suite: UI/E2E flows, real Supabase Auth and real Storage — those run in `tests/real` and `scripts/dev-e2e.mjs` against the development project (stale note corrected 2026-10-14).
+
+## Recording & correction media tests (2026-10-14)
+
+| Area | File |
+|---|---|
+| Access matrix incl. departed teacher, same/cross-Markaz admin, ACTIVE/other parents, audited Super Admin; deletion/approval authority | `tests/unit/policy-media.test.ts` |
+| DOB-derived minor status; consent eligibility; fail-closed defaults | `tests/unit/recording-consent.test.ts` |
+| M4A/AAC container inspection (duration, codec, audio-only, truncation, moov-last, fragmented, parse budget) | `tests/unit/m4a.test.ts` |
+| Clip capture with consent gate, server-side format/duration, primary/history, extraction from a real recording, playback matrix, Super Admin audit (and no URL if the audit fails), cross-Markaz parent, RLS parity | `tests/services/correction-audio.test.ts` |
+| DOB recording, guardian/offline consent, withdrawal → review requests (no deletion), live participation ≠ eligibility | `tests/services/consent.test.ts` |
+| Correction model (annotation, note, timestamp, anchors, snapshots), Option B with zero recordings | `tests/services/corrections.test.ts` |
+| Recording states, notice, submit/approve/revoke, parent gates, segments, audited Super Admin | `tests/services/recordings.test.ts` |
+| Deletion request/approval, immediate hiding, 30-day purge, history retained, append-only audit, abandoned uploads | `tests/services/media-deletion.test.ts` |
+| Data API: server-only tables, DOB column hidden, anchors follow corrections, no writes | `tests/db/rls-media.test.ts` |
+
+Not covered locally: a real browser-recorded M4A file (no ffmpeg/sample file on this machine — the parser is tested on spec-built files), and the real-Supabase run of the updated `tests/real` storage test (needs the new migrations on the dev project — owner approval).
 
 ## Method
 

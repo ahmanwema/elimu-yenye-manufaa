@@ -31,6 +31,8 @@ model Profile {
   permissionGrants             TenantPermissionGrant[]
   adminAppointmentsAsCandidate MarkazAdminAppointmentRequest[]
   correctionsAuthored          Correction[]                    @relation("CorrectionTeacher")
+  clipsCreated                 CorrectionAudioClip[]           @relation("ClipCreator")
+  recordingsAuthored           Recording[]                     @relation("RecordingTeacher")
 
   @@map("profiles")
 }
@@ -61,6 +63,9 @@ model Tenant {
   invitations        Invitation[]
   adminAppointments  MarkazAdminAppointmentRequest[]
   corrections        Correction[]
+  recordings         Recording[]
+  offlineConsents    RecordingConsent[]
+  deletionRequests   MediaDeletionRequest[]
 
   @@map("tenants")
 }
@@ -106,12 +111,19 @@ model Membership {
 /// Student account type. Personal academic records (submissions, corrections — later
 /// phases) will reference this, NOT a membership, so leaving a Markaz cannot orphan them (A32).
 model StudentAccount {
-  profileId String   @id @map("profile_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  profileId               String    @id @map("profile_id") @db.Uuid
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// Recording-consent policy input. Minor/adult status is ALWAYS derived from this date
+  /// (src/server/authz/recording-consent.ts) — there is deliberately no stored is_minor flag.
+  dateOfBirth             DateTime? @map("date_of_birth") @db.Date
+  dateOfBirthRecordedById String?   @map("date_of_birth_recorded_by_id") @db.Uuid
+  dateOfBirthRecordedAt   DateTime? @map("date_of_birth_recorded_at") @db.Timestamptz(6)
 
-  profile     Profile             @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  parentLinks ParentStudentLink[]
-  corrections Correction[]
+  profile               Profile                @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  parentLinks           ParentStudentLink[]
+  corrections           Correction[]
+  recordingConsents     RecordingConsent[]
+  recordingParticipants RecordingParticipant[]
 
   @@map("student_accounts")
 }
@@ -121,8 +133,9 @@ model ParentAccount {
   profileId String   @id @map("profile_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  profile      Profile             @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  studentLinks ParentStudentLink[]
+  profile       Profile             @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  studentLinks  ParentStudentLink[]
+  givenConsents RecordingConsent[]
 
   @@map("parent_accounts")
 }
@@ -291,9 +304,15 @@ model MarkazAdminAppointmentRequest {
   @@map("markaz_admin_appointment_requests")
 }
 
-/// Minimal correction record — only what correction audio needs today. Annotation
-/// geometry, document/page anchors and lesson linkage arrive with Live Class / PDF work.
+// =====================================================================================
+// Recording & correction media (owner decisions 2026-10-14, A66–A80).
+// Provider-neutral: nothing here knows about an RTC vendor (A35 still open).
+// =====================================================================================
+
+/// Option B correction (A29, A66): annotation + note/context + timestamp + short clip(s).
 /// References student_accounts (not a membership) so it survives the student leaving (A32).
+/// Corrections are academic history: there is no delete path; media is restricted/purged
+/// separately (A75) while this row and its anchors remain.
 model Correction {
   id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId         String   @map("tenant_id") @db.Uuid
@@ -301,17 +320,55 @@ model Correction {
   teacherProfileId String   @map("teacher_profile_id") @db.Uuid
   /// The correction timestamp (when, in the lesson, the mistake was marked).
   capturedAt       DateTime @map("captured_at") @db.Timestamptz(6)
+  /// Content-neutral annotation (marks/geometry) as produced by the future annotation UI.
+  annotation       Json?
+  /// Teacher's explanatory note / private correction context.
+  note             String?
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   tenant     Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   student    StudentAccount        @relation(fields: [studentProfileId], references: [profileId], onDelete: Restrict)
   teacher    Profile               @relation("CorrectionTeacher", fields: [teacherProfileId], references: [id], onDelete: Restrict)
   audioClips CorrectionAudioClip[]
+  anchors    CorrectionAnchor[]
 
   @@unique([id, tenantId])
   @@index([studentProfileId])
   @@index([tenantId])
   @@map("corrections")
+}
+
+/// Which content context a correction refers to (A67). Lesson/page/chunk models do not
+/// exist yet, so `ref_id` is an opaque identifier with NO foreign key; the snapshot keeps
+/// the correction understandable after the source content is removed (A76).
+enum CorrectionAnchorKind {
+  LESSON
+  PAGE
+  CHUNK
+  SEGMENT
+  TIMESTAMP
+}
+
+model CorrectionAnchor {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  correctionId    String               @map("correction_id") @db.Uuid
+  tenantId        String               @map("tenant_id") @db.Uuid
+  kind            CorrectionAnchorKind
+  /// Identifier of the referenced content entity, when one exists. Not a foreign key.
+  refId           String?              @map("ref_id")
+  /// Where inside that content: e.g. { page: 12 }, { chunkIndex: 3 }, { startMs, endMs }.
+  position        Json?
+  /// Historical snapshot (title, excerpt, page label…). Required; never cleared.
+  snapshot        Json
+  /// Set when the referenced content is removed. The anchor and correction remain.
+  sourceRemovedAt DateTime?            @map("source_removed_at") @db.Timestamptz(6)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  correction Correction @relation(fields: [correctionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@index([correctionId])
+  @@index([kind, refId])
+  @@map("correction_anchors")
 }
 
 enum ClipSourceType {
@@ -325,38 +382,293 @@ enum ClipStatus {
   AWAITING_UPLOAD
   AWAITING_EXTRACTION
   FINALIZED
+  /// Never finalized (abandoned upload cleanup, or the object failed validation).
   FAILED
 }
 
 /// Correction audio is ALWAYS its own storage object (A53). Provenance fields record where
 /// an extracted clip came from but are never needed for playback; deleting or detaching
-/// the source recording leaves a finalized clip intact.
+/// the source recording leaves a finalized clip intact (FK ON DELETE SET NULL).
+/// Several clips per correction; exactly one live FINALIZED clip is primary (A68).
 model CorrectionAudioClip {
   id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   correctionId      String         @map("correction_id") @db.Uuid
   /// Copied from the correction and pinned to it by a composite FK.
   tenantId          String         @map("tenant_id") @db.Uuid
   sourceType        ClipSourceType @map("source_type")
-  /// Provenance only. No FK yet (recordings do not exist); when they do, the FK must be
-  /// ON DELETE SET NULL so deleting a recording never deletes a clip.
+  /// Provenance only, validated against recordings (same Markaz) at registration.
   sourceRecordingId String?        @map("source_recording_id") @db.Uuid
   sourceStartMs     Int?           @map("source_start_ms")
   sourceEndMs       Int?           @map("source_end_ms")
   status            ClipStatus
-  /// Server-generated, non-guessable, unique. Assigned at registration so every clip has
-  /// its own object identity from the start.
+  /// Server-generated, non-guessable, unique. Assigned at registration.
   storageBucket     String         @map("storage_bucket")
   storageObjectKey  String         @unique @map("storage_object_key")
-  /// As reported by the uploader / extractor. No codec or duration rules are approved.
+  /// FINALIZED clips: always "audio/mp4" (AAC in M4A, A69), set by the server after it
+  /// inspected the stored object.
   mimeType          String?        @map("mime_type")
   byteSize          Int?           @map("byte_size")
+  /// FINALIZED clips: measured by the server from the stored M4A, ≤ 60 000 ms (A69).
   durationMs        Int?           @map("duration_ms")
   createdById       String         @map("created_by_id") @db.Uuid
   createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   finalizedAt       DateTime?      @map("finalized_at") @db.Timestamptz(6)
+  failedAt          DateTime?      @map("failed_at") @db.Timestamptz(6)
+  /// The current clip of its correction. Older clips stay as history (A68).
+  isPrimary         Boolean        @default(false) @map("is_primary")
+  /// Deletion lifecycle (A73–A75): approved → soft-deleted + archived; bytes purged after
+  /// purge_eligible_at; this row (metadata/history) is never removed.
+  deletedAt         DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  archivedAt        DateTime?      @map("archived_at") @db.Timestamptz(6)
+  purgeEligibleAt   DateTime?      @map("purge_eligible_at") @db.Timestamptz(6)
+  purgedAt          DateTime?      @map("purged_at") @db.Timestamptz(6)
 
-  correction Correction @relation(fields: [correctionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  correction       Correction             @relation(fields: [correctionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  createdBy        Profile                @relation("ClipCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  sourceRecording  Recording?             @relation(fields: [sourceRecordingId], references: [id], onDelete: SetNull)
+  deletionRequests MediaDeletionRequest[]
 
   @@index([correctionId])
+  @@index([sourceRecordingId])
   @@map("correction_audio_clips")
+}
+
+// --- Consent / minors (A70–A72) --------------------------------------------------------
+
+enum RecordingConsentMethod {
+  /// Given online by a guardian holding an ACTIVE parent link to the student.
+  GUARDIAN_ONLINE
+  /// Recorded by a Markaz Admin after verifying offline evidence (A71).
+  OFFLINE_VERIFIED
+}
+
+/// One consent policy covers correction clips AND full recordings (A72). Rows are never
+/// deleted; withdrawal sets withdrawn_at and keeps the audit trail.
+model RecordingConsent {
+  id                          String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentProfileId            String                 @map("student_profile_id") @db.Uuid
+  method                      RecordingConsentMethod
+  /// OFFLINE_VERIFIED: the Markaz whose admin verified it (applies there only).
+  /// GUARDIAN_ONLINE: null (the guardian's consent applies wherever the child studies).
+  tenantId                    String?                @map("tenant_id") @db.Uuid
+  /// GUARDIAN_ONLINE: the consenting guardian.
+  guardianProfileId           String?                @map("guardian_profile_id") @db.Uuid
+  /// OFFLINE_VERIFIED: who gave consent (e.g. "mother — name"), short text.
+  offlineConsenterDescription String?                @map("offline_consenter_description")
+  /// OFFLINE_VERIFIED: a reference to the evidence checked (e.g. a form number) — never
+  /// the evidence itself.
+  evidenceReference           String?                @map("evidence_reference")
+  /// Who recorded the row: the guardian (online) or the verifying Markaz Admin (offline).
+  recordedById                String                 @map("recorded_by_id") @db.Uuid
+  grantedAt                   DateTime               @map("granted_at") @db.Timestamptz(6)
+  withdrawnAt                 DateTime?              @map("withdrawn_at") @db.Timestamptz(6)
+  withdrawnById               String?                @map("withdrawn_by_id") @db.Uuid
+  createdAt                   DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  student          StudentAccount         @relation(fields: [studentProfileId], references: [profileId], onDelete: Restrict)
+  tenant           Tenant?                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  guardian         ParentAccount?         @relation(fields: [guardianProfileId], references: [profileId], onDelete: Restrict)
+  participations   RecordingParticipant[]
+  deletionRequests MediaDeletionRequest[]
+
+  @@index([studentProfileId])
+  @@map("recording_consents")
+}
+
+// --- Full recordings (Option C foundation, provider-neutral — A77–A80) ------------------
+
+enum RecordingStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  /// Approval revoked by a Markaz Admin. Not deletion (A79).
+  REVOKED
+}
+
+enum RecordingApprovalScope {
+  /// Default: the whole recording is approved.
+  WHOLE
+  /// Special case: only the approved segments are visible to parents.
+  SEGMENTS
+}
+
+model Recording {
+  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String                  @map("tenant_id") @db.Uuid
+  /// The teacher who owns the teaching workflow (author).
+  teacherProfileId    String                  @map("teacher_profile_id") @db.Uuid
+  title               String?
+  status              RecordingStatus         @default(DRAFT)
+  /// A30: the recording-start notice must be shown; set when capture starts.
+  noticeShownAt       DateTime?               @map("notice_shown_at") @db.Timestamptz(6)
+  startedAt           DateTime?               @map("started_at") @db.Timestamptz(6)
+  endedAt             DateTime?               @map("ended_at") @db.Timestamptz(6)
+  /// Media object (written by a future, provider-neutral capture/egress worker).
+  storageBucket       String?                 @map("storage_bucket")
+  storageObjectKey    String?                 @unique @map("storage_object_key")
+  mimeType            String?                 @map("mime_type")
+  byteSize            Int?                    @map("byte_size")
+  durationMs          Int?                    @map("duration_ms")
+  mediaFinalizedAt    DateTime?               @map("media_finalized_at") @db.Timestamptz(6)
+  submittedAt         DateTime?               @map("submitted_at") @db.Timestamptz(6)
+  submittedById       String?                 @map("submitted_by_id") @db.Uuid
+  approvalScope       RecordingApprovalScope? @map("approval_scope")
+  approvedAt          DateTime?               @map("approved_at") @db.Timestamptz(6)
+  approvedById        String?                 @map("approved_by_id") @db.Uuid
+  approvalRevokedAt   DateTime?               @map("approval_revoked_at") @db.Timestamptz(6)
+  approvalRevokedById String?                 @map("approval_revoked_by_id") @db.Uuid
+  deletedAt           DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  archivedAt          DateTime?               @map("archived_at") @db.Timestamptz(6)
+  purgeEligibleAt     DateTime?               @map("purge_eligible_at") @db.Timestamptz(6)
+  purgedAt            DateTime?               @map("purged_at") @db.Timestamptz(6)
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant           Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  teacher          Profile                @relation("RecordingTeacher", fields: [teacherProfileId], references: [id], onDelete: Restrict)
+  participants     RecordingParticipant[]
+  segments         RecordingSegment[]
+  extractedClips   CorrectionAudioClip[]
+  deletionRequests MediaDeletionRequest[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, status])
+  @@map("recordings")
+}
+
+/// Why a participant's audio may or may not be included in recorded media. Live
+/// participation (joining, listening, a live mic grant) never depends on this (A72).
+enum RecordingEligibility {
+  CONSENTED
+  NO_CONSENT
+  DATE_OF_BIRTH_MISSING
+  /// The age threshold for "minor" has not been decided by the owner.
+  AGE_POLICY_UNSET
+  /// Adult consent actor/flow has not been decided by the owner.
+  ADULT_CONSENT_UNDECIDED
+}
+
+model RecordingParticipant {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recordingId      String               @map("recording_id") @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  studentProfileId String               @map("student_profile_id") @db.Uuid
+  /// The capture boundary a future provider adapter must honor: false → this student's
+  /// audio must not be included in recorded media.
+  audioIncluded    Boolean              @map("audio_included")
+  eligibility      RecordingEligibility
+  consentId        String?              @map("consent_id") @db.Uuid
+  registeredAt     DateTime             @default(now()) @map("registered_at") @db.Timestamptz(6)
+
+  recording Recording         @relation(fields: [recordingId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  student   StudentAccount    @relation(fields: [studentProfileId], references: [profileId], onDelete: Restrict)
+  consent   RecordingConsent? @relation(fields: [consentId], references: [id], onDelete: Restrict)
+
+  @@unique([recordingId, studentProfileId])
+  @@index([studentProfileId])
+  @@map("recording_participants")
+}
+
+/// Special-case segment approval (A78). A segment is playable only through its OWN media
+/// object (copied by a future extraction worker) — never as a byte range of the recording.
+model RecordingSegment {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recordingId      String    @map("recording_id") @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  startMs          Int       @map("start_ms")
+  endMs            Int       @map("end_ms")
+  approvedAt       DateTime  @map("approved_at") @db.Timestamptz(6)
+  approvedById     String    @map("approved_by_id") @db.Uuid
+  storageBucket    String?   @map("storage_bucket")
+  storageObjectKey String?   @unique @map("storage_object_key")
+  byteSize         Int?      @map("byte_size")
+  mediaFinalizedAt DateTime? @map("media_finalized_at") @db.Timestamptz(6)
+  purgedAt         DateTime? @map("purged_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  recording Recording @relation(fields: [recordingId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@index([recordingId])
+  @@map("recording_segments")
+}
+
+// --- Retention / deletion (A73–A75) ----------------------------------------------------
+
+enum MediaDeletionReason {
+  REQUESTED
+  /// Created automatically when consent is withdrawn (A72): media enters review.
+  CONSENT_WITHDRAWN
+}
+
+enum MediaDeletionStatus {
+  PENDING
+  APPROVED
+}
+
+/// REQUEST → MARKAZ ADMIN APPROVAL → soft delete + archive → 30-day grace → purge.
+/// Exactly one target (a clip or a recording).
+model MediaDeletionRequest {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String              @map("tenant_id") @db.Uuid
+  clipId        String?             @map("clip_id") @db.Uuid
+  recordingId   String?             @map("recording_id") @db.Uuid
+  reason        MediaDeletionReason
+  consentId     String?             @map("consent_id") @db.Uuid
+  status        MediaDeletionStatus @default(PENDING)
+  requestedById String              @map("requested_by_id") @db.Uuid
+  requestedAt   DateTime            @map("requested_at") @db.Timestamptz(6)
+  note          String?
+  approvedById  String?             @map("approved_by_id") @db.Uuid
+  approvedAt    DateTime?           @map("approved_at") @db.Timestamptz(6)
+
+  tenant    Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clip      CorrectionAudioClip? @relation(fields: [clipId], references: [id], onDelete: Restrict)
+  recording Recording?           @relation(fields: [recordingId], references: [id], onDelete: Restrict)
+  consent   RecordingConsent?    @relation(fields: [consentId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, status])
+  @@map("media_deletion_requests")
+}
+
+// --- Audit (A80) -----------------------------------------------------------------------
+
+enum AuditAction {
+  SUPER_ADMIN_MEDIA_READ
+  RECORDING_SUBMITTED
+  RECORDING_APPROVED
+  RECORDING_APPROVAL_REVOKED
+  MEDIA_DELETION_REQUESTED
+  MEDIA_DELETION_APPROVED
+  MEDIA_PURGED
+  CONSENT_GIVEN
+  CONSENT_OFFLINE_VERIFIED
+  CONSENT_WITHDRAWN
+  DATE_OF_BIRTH_RECORDED
+  CORRECTION_CLIP_REPLACED
+}
+
+enum AuditTargetType {
+  CORRECTION
+  CORRECTION_AUDIO_CLIP
+  RECORDING
+  RECORDING_SEGMENT
+  MEDIA_DELETION_REQUEST
+  RECORDING_CONSENT
+  STUDENT_ACCOUNT
+}
+
+/// Append-only (UPDATE/DELETE refused by a trigger). Never holds signed URLs, object keys
+/// or secrets. actor_id is null for system jobs (e.g. the purge).
+model AuditEvent {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId    String?         @map("actor_id") @db.Uuid
+  tenantId   String?         @map("tenant_id") @db.Uuid
+  action     AuditAction
+  targetType AuditTargetType @map("target_type")
+  targetId   String          @map("target_id") @db.Uuid
+  metadata   Json?
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, createdAt])
+  @@index([targetType, targetId])
+  @@map("audit_events")
 }

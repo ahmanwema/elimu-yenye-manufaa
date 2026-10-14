@@ -10,6 +10,8 @@ export type ResultCode =
   | "invalid_state"
   | "expired"
   | "email_mismatch"
+  | "consent_required"
+  | "invalid_media"
   | "error";
 
 export type ActionResult<T = void> =

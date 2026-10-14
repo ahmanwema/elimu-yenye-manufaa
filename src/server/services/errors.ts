@@ -11,7 +11,11 @@ export type DomainErrorCode =
   | "conflict"
   | "invalid_state"
   | "expired"
-  | "email_mismatch";
+  | "email_mismatch"
+  /** Recording consent (A70–A72) does not allow capturing this student's audio. */
+  | "consent_required"
+  /** The stored file is not AAC audio in M4A of at most 60 seconds (A69). */
+  | "invalid_media";
 
 export class DomainError extends Error {
   constructor(

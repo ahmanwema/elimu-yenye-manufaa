@@ -92,3 +92,21 @@ No change to recording. Parent access to "approved recordings" still requires an
 - Relationship between A13/A24 class recording + replay and the Option C add-on (item 18).
 - Whether Option B correction clips are cut from a session capture when Option C is off, and whether clips depend on a parent recording (item 15).
 - Recording provider depends on the RTC pilot (A35) — Agora and LiveKit recording/egress capabilities must both be evaluated.
+
+## 2026-10-14 — recording & consent foundation implemented (A70–A80), provider-neutral
+
+**Not built (by decision):** capture, Agora/LiveKit recording or egress, workers, extraction, transcoding. The RTC vendor is still undecided (A35). Media enters only through server-internal functions a future worker will call (`registerRecordingMedia`/`finalizeRecordingMedia`, segment equivalents). The private bucket `recordings` is referenced in code but **not created** on the dev project (owner approval needed).
+
+**Consent (A70–A72), one policy for clips and recordings** (`src/server/authz/recording-consent.ts`):
+- `student_accounts.date_of_birth`; minor status is derived, never stored.
+- `recording_consents`: GUARDIAN_ONLINE (ACTIVE guardian; counts while that guardian's link stays ACTIVE; valid in all the child's Markaz) or OFFLINE_VERIFIED (Markaz Admin; who consented + evidence **reference** only; valid in that Markaz). Withdrawal sets `withdrawn_at` — rows are never deleted.
+- **Fail-closed until the owner decides** the age threshold (item 34) and adult consent (item 35): today **no student is eligible**, so no clip or recorded student audio can be captured.
+- Withdrawal blocks future capture and creates PENDING `CONSENT_WITHDRAWN` deletion requests for live clips/recordings in each Markaz where the student is no longer eligible. Nothing is deleted until a Markaz Admin approves.
+
+**Live participation ≠ recording eligibility (A72):** `recording_participants.audio_included` and `getCapturePlan` are the boundary a future provider adapter must honour (exclude the student's audio from recorded media); nothing in a live/mic path consults consent (tested).
+
+**Recordings (A77–A79):** `recordings` (tenant, author teacher, status, notice/start/end, media object, submit/approve/revoke audit fields, soft-delete/archive/purge), `recording_participants`, `recording_segments`.
+- Start requires confirming the recording-start notice (A30; DB CHECK `recording_started_with_notice`).
+- DRAFT → PENDING_APPROVAL (author teacher, media finalized) → APPROVED (Markaz Admin of that Markaz; interim: not the author; scope WHOLE, or SEGMENTS as a special case) → REVOKED (Markaz Admin). No rejection state (item 39).
+- Playback: author teacher (active) and same-Markaz admin; Super Admin audited; **parent** only if APPROVED, not deleted, ACTIVE link to a participant whose audio was included, and that child still eligible (interim reading — item 41). With SEGMENTS approval a parent gets only an approved segment's **own** object, never the whole file. Students: not granted (item 42).
+- Correction clips extracted from a recording: `source_recording_id` is now a real FK (`ON DELETE SET NULL`, added NOT VALID) — validated (same Markaz, media present, student's audio included); deleting the recording never affects a finalized clip.

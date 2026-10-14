@@ -68,6 +68,26 @@ describe("server action surface", () => {
       "revokePermissionAction",
       "updateMyNameAction",
     ],
+    // Recording & correction media (2026-10-14). The worker-only functions (finalize extracted
+    // clip, recording media register/finalize, purge, abandoned-upload cleanup, anchor
+    // removal) must NEVER appear here.
+    "media.ts": [
+      "recordDateOfBirthAction",
+      "giveGuardianConsentAction",
+      "recordOfflineConsentAction",
+      "withdrawConsentAction",
+      "createCorrectionAction",
+      "registerClipUploadAction",
+      "finalizeClipUploadAction",
+      "clipPlaybackAction",
+      "requestMediaDeletionAction",
+      "approveMediaDeletionAction",
+      "createRecordingAction",
+      "submitRecordingAction",
+      "approveRecordingAction",
+      "revokeRecordingApprovalAction",
+      "recordingPlaybackAction",
+    ],
   };
 
   it.each(readdirSync(dir).filter((f) => readFileSync(join(dir, f), "utf8").startsWith('"use server"')))(

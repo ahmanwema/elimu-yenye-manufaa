@@ -103,6 +103,23 @@ Migrations `20261013000600_student_registration_number` (offline diff: column + 
 - Prisma interactive transactions use `maxWait 10 s / timeout 20 s` (src/server/db.ts), because of measured ~230 ms round-trips from the development machine.
 - Connection strings use the **Session pooler**: the direct host is IPv6-only and was unreachable from the development machine.
 
+## 12. Recording & correction media (2026-10-14, migrations 20261014000000 / 20261014000100)
+
+Additive only (no drops; two FKs on the existing clips table added NOT VALID; one non-destructive backfill of `is_primary`).
+
+| Table / column | Purpose |
+|---|---|
+| `student_accounts.date_of_birth` (+ recorded by/at) | Consent input; minor status derived (A70). Server-only. |
+| `corrections.annotation`, `corrections.note` | Option B content (A67). |
+| `correction_anchors` | Flexible anchors; opaque `ref_id` (no FK); required `snapshot`; `source_removed_at` (A67, A76). |
+| `correction_audio_clips` + `is_primary`, `failed_at`, `deleted_at`, `archived_at`, `purge_eligible_at`, `purged_at`; FKs `created_by_id` → profiles, `source_recording_id` → recordings (SET NULL) | Primary/history (A68), format (A69), lifecycle (A73–A75). |
+| `recording_consents` | GUARDIAN_ONLINE / OFFLINE_VERIFIED; withdrawal kept (A71–A72). |
+| `recordings`, `recording_participants`, `recording_segments` | Provider-neutral Option C foundation (A77–A79). |
+| `media_deletion_requests` | Exactly one target; PENDING → APPROVED (A73). |
+| `audit_events` | Append-only audit (A80). |
+
+Integrity is enforced in SQL as well as in services: one primary per correction; primary ⇒ live FINALIZED; finalized ⇒ `audio/mp4` and ≤ 60 000 ms; deletion ⇒ archive + purge date; purge ⇒ after grace; consent method fields; participant audio ⇔ CONSENTED; recording status ⇔ audit fields; started ⇒ notice shown; one pending deletion per target. RLS: see [security.md](security.md) §3.7.
+
 ## 6. Open questions
 
 See [../roadmap/open-questions.md](../roadmap/open-questions.md) for tenant-ownership-of-student-data and Markaz/teacher relationship questions that materially affect the final schema shape.

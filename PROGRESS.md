@@ -128,6 +128,24 @@ Chronological, factual log of what has actually happened. Do not record intentio
 
 **Firewall review (not changed):** Windows has two pre-existing "Node.js JavaScript Runtime" inbound Allow rules, created by an earlier click on the Windows prompt. They cover TCP and UDP, any port, any remote address, Public profile. They are not needed now. Recommendation: remove them, or narrow them to a specific port + `LocalSubnet` when LAN tests resume.
 
+## 2026-10-14 — Recording & correction media policy implemented (local, A66–A80)
+
+- Owner decisions recorded as A66–A80 (DECISIONS §1, §1.6). Resolved: open questions 15 (stale), 16, 17, 19, 20, 23. New open items 34–45; each is implemented fail-closed or with the narrowest interim rule.
+- **Migrations** `20261014000000_recording_correction_media` (additive, generated offline) and `20261014000100_recording_correction_media_rls` (CHECKs, partial unique indexes, append-only audit trigger, RLS). Applied to PGlite only — **not** to the dev Supabase project (owner approval needed; see docs/testing/dev-supabase-verification.md).
+- **Built:**
+  - correction model (annotation, note, flexible anchors with snapshots);
+  - primary/history clips;
+  - server-side AAC-in-M4A ≤ 60 s inspection of stored bytes;
+  - DOB + derived minor status;
+  - guardian online / verified offline consent with withdrawal → deletion review;
+  - provider-neutral recordings (notice, participants and capture plan, submit/approve/revoke, segments, gated parent playback);
+  - deletion lifecycle (request → admin approval → soft delete + archive → 30-day purge of bytes only);
+  - audited Super Admin access;
+  - UI on the Markaz and account pages (sw/en/ar).
+- **Not built (by decision):** RTC capture/egress/extraction workers (vendor undecided, A35), Option C entitlement, scheduling of purge/cleanup.
+- **Fail-closed:** the minor age threshold is unset, so no student is currently recording-eligible.
+- Tests: 511 local (27 files; +123), lint, typecheck and build pass. `tests/real` was updated but not run (needs the new migrations on the dev project).
+
 ## Status snapshot
 
 | Area | Status |
@@ -135,14 +153,14 @@ Chronological, factual log of what has actually happened. Do not record intentio
 | Documentation foundation | Done (this pass) |
 | Business rules BR-01–BR-13 | Recorded as approved (A26–A38), docs reconciled 2026-10-05 |
 | Technology stack | **Approved** (A39), installed locally |
-| Database schema | 9 migrations applied to the DEVELOPMENT Supabase project; parity with PGlite verified |
+| Database schema | 9 migrations applied to the DEVELOPMENT Supabase project (parity verified); 2 further local migrations (2026-10-14, media policy) NOT yet applied there |
 | Auth / tenancy / roles / Parent links | Foundation implemented (no sign-in UI, no invitations, no link workflow) |
 | PWA | Basic foundation (manifest, placeholder icons, minimal SW) |
-| Tests | 388 local + 24 real-Supabase + 14-step UI E2E, all passing |
+| Tests | 511 local (2026-10-14) + 24 real-Supabase + 14-step UI E2E (real suites last run 2026-10-13) |
 | Version control | Git initialized; first local baseline commit created 2026-10-13; no remote |
 | Auth / onboarding / i18n | Implemented locally (OTP + magic link, invite-first, sw/en/ar + RTL) |
 | Parent links | Full workflow implemented (request/create → verify → activate → revoke) with explicit permissions and audit history |
-| Correction audio | Data foundation + storage contract; no capture/extraction |
+| Correction & recording media | Policy foundation implemented locally (A66–A80): consent, primary/history clips, M4A ≤ 60 s validation, approval, deletion lifecycle, audit; no RTC capture/extraction |
 | Live Class architecture | Proposed, awaiting approval |
 | Live Class implementation | Not started |
 | Any other feature | Not started |

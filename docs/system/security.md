@@ -86,6 +86,16 @@ Requirements for the invitation mechanism (PROPOSED):
 
 Everything else matched the PGlite results: RLS for tenants, students, parents (only ACTIVE), roster, server-only tables, write refusal, no platform-admin bypass in SQL; Storage keys not readable by path, publicly or with a user JWT.
 
+### 3.7 Recording & correction media (2026-10-14, A66–A80)
+
+- **Authorization before signed URLs, as before** — now with A66: same-Markaz Markaz Admins may read corrections/clips; a departed teacher may not; an ACTIVE parent may across all of the child's Markaz.
+- **Super Admin:** media reads are allowed only through the server, which writes `SUPER_ADMIN_MEDIA_READ` to `audit_events` **before** minting a URL (a failed audit write means no URL — tested). RLS deliberately has **no** Super Admin branch on corrections/clips/anchors, and the recording/consent/deletion/audit tables have **no Data API grant at all**, so there is no un-audited path.
+- **Date of birth** is server-only: the Data API keeps column-level SELECT on `student_accounts(profile_id, created_at)` only.
+- **Audit trail** (`audit_events`) is append-only: UPDATE/DELETE/TRUNCATE are refused by triggers for every role, including the owner. It never stores signed URLs, object keys or DOB values.
+- **Media validation:** finalized clips are AAC in M4A ≤ 60 s as measured by the server from the stored bytes (ranged reads of box headers and `moov` only; parse budget 1 MiB for metadata — an engineering bound, not a file-size limit). A DB CHECK repeats the rule for finalized rows.
+- **Purge safety:** bytes are removed only by `purgeExpiredMedia` after `purge_eligible_at` (30 days after approval); DB CHECKs refuse a purge timestamp before the grace period or without a deletion. Rows are never deleted.
+- **Object keys** stay random and carry no tenant/student/teacher ids (clips, recordings, segments).
+
 ## 4. Recording consent & private annotation leakage
 
 - Lesson recording must have a clear consent/notice model — ~~OPEN QUESTION~~ **APPROVED 2026-10-05 (A30)**: (1) general consent during enrollment/account setup **and** (2) a clear notice when recording begins; general consent alone is not sufficient UX. This applies to any recorded audio, including Option B correction clips (A29). Retention/deletion: see §7. Still open: consent on behalf of minors (open question 17).
@@ -100,14 +110,20 @@ Everything else matched the PGlite results: RLS for tenants, students, parents (
 
 ## 6. Audit logs
 
+*2026-10-14:* implemented for media and consent (A80) — `audit_events`, append-only; see §3.7. The rest of the list below remains proposed.
+
 Sensitive actions requiring an audit trail (PROPOSED list, to be finalized with the owner): recording start/stop, whiteboard write-permission grants/revocations, role changes, data exports, invitation-link creation/revocation, payment refunds. Audit entries are append-only and readable by Super Admin (and, scoped to their own tenant, by Teacher/Markaz Admin for their own actions).
 
 ## 7. Data retention & backups
+
+*2026-10-14:* media deletion mechanics decided and implemented (A73–A75): request → Markaz Admin approval → soft delete + archive → 30-day grace → purge of bytes only; metadata/history kept. Abandoned-upload cleanup exists but its age is undecided (open question 37). Database backup policy is still open.
 
 - Database backups: rely on Supabase's managed backup capability at whatever tier is provisioned; explicit retention/restore-testing policy is an **OPEN QUESTION** pending infrastructure approval.
 - Recording retention period — ~~OPEN QUESTION~~ **business direction APPROVED 2026-10-05 (A31)**: recordings remain available until an authorized user deletes them, subject to the project's retention/deletion policy. **Not approved / still implementation details** (open question 16): who is an authorized deleter; soft vs hard delete; grace period; archival; storage garbage collection; legal hold. Interaction to resolve: deleting a recording must not silently destroy a departed student's retained correction context (A32) — depends on open question 15. Storage: Supabase Storage (A38); correction-storage choice: A29 ([../features/student-corrections.md](../features/student-corrections.md)).
 
 ## 8. Child protection considerations
+
+*2026-10-14:* A70–A72 implemented — DOB stored (server-only), minor status derived; guardian online or Markaz-Admin-verified offline consent; one policy for clips and recordings; without consent a student still participates live but is never recorded. **Fail-closed** until the owner sets the age threshold (open question 34) and the adult consent flow (35).
 
 Given the student population includes minors:
 

@@ -129,6 +129,23 @@ A Markaz Admin may remove grants in their own Markaz that are held by non-admins
 
 **Self-request** (A64): Markaz code + student email OR Markaz code + student registration number.
 
+### 2.6 Recording & correction media (2026-10-14, A66–A80)
+
+| Capability | Super Admin | Markaz Admin (own Markaz) | Authoring Teacher (active) | Other / departed Teacher | Student | ACTIVE Parent | Other Parent |
+|---|---|---|---|---|---|---|---|
+| Read correction + clips | ✓ **audited** | ✓ | ✓ | — | own | child, all Markaz | — |
+| Create correction / add clip | — | — | ✓ (clip needs consent) | — | — | — | — |
+| Request media deletion | — | ✓ | ✓ | — | — | (withdrawing consent creates a review) | — |
+| Approve media deletion | — | ✓ (interim: not own request) | — | — | — | — | — |
+| Create / submit recording | — | — | ✓ | — | — | — | — |
+| Approve / revoke recording | — | ✓ (interim: not if author) | — | — | — | — | — |
+| Play full recording | ✓ **audited** | ✓ | ✓ | — | not decided (OQ42) | approved + consent gates | — |
+| Record DOB | — | ✓ (student ACTIVE there; interim) | — | — | — | ✓ (interim) | — |
+| Online consent | — | — | — | — | — | ✓ | — |
+| Verified offline consent | — | ✓ | — | — | — | — | — |
+
+These are role/relationship rules (like the existing correction rule), not grantable permissions; the explicit-permission system (A47) is unchanged. Pure rules: `src/server/authz/policy.ts` §5 and `recording-consent.ts`.
+
 ## 3. Parent account model — options (~~OPEN QUESTION~~ **Resolved 2026-10-05: Option 1**, A27 — see [../roadmap/open-questions.md](../roadmap/open-questions.md) item 2)
 
 - **Option 1** (**selected by A27**): Parent is its own account type, linked to one or more Student accounts via a verified relationship (e.g. invite from the student's enrollment, or verified by the teacher/Markaz). *The verification examples in brackets are still proposals, not decisions.*

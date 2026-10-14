@@ -2,14 +2,20 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ActionForm } from "@/components/action-form";
+import { CorrectionList } from "@/components/correction-list";
+import { MediaPlayButton } from "@/components/media-play-button";
 import { getDictionary, getLocale } from "@/i18n/server";
 import { format } from "@/i18n/dictionaries";
 import { signOut } from "@/server/actions/auth";
+import { giveGuardianConsentAction, recordDateOfBirthAction, withdrawConsentAction } from "@/server/actions/media";
 import { requestLinkAction, updateMyNameAction, withdrawMyLinkAction } from "@/server/actions/workspace";
 import { getCurrentActor } from "@/server/auth";
 import { getDb } from "@/server/db";
 import { listMyTenants } from "@/server/data/tenants";
+import { listMyChildrenConsent } from "@/server/services/consent";
+import { listStudentCorrections } from "@/server/services/corrections";
 import { listMyParentLinks } from "@/server/services/parent-links";
+import { listParentVisibleRecordings } from "@/server/services/recordings";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getDictionary()).account.title };
@@ -41,7 +47,7 @@ async function AccountBody() {
   const [profile, tenants, links, registrations] = await Promise.all([
     db.profile.findUnique({
       where: { id: actor.profileId },
-      select: { displayName: true, parentAccount: { select: { profileId: true } } },
+      select: { displayName: true, parentAccount: { select: { profileId: true } }, studentAccount: { select: { profileId: true } } },
     }),
     listMyTenants(db, actor),
     listMyParentLinks(db, actor),
@@ -51,6 +57,14 @@ async function AccountBody() {
       select: { registrationNumber: true, tenant: { select: { name: true, slug: true } } },
     }),
   ]);
+  const activeChildren = links.filter((l) => l.studentProfileId !== null);
+  const [myCorrections, childConsent, childCorrections, childRecordings] = await Promise.all([
+    profile?.studentAccount ? listStudentCorrections(db, actor, actor.profileId) : [],
+    activeChildren.length > 0 ? listMyChildrenConsent(db, actor) : [],
+    Promise.all(activeChildren.map((l) => listStudentCorrections(db, actor, l.studentProfileId))),
+    activeChildren.length > 0 ? listParentVisibleRecordings(db, actor) : [],
+  ]);
+  const m = dict.media;
   const linkStatus = {
     PENDING: dict.account.linkPending,
     VERIFIED: dict.account.linkVerified,
@@ -99,6 +113,85 @@ async function AccountBody() {
           </ul>
         </section>
       ) : null}
+
+      {profile?.studentAccount ? (
+        <section className="card" aria-labelledby="my-corrections">
+          <h2 id="my-corrections">{m.myCorrectionsHeading}</h2>
+          <CorrectionList corrections={myCorrections} actor={actor} dict={dict} locale={locale} />
+        </section>
+      ) : null}
+
+      {activeChildren.map((child, i) => {
+        const consent = childConsent.find((c) => c.studentProfileId === child.studentProfileId);
+        const recordings = childRecordings.filter((r) => r.participants.some((p) => p.studentProfileId === child.studentProfileId));
+        return (
+          <section key={child.id} className="card" aria-labelledby={`child-${child.id}`}>
+            <h2 id={`child-${child.id}`}>{child.studentName ?? dict.markaz.unnamed}</h2>
+            <h3>{m.consentHeading}</h3>
+            <p className="muted">{m.consentNote}</p>
+            <p>
+              {consent?.dateOfBirthRecorded ? m.dobRecorded : m.dobMissing} — {m.minorStatus[consent?.minorStatus ?? "UNKNOWN"]}
+            </p>
+            <ActionForm action={recordDateOfBirthAction} submitLabel={m.dobSave} pendingLabel={dict.common.loading} messages={dict.results}>
+              <input type="hidden" name="studentProfileId" value={child.studentProfileId ?? ""} />
+              <label htmlFor={`dob-${child.id}`}>{m.dob}</label>
+              <input id={`dob-${child.id}`} name="dateOfBirth" type="date" required />
+            </ActionForm>
+            {consent && consent.consents.length > 0 ? (
+              <ul className="list">
+                {consent.consents.map((c) => (
+                  <li key={c.id} className="row">
+                    <span>{m.methods[c.method]}</span>
+                    {c.method === "GUARDIAN_ONLINE" ? (
+                      <ActionForm action={withdrawConsentAction} submitLabel={m.withdrawConsent} pendingLabel={dict.common.loading} messages={dict.results} variant="secondary" inline>
+                        <input type="hidden" name="consentId" value={c.id} />
+                      </ActionForm>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">{m.consentNone}</p>
+            )}
+            {!consent?.consents.some((c) => c.method === "GUARDIAN_ONLINE" && c.mine) ? (
+              <ActionForm action={giveGuardianConsentAction} submitLabel={m.giveConsent} pendingLabel={dict.common.loading} messages={dict.results}>
+                <input type="hidden" name="studentProfileId" value={child.studentProfileId ?? ""} />
+              </ActionForm>
+            ) : null}
+            <h3>{m.correctionsHeading}</h3>
+            <CorrectionList corrections={childCorrections[i]} actor={actor} dict={dict} locale={locale} />
+            <h3>{m.childRecordingsHeading}</h3>
+            {recordings.length === 0 ? (
+              <p className="muted">{m.noRecordings}</p>
+            ) : (
+              <ul className="list">
+                {recordings.map((r) => (
+                  <li key={r.id} className="row">
+                    <span>
+                      {r.title ?? m.untitled} <span className="muted">({r.tenant.name})</span>
+                    </span>
+                    {r.approvalScope === "WHOLE" ? (
+                      <MediaPlayButton kind="recording" id={r.id} label={m.play} loading={dict.common.loading} results={dict.results} />
+                    ) : (
+                      r.segments.map((s) => (
+                        <MediaPlayButton
+                          key={s.id}
+                          kind="recording"
+                          id={r.id}
+                          segmentId={s.id}
+                          label={`${m.play} ${Math.floor(s.startMs / 1000)}–${Math.ceil(s.endMs / 1000)} s`}
+                          loading={dict.common.loading}
+                          results={dict.results}
+                        />
+                      ))
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      })}
 
       {profile?.parentAccount ? (
         <section className="card">
