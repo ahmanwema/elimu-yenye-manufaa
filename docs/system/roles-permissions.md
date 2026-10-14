@@ -163,7 +163,14 @@ These are role/relationship rules (like the existing correction rule), not grant
 | Request Option C | — | ✓ | ✗ | — | — |
 | Enable Option C | ✓ | — | ✗ | — | — |
 
- — options (~~OPEN QUESTION~~ **Resolved 2026-10-05: Option 1**, A27 — see [../roadmap/open-questions.md](../roadmap/open-questions.md) item 2)
+### 2.8 2026-10-16 (A92–A98)
+
+- Approve/reject a recording: any Markaz Admin of that Markaz, **including its author** (A92). Approve a deletion request: never the requester (A84).
+- Verify a DOB: a Markaz Admin who did **not** enter it (A93).
+- Play an approved full recording: the participating student (A94), an ACTIVE parent (A95), plus staff as before.
+- Option C: request (Markaz Admin, own Markaz), cancel (the requester), enable/decline/disable (Super Admin) — A96.
+
+## 3. Parent account model — options (~~OPEN QUESTION~~ **Resolved 2026-10-05: Option 1**, A27 — see [../roadmap/open-questions.md](../roadmap/open-questions.md) item 2)
 
 - **Option 1** (**selected by A27**): Parent is its own account type, linked to one or more Student accounts via a verified relationship (e.g. invite from the student's enrollment, or verified by the teacher/Markaz). *The verification examples in brackets are still proposals, not decisions.*
 - **Option 2** (not selected): Parent is a "viewer" permission grant on an existing Student account, with no separate account type — simpler, but weaker for a parent with multiple children across different teachers.

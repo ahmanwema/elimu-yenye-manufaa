@@ -422,12 +422,13 @@ export function canSelectCurrentClip(actor: Actor, correction: { tenantId: strin
 }
 
 /**
- * Recording review (approve / reject) and revocation: a Markaz Admin of that Markaz
- * (A78/A79/A87); the teacher is never the final approver. INTERIM (owner decision pending):
- * a person who is both the recording's author and a Markaz Admin may not review it.
+ * Recording review (approve / reject): a Markaz Admin of that Markaz (A78/A87). A92: a Markaz
+ * Admin who is ALSO the recording's author MAY approve or reject it — deliberately unlike
+ * deletion approval, where the requester may never approve (A84, canApproveMediaDeletion).
+ * A plain teacher is never the approver.
  */
-export function canApproveRecording(actor: Actor, recording: { tenantId: string; teacherProfileId: string }): boolean {
-  return hasActiveRole(actor, recording.tenantId, "MARKAZ_ADMIN") && actor.profileId !== recording.teacherProfileId;
+export function canApproveRecording(actor: Actor, recording: { tenantId: string; teacherProfileId?: string }): boolean {
+  return hasActiveRole(actor, recording.tenantId, "MARKAZ_ADMIN");
 }
 
 export function canRevokeRecordingApproval(actor: Actor, recording: { tenantId: string }): boolean {

@@ -133,6 +133,9 @@ export const ar: Dictionary = {
     noTeachers: "لا يوجد معلمون بعد.",
   },
   platform: {
+    optionCDecline: "رفض",
+    optionCDisable: "تعطيل",
+    optionCEnabledList: "المفعَّلة",
     optionCHeading: "طلبات الخيار C (تسجيل الدرس كاملًا)",
     optionCEnable: "الموافقة والتفعيل",
     noOptionC: "لا توجد طلبات معلّقة.",
@@ -181,6 +184,9 @@ export const ar: Dictionary = {
     feature_not_enabled: "تسجيل الدرس كاملًا (الخيار C) غير مفعّل لهذا المركز.",
   },
   media: {
+    optionCCancel: "إلغاء الطلب",
+    noOtherVerifier: "لا يوجد مدير آخر للمركز يمكنه التحقق من هذا التاريخ بعد، لذلك يبقى غير موثَّق ولا يمكن استخدام موافقة التسجيل.",
+    myRecordingsHeading: "تسجيلاتي الموافَق عليها",
     dobStates: { MISSING: "لم يُدخَل تاريخ الميلاد", PENDING_VERIFICATION: "أُدخل تاريخ الميلاد — بانتظار تحقق المركز منه", VERIFIED: "تم التحقق من تاريخ الميلاد" },
     verifyDob: "تحقق",
     verifyDobLabel: "تاريخ الميلاد المُدخَل: {date}. طابقه مع وثيقة قبل التحقق.",
@@ -199,7 +205,7 @@ export const ar: Dictionary = {
     makeCurrent: "اجعله الحالي",
     noCurrent: "لا يوجد صوت حالي. اختر أحد المقاطع السابقة أو أضف مقطعًا جديدًا.",
     optionCHeading: "تسجيل الدرس كاملًا (الخيار C)",
-    optionCStatus: { NOT_ENABLED: "غير مفعّل", PENDING: "مطلوب — بانتظار موافقة المنصّة", ENABLED: "مفعّل" },
+    optionCStatus: { NOT_ENABLED: "غير مفعّل", PENDING: "مطلوب — بانتظار موافقة المنصّة", ENABLED: "مفعّل", DECLINED: "رُفض الطلب", CANCELLED: "أُلغي الطلب", DISABLED: "معطَّل" },
     optionCRequest: "طلب الخيار C",
     optionCNote: "لا يفعّله إلا المشرف العام. لا يُتقاضى أي دفع هنا.",
     correctionsHeading: "التصحيحات",

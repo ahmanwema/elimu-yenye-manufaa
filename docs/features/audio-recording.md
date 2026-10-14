@@ -123,3 +123,11 @@ No change to recording. Parent access to "approved recordings" still requires an
 **Teacher notice (A89):** starting capture requires both the participants' notice and the teacher's own acknowledgement (`teacher_notice_acknowledged_at/by`, audited). It is not consent and creates no consent row.
 
 **Option C (A90):** `recording_entitlements` per Markaz — NOT_ENABLED → PENDING (Markaz Admin request) → ENABLED (Super Admin). Creating or starting a recording requires ENABLED. No pricing/billing. Decline/disable are not decided (item 48).
+
+## 2026-10-16 — remaining decisions (A92–A98)
+
+- **Self-review (A92):** a Markaz Admin who authored a recording may approve or reject it. Deletion self-approval stays prohibited (A84) — the two rules are deliberately different.
+- **Student access (A94):** `listStudentVisibleRecordings` / playback — APPROVED, not deleted, the student took part with **audio included** (consent valid at capture). INTERIM: a student who left that Markaz is refused (open question 51).
+- **Parent visibility (A95):** ACTIVE link + APPROVED + not deleted + the child took part with audio included. "Consent valid at capture" = `recording_participants.audio_included`, the consent verdict snapshotted when the student was registered for the session; a later withdrawal no longer hides the recording — it goes to the review/deletion workflow and future capture is blocked.
+- **Offline consent (A97):** Markaz-specific (tested for recordings and clips).
+- **Option C (A96):** NOT_ENABLED → PENDING (request) → ENABLED (Super Admin) → DISABLED (Super Admin); PENDING → DECLINED (Super Admin) or CANCELLED (requester). Only ENABLED allows creating/starting recordings; disabling deletes nothing. A new request is allowed after DECLINED/CANCELLED/DISABLED (open question 52).

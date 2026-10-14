@@ -688,6 +688,9 @@ enum AuditAction {
   RECORDING_TEACHER_NOTICE_ACKNOWLEDGED
   OPTION_C_REQUESTED
   OPTION_C_ENABLED
+  OPTION_C_CANCELLED
+  OPTION_C_DECLINED
+  OPTION_C_DISABLED
 }
 
 enum AuditTargetType {
@@ -728,10 +731,19 @@ enum RecordingEntitlementStatus {
   PENDING
   /// A Super Admin approved/enabled it.
   ENABLED
+  /// A Super Admin declined the pending request (A96).
+  DECLINED
+  /// The requesting Markaz Admin cancelled their pending request (A96).
+  CANCELLED
+  /// A Super Admin disabled it after it was enabled (A96). History/media are kept.
+  DISABLED
 }
 
-/// One row per Markaz: Markaz Admin REQUEST → Super Admin APPROVE/ENABLE (A90).
-/// No row = NOT_ENABLED. A teacher can never request or enable it.
+/// One row per Markaz holding the CURRENT request cycle (A90, A96):
+///   NOT_ENABLED / DECLINED / CANCELLED / DISABLED ──request (Markaz Admin)──▶ PENDING
+///   PENDING ──enable (Super Admin)──▶ ENABLED ──disable (Super Admin)──▶ DISABLED
+///   PENDING ──decline (Super Admin)──▶ DECLINED;  PENDING ──cancel (requester)──▶ CANCELLED
+/// No row = NOT_ENABLED. A teacher can never request or enable it. Full history: audit_events.
 model RecordingEntitlement {
   tenantId      String                     @id @map("tenant_id") @db.Uuid
   status        RecordingEntitlementStatus @default(NOT_ENABLED)
@@ -739,6 +751,12 @@ model RecordingEntitlement {
   requestedAt   DateTime?                  @map("requested_at") @db.Timestamptz(6)
   enabledById   String?                    @map("enabled_by_id") @db.Uuid
   enabledAt     DateTime?                  @map("enabled_at") @db.Timestamptz(6)
+  declinedById  String?                    @map("declined_by_id") @db.Uuid
+  declinedAt    DateTime?                  @map("declined_at") @db.Timestamptz(6)
+  cancelledById String?                    @map("cancelled_by_id") @db.Uuid
+  cancelledAt   DateTime?                  @map("cancelled_at") @db.Timestamptz(6)
+  disabledById  String?                    @map("disabled_by_id") @db.Uuid
+  disabledAt    DateTime?                  @map("disabled_at") @db.Timestamptz(6)
   updatedAt     DateTime                   @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)

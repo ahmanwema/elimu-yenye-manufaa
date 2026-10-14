@@ -4,13 +4,13 @@ import { Suspense } from "react";
 import { ActionForm } from "@/components/action-form";
 import { format } from "@/i18n/dictionaries";
 import { getDictionary, getLocale } from "@/i18n/server";
-import { enableOptionCAction } from "@/server/actions/media";
+import { declineOptionCAction, disableOptionCAction, enableOptionCAction } from "@/server/actions/media";
 import { grantPermissionAction, reviewAppointmentAction, revokePermissionAction } from "@/server/actions/workspace";
 import { GRANTABLE_PERMISSIONS } from "@/server/authz/policy";
 import { getCurrentActor } from "@/server/auth";
 import { getDb } from "@/server/db";
 import { listPendingAppointmentRequests } from "@/server/services/appointments";
-import { listPendingOptionCRequests } from "@/server/services/option-c";
+import { listOptionCForPlatform } from "@/server/services/option-c";
 import { listPermissionOverview } from "@/server/services/platform";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -41,7 +41,7 @@ async function PlatformBody() {
   const [requests, overview, optionC] = await Promise.all([
     listPendingAppointmentRequests(db, current.actor),
     listPermissionOverview(db, current.actor),
-    listPendingOptionCRequests(db, current.actor),
+    listOptionCForPlatform(db, current.actor),
   ]);
   const name = (n: string | null) => n ?? dict.markaz.unnamed;
 
@@ -50,20 +50,42 @@ async function PlatformBody() {
       <section className="card" aria-labelledby="option-c">
         <h2 id="option-c">{dict.platform.optionCHeading}</h2>
         <p className="muted">{dict.media.optionCNote}</p>
-        {optionC.length === 0 ? (
+        {optionC.filter((o) => o.status === "PENDING").length === 0 ? (
           <p className="muted">{dict.platform.noOptionC}</p>
         ) : (
           <ul className="list">
-            {optionC.map((o) => (
-              <li key={o.tenantId} className="row">
-                <span>{o.tenant.name}</span>
-                <ActionForm action={enableOptionCAction} submitLabel={dict.platform.optionCEnable} pendingLabel={dict.common.loading} messages={dict.results} inline>
-                  <input type="hidden" name="tenantId" value={o.tenantId} />
-                </ActionForm>
-              </li>
-            ))}
+            {optionC
+              .filter((o) => o.status === "PENDING")
+              .map((o) => (
+                <li key={o.tenantId} className="row">
+                  <span>{o.tenant.name}</span>
+                  <ActionForm action={enableOptionCAction} submitLabel={dict.platform.optionCEnable} pendingLabel={dict.common.loading} messages={dict.results} inline>
+                    <input type="hidden" name="tenantId" value={o.tenantId} />
+                  </ActionForm>
+                  <ActionForm action={declineOptionCAction} submitLabel={dict.platform.optionCDecline} pendingLabel={dict.common.loading} messages={dict.results} variant="secondary" inline>
+                    <input type="hidden" name="tenantId" value={o.tenantId} />
+                  </ActionForm>
+                </li>
+              ))}
           </ul>
         )}
+        {optionC.some((o) => o.status === "ENABLED") ? (
+          <>
+            <h3>{dict.platform.optionCEnabledList}</h3>
+            <ul className="list">
+              {optionC
+                .filter((o) => o.status === "ENABLED")
+                .map((o) => (
+                  <li key={o.tenantId} className="row">
+                    <span>{o.tenant.name}</span>
+                    <ActionForm action={disableOptionCAction} submitLabel={dict.platform.optionCDisable} pendingLabel={dict.common.loading} messages={dict.results} variant="secondary" inline>
+                      <input type="hidden" name="tenantId" value={o.tenantId} />
+                    </ActionForm>
+                  </li>
+                ))}
+            </ul>
+          </>
+        ) : null}
       </section>
 
       <section className="card" aria-labelledby="requests">

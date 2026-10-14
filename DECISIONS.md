@@ -9,7 +9,7 @@ Statuses used throughout the documentation:
 - **OPEN QUESTION** — unresolved, needs an owner decision before design/implementation can proceed in that area.
 - **DEFERRED** — intentionally out of scope for now; revisit later.
 
-Last updated: 2026-10-15 (media policy decisions — A81–A91, §1.7). Previous: 2026-10-14 (recording & correction media — A66–A80, §1.6). Previous: 2026-10-13 (fourth update: delegation, child proposal, self-request, Supabase environment — A62–A65, §1.5).
+Last updated: 2026-10-16 (A92–A98, §1.8). Previous: 2026-10-15 (media policy decisions — A81–A91, §1.7). Previous: 2026-10-14 (recording & correction media — A66–A80, §1.6). Previous: 2026-10-13 (fourth update: delegation, child proposal, self-request, Supabase environment — A62–A65, §1.5).
 
 History: 2026-09-30 initial documentation pass. 2026-10-05 owner business decisions BR-01–BR-13 reconciled (A26–A38, §1.1).
 
@@ -113,6 +113,25 @@ These come directly from the project owner's brief and are treated as fixed requ
 | A89 | **Teacher recording notice:** teachers need no separate consent flow but must receive (and acknowledge) a recording notice, distinct from student consent and never treated as guardian/student consent. No employment/legal logic. Resolves OQ45 (teacher part). | Owner decision (2026-10-15) |
 | A90 | **Option C enablement:** Markaz Admin → **request** → Super Admin → **approve/enable**. Teachers cannot enable it. Provider-neutral tenant **entitlement only** — no pricing, payment, billing or subscription logic. Resolves OQ45 (Option C part). | Owner decision (2026-10-15) |
 | A91 | **Correction clip maximum file size: 10 MB** (in addition to AAC in M4A and ≤ 60 s), enforced at the service layer. Resolves OQ38. | Owner decision (2026-10-15) |
+| A92 | **Recording self-review allowed:** a Markaz Admin who is also the recording's author/teacher MAY approve or reject their own recording. This deliberately differs from deletion: a requester may **never** approve their own deletion request (A84 unchanged). Resolves OQ46 (recording part). | Owner decision (2026-10-16) |
+| A93 | **No DOB self-verification:** a Markaz Admin who entered a student's DOB must not verify it; another eligible Markaz Admin must. With no second admin the DOB stays unverified and recording eligibility stays fail-closed; the UI explains why. Resolves OQ46 (DOB part). | Owner decision (2026-10-16) |
+| A94 | **Student full-recording access:** a student may view their own full recording when it is APPROVED, not deleted/restricted, they participated, and their consent was valid for that recording. No parent link needed. | Owner decision (2026-10-16) |
+| A95 | **Parent full-recording visibility** requires ALL: ACTIVE link; APPROVED; not deleted/restricted; the child participated; the child's consent was **valid at the time the recording was made**. A later withdrawal does not automatically hide the old recording; it sends the media to the review/deletion workflow and blocks future capture. Resolves OQ41. | Owner decision (2026-10-16) |
+| A96 | **Option C lifecycle:** the requesting Markaz Admin may **cancel** a pending request; a Super Admin may **decline** a pending request and **disable** an enabled entitlement. States NOT_ENABLED / PENDING / ENABLED / DECLINED / CANCELLED / DISABLED; every step audited. Disabling deletes nothing; it blocks new full-recording creation/start. No billing. Resolves OQ48. | Owner decision (2026-10-16) |
+| A97 | **Verified offline consent is Markaz-specific:** consent verified by Markaz A is valid for A's recording/correction capture only; Markaz B needs its own applicable consent. Online ACTIVE-guardian consent is unchanged. Resolves OQ47. | Owner decision (2026-10-16) |
+| A98 | **10 MB = 10 × 1024 × 1024 = 10,485,760 bytes**, used consistently (constant, service, DB CHECK, bucket limit). Resolves OQ50. | Owner decision (2026-10-16) |
+
+### 1.8 Supersession and refinement record (2026-10-16)
+
+| Earlier entry | Earlier content (summary) | New decision | Relationship |
+|---|---|---|---|
+| Interim (2026-10-15) | An admin who authored a recording may not review it. | A92 | **Superseded:** allowed. Deletion self-approval (A84) unchanged. |
+| Interim (2026-10-15) | An admin may not verify a DOB they entered. | A93 | **Confirmed** as a decision, plus a DB CHECK. |
+| Interim (2026-10-14) | Students get no full-recording access. | A94 | **Superseded:** own approved recordings under gates. |
+| Interim (2026-10-14) | Parent visibility required the child's consent to be valid NOW. | A95 | **Superseded:** consent valid AT CAPTURE (the participant snapshot). |
+| A90 | Request → enable only. | A96 | **Extended:** cancel, decline, disable. |
+| Interim (2026-10-14) | Offline consent valid in the verifying Markaz only. | A97 | **Confirmed.** |
+| A91 | 10 MB (unit to confirm). | A98 | **Confirmed:** 10,485,760 bytes. |
 
 ### 1.7 Supersession and refinement record (2026-10-15, media policy decisions)
 
@@ -204,7 +223,10 @@ Historical entries are kept, not deleted. This table records which earlier entri
 | A15 (Approved) | Class capacity varies by plan. | A33 | **Refined, not superseded** — no concrete numbers until pilot/cost testing. |
 | A21 (Approved) | Free/paid plans, monthly subscriptions, course payments, M-Pesa, Airtel Money; tuition emphasis. | A34 | **Refined, not superseded** — A34 adds the requirement that the commercial concepts stay distinct. |
 
-## 2. Current authorization scope (as of 2026-10-15)
+## 2. Current authorization scope (as of 2026-10-16)
+
+**Authorized (2026-10-16, seventh authorization):** LOCAL implementation of A92–A98 and ONE local commit; read-only preflight of the Supabase DEVELOPMENT project. NOT authorized in that task: any write to the real Supabase project (migrations, bucket changes) — that needs a separate APPLY instruction after the gate report; production, deploy, push, RTC vendor choice, provider-specific recording, billing, scheduled jobs.
+
 
 **Authorized (2026-10-15, sixth authorization):** LOCAL implementation of A81–A91 (new additive migrations, services, RLS, UI, tests, docs) and ONE local commit. NOT authorized: applying migrations or configuration to the real Supabase project, production, deploy, push, choosing the RTC vendor, provider-specific recording, payments/billing.
 
@@ -267,6 +289,8 @@ New owner questions surfaced while reconciling the 2026-10-05 decisions are list
 2026-10-13 (parent workflow): items 14, 27, 28, 29, 30 resolved. Items 31–33 record interim engineering choices awaiting confirmation.
 
 2026-10-13 (fourth update): items 31, 32, 33 resolved (A62, A63, A64).
+
+2026-10-16: items 41, 42, 46, 47, 48, 50 resolved by A92–A98; items 51–52 added.
 
 2026-10-15 (media policy decisions): items 34, 35, 37, 38, 39, 43, 44, 45 and part of 36/40 resolved by A81–A91; items 46–50 added.
 

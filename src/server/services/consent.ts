@@ -32,9 +32,9 @@ import { DomainError, isUniqueViolation } from "./errors";
 //   Future capture is blocked and existing affected media goes to the deletion review
 //   workflow — nothing is hard-deleted here.
 //
-// INTERIM (owner to confirm; open-questions.md): a Markaz Admin may not verify a DOB they
-// entered themselves; verified offline consent applies only in the verifying Markaz; a
-// guardian's consent counts while that guardian still holds an ACTIVE link.
+// Decided 2026-10-16: a Markaz Admin never verifies a DOB they entered themselves (A93; also a
+// DB CHECK); verified offline consent is Markaz-specific (A97). A guardian's online consent
+// counts while that guardian still holds an ACTIVE link (A71 "ACTIVE guardian").
 
 export type ConsentOptions = { now?: Date; policy?: ConsentPolicy };
 
@@ -156,7 +156,7 @@ const verifySchema = z.object({ tenantId: z.uuid(), studentProfileId: z.uuid(), 
 /**
  * A Markaz Admin of a Markaz where the student is ACTIVE verifies the entered DOB (A82). The
  * admin confirms the exact value they checked: if the DOB was changed meanwhile, nothing is
- * verified. INTERIM: an admin cannot verify a DOB they entered themselves.
+ * verified. A93: an admin never verifies a DOB they entered themselves — another admin must.
  */
 export async function verifyDateOfBirth(db: PrismaClient, actor: Actor, input: unknown, options: ConsentOptions = {}) {
   const { now } = opts(options);
@@ -482,10 +482,10 @@ export async function listMyChildrenConsent(db: PrismaClient, actor: Actor, opti
  */
 export async function listTenantConsentOverview(db: PrismaClient, actor: Actor, tenantId: unknown, options: ConsentOptions = {}) {
   if (!isValidId(tenantId) || !canRecordOfflineConsent(actor, tenantId)) throw new AuthorizationError();
-  const members = await db.membership.findMany({
-    where: { tenantId, role: "STUDENT", status: "ACTIVE" },
-    select: { profileId: true },
-  });
+  const [members, admins] = await Promise.all([
+    db.membership.findMany({ where: { tenantId, role: "STUDENT", status: "ACTIVE" }, select: { profileId: true } }),
+    db.membership.findMany({ where: { tenantId, role: "MARKAZ_ADMIN", status: "ACTIVE" }, select: { profileId: true } }),
+  ]);
   const rows = await summarize(
     db,
     actor,
@@ -500,5 +500,8 @@ export async function listTenantConsentOverview(db: PrismaClient, actor: Actor, 
         ? student.dateOfBirth.toISOString().slice(0, 10)
         : null,
     enteredByMe: student.dateOfBirthEnteredById === actor.profileId,
+    /** A93: true when only the admin who entered the DOB could verify it — it stays unverified. */
+    noOtherVerifier:
+      summary.dateOfBirthState === "PENDING_VERIFICATION" && !admins.some((a) => a.profileId !== student.dateOfBirthEnteredById),
   }));
 }

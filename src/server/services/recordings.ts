@@ -403,31 +403,40 @@ export async function revokeRecordingApproval(db: PrismaClient, actor: Actor, in
 
 const playbackSchema = z.object({ recordingId: z.uuid(), segmentId: z.uuid().optional() });
 
+type VisibleRecording = {
+  tenantId: string;
+  status: string;
+  deletedAt: Date | null;
+  participants: { studentProfileId: string; audioIncluded: boolean }[];
+};
+
 /**
- * Parent gates (A78): the recording is APPROVED and not deleted; the parent holds an ACTIVE
- * link to a student who took part with their audio included; and that student's consent is
- * still valid in the recording's Markaz. (Interpretation of "applicable consent rules" —
- * owner to confirm.) Returns the qualifying child, or null.
+ * Viewer gates for a full recording outside staff (A78, A94, A95). Both require an APPROVED,
+ * non-deleted recording and a participant whose consent was VALID AT CAPTURE TIME.
+ *
+ * Consent at capture = `recording_participants.audio_included`: the consent policy's verdict
+ * snapshotted when the student was registered for the session (eligibility CONSENTED with the
+ * consent id; DB CHECK). A LATER withdrawal does not change it — the recording then goes to the
+ * deletion/review workflow (A72) and future capture is blocked; it is not hidden automatically.
+ *
+ * - STUDENT (A94): the student themself took part with audio included. INTERIM (open question):
+ *   a student who has since left the recording's Markaz is refused — A32 keeps a departed
+ *   student's own submissions/corrections, but is silent on full lesson recordings.
+ * - PARENT (A95): an ACTIVE link to such a participant (cross-Markaz, like corrections).
  */
-async function parentQualifies(
-  db: PrismaClient,
-  actor: Actor,
-  recording: { tenantId: string; status: string; deletedAt: Date | null; participants: { studentProfileId: string; audioIncluded: boolean }[] },
-  options: RecordingOptions,
-) {
+function viewerQualifies(actor: Actor, recording: VisibleRecording): "STUDENT" | "PARENT" | null {
   if (recording.status !== "APPROVED" || recording.deletedAt) return null;
-  for (const p of recording.participants) {
-    if (!p.audioIncluded || !hasActiveParentLink(actor, p.studentProfileId)) continue;
-    if ((await getRecordingEligibility(db, p.studentProfileId, recording.tenantId, options)).eligible) return p.studentProfileId;
-  }
+  const included = recording.participants.filter((p) => p.audioIncluded);
+  if (included.some((p) => p.studentProfileId === actor.profileId) && hasActiveRole(actor, recording.tenantId, "STUDENT")) return "STUDENT";
+  if (included.some((p) => hasActiveParentLink(actor, p.studentProfileId))) return "PARENT";
   return null;
 }
 
 /**
  * Short-lived URL for a recording (or an approved segment's own object). Staff (author,
- * Markaz Admin; Super Admin audited) may play any live recording of their scope. A parent
- * passes only the gates above; with SEGMENTS approval, only an approved segment that has its
- * own finalized object — never the whole file. Deleted recordings are never played.
+ * Markaz Admin; Super Admin audited) may play any live recording of their scope. A student or
+ * parent passes only the viewer gates above; with SEGMENTS approval, only an approved segment
+ * that has its own finalized object — never the whole file. Deleted recordings never play.
  */
 export async function getRecordingPlaybackUrl(
   db: PrismaClient,
@@ -457,8 +466,7 @@ export async function getRecordingPlaybackUrl(
   if (!recording) throw new AuthorizationError();
 
   const staff = recordingStaffAccess(actor, recording);
-  const parentChild = staff === "DENY" ? await parentQualifies(db, actor, recording, options) : null;
-  if (staff === "DENY" && !parentChild) throw new AuthorizationError();
+  if (staff === "DENY" && !viewerQualifies(actor, recording)) throw new AuthorizationError();
   if (recording.deletedAt) throw new DomainError("invalid_state");
 
   let object: { bucket: string; key: string } | null = null;
@@ -515,21 +523,31 @@ export async function listTenantRecordings(db: PrismaClient, actor: Actor, tenan
   return db.recording.findMany({ where, select: listSelect, orderBy: { createdAt: "desc" } });
 }
 
+const viewerSelect = {
+  ...listSelect,
+  tenant: { select: { name: true } },
+  participants: { select: { studentProfileId: true, audioIncluded: true } },
+  segments: { where: { mediaFinalizedAt: { not: null }, purgedAt: null, withdrawnAt: null }, select: { id: true, startMs: true, endMs: true } },
+};
+
 /** Approved recordings a parent may open (all gates), across the children's Markaz. */
-export async function listParentVisibleRecordings(db: PrismaClient, actor: Actor, options: RecordingOptions = {}) {
+export async function listParentVisibleRecordings(db: PrismaClient, actor: Actor) {
   const children = actor.parentLinks.filter((l) => l.status === "ACTIVE").map((l) => l.studentProfileId);
   if (children.length === 0) return [];
   const candidates = await db.recording.findMany({
     where: { status: "APPROVED", deletedAt: null, participants: { some: { studentProfileId: { in: children }, audioIncluded: true } } },
-    select: {
-      ...listSelect,
-      tenant: { select: { name: true } },
-      participants: { select: { studentProfileId: true, audioIncluded: true } },
-      segments: { where: { mediaFinalizedAt: { not: null }, purgedAt: null, withdrawnAt: null }, select: { id: true, startMs: true, endMs: true } },
-    },
+    select: viewerSelect,
     orderBy: { createdAt: "desc" },
   });
-  const visible = [];
-  for (const r of candidates) if (await parentQualifies(db, actor, r, options)) visible.push(r);
-  return visible;
+  return candidates.filter((r) => viewerQualifies(actor, r) === "PARENT");
+}
+
+/** A94: the student's own approved recordings (participated, consent valid at capture). */
+export async function listStudentVisibleRecordings(db: PrismaClient, actor: Actor) {
+  const candidates = await db.recording.findMany({
+    where: { status: "APPROVED", deletedAt: null, participants: { some: { studentProfileId: actor.profileId, audioIncluded: true } } },
+    select: viewerSelect,
+    orderBy: { createdAt: "desc" },
+  });
+  return candidates.filter((r) => viewerQualifies(actor, r) === "STUDENT");
 }

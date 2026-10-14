@@ -133,6 +133,9 @@ export const sw: Dictionary = {
     noTeachers: "Hakuna walimu bado.",
   },
   platform: {
+    optionCDecline: "Kataa",
+    optionCDisable: "Zima",
+    optionCEnabledList: "Zilizowezeshwa",
     optionCHeading: "Maombi ya Chaguo C (kurekodi somo zima)",
     optionCEnable: "Idhinisha na wezesha",
     noOptionC: "Hakuna maombi yanayosubiri.",
@@ -181,6 +184,9 @@ export const sw: Dictionary = {
     feature_not_enabled: "Kurekodi somo zima (Chaguo C) hakujawezeshwa kwa Markaz hii.",
   },
   media: {
+    optionCCancel: "Futa ombi",
+    noOtherVerifier: "Hakuna Msimamizi mwingine wa Markaz anayeweza kuthibitisha tarehe hii bado, kwa hiyo inabaki bila kuthibitishwa na ridhaa ya kurekodi haiwezi kutumika.",
+    myRecordingsHeading: "Rekodi zangu zilizoidhinishwa",
     dobStates: { MISSING: "Tarehe ya kuzaliwa haijaingizwa", PENDING_VERIFICATION: "Tarehe ya kuzaliwa imeingizwa — inasubiri Markaz kuithibitisha", VERIFIED: "Tarehe ya kuzaliwa imethibitishwa" },
     verifyDob: "Thibitisha",
     verifyDobLabel: "Tarehe ya kuzaliwa iliyoingizwa: {date}. Ilinganishe na hati kabla ya kuthibitisha.",
@@ -199,7 +205,7 @@ export const sw: Dictionary = {
     makeCurrent: "Fanya iwe ya sasa",
     noCurrent: "Hakuna sauti ya sasa. Chagua mojawapo ya sauti za awali, au ongeza mpya.",
     optionCHeading: "Kurekodi somo zima (Chaguo C)",
-    optionCStatus: { NOT_ENABLED: "Haijawezeshwa", PENDING: "Imeombwa — inasubiri idhini ya jukwaa", ENABLED: "Imewezeshwa" },
+    optionCStatus: { NOT_ENABLED: "Haijawezeshwa", PENDING: "Imeombwa — inasubiri idhini ya jukwaa", ENABLED: "Imewezeshwa", DECLINED: "Ombi limekataliwa", CANCELLED: "Ombi limefutwa", DISABLED: "Imezimwa" },
     optionCRequest: "Omba Chaguo C",
     optionCNote: "Ni Msimamizi Mkuu pekee anayeweza kuliwezesha. Hakuna malipo yanayochukuliwa hapa.",
     correctionsHeading: "Masahihisho",

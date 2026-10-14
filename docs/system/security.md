@@ -103,6 +103,12 @@ Everything else matched the PGlite results: RLS for tenants, students, parents (
 - `recording_entitlements` is server-only (no Data API grant). Only a Super Admin enables Option C.
 - Oversized clips (> 10 MB) are rejected from `stat` alone — no bytes are downloaded.
 
+### 3.9 2026-10-16 (A92–A98)
+
+- DB CHECKs added: `student_dob_not_self_verified` (verifier ≠ enterer), `entitlement_cancel_by_requester`, and a rebuilt `entitlement_status_fields`.
+- Historical recording visibility uses the consent snapshot taken at capture (`audio_included`), never "current consent", so a later withdrawal cannot silently change past visibility; it triggers review instead.
+- Offline consent stays tenant-scoped in the pure policy (`tenantId === recording/correction tenant`).
+
 ## 4. Recording consent & private annotation leakage
 
 - Lesson recording must have a clear consent/notice model — ~~OPEN QUESTION~~ **APPROVED 2026-10-05 (A30)**: (1) general consent during enrollment/account setup **and** (2) a clear notice when recording begins; general consent alone is not sufficient UX. This applies to any recorded audio, including Option B correction clips (A29). Retention/deletion: see §7. Still open: consent on behalf of minors (open question 17).

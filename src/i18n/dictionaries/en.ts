@@ -132,6 +132,9 @@ export const en = {
     noTeachers: "No teachers yet.",
   },
   platform: {
+    optionCDecline: "Decline",
+    optionCDisable: "Disable",
+    optionCEnabledList: "Enabled",
     optionCHeading: "Option C (full lesson recording) requests",
     optionCEnable: "Approve and enable",
     noOptionC: "No pending requests.",
@@ -180,6 +183,9 @@ export const en = {
     feature_not_enabled: "Full lesson recording (Option C) is not enabled for this Markaz.",
   },
   media: {
+    optionCCancel: "Cancel request",
+    noOtherVerifier: "No other Markaz Administrator can verify this date yet, so it stays unverified and recording consent cannot be used.",
+    myRecordingsHeading: "My approved recordings",
     dobStates: { MISSING: "Date of birth not entered", PENDING_VERIFICATION: "Date of birth entered — waiting for the Markaz to verify it", VERIFIED: "Date of birth verified" },
     verifyDob: "Verify",
     verifyDobLabel: "Entered date of birth: {date}. Check it against a document before verifying.",
@@ -198,7 +204,7 @@ export const en = {
     makeCurrent: "Make current",
     noCurrent: "No current audio. Choose one of the earlier clips, or add a new one.",
     optionCHeading: "Full lesson recording (Option C)",
-    optionCStatus: { NOT_ENABLED: "Not enabled", PENDING: "Requested — waiting for platform approval", ENABLED: "Enabled" },
+    optionCStatus: { NOT_ENABLED: "Not enabled", PENDING: "Requested — waiting for platform approval", ENABLED: "Enabled", DECLINED: "Request declined", CANCELLED: "Request cancelled", DISABLED: "Disabled" },
     optionCRequest: "Request Option C",
     optionCNote: "Only a Super Admin can enable it. No payment is taken here.",
     correctionsHeading: "Corrections",

@@ -95,6 +95,9 @@ describe("server action surface", () => {
       "updateRecordingTitleAction",
       "requestOptionCAction",
       "enableOptionCAction",
+      "cancelOptionCAction",
+      "declineOptionCAction",
+      "disableOptionCAction",
       "recordingPlaybackAction",
     ],
   };

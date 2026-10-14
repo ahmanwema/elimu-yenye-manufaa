@@ -15,7 +15,7 @@ import { listMyTenants } from "@/server/data/tenants";
 import { getMyConsent, listMyChildrenConsent } from "@/server/services/consent";
 import { listStudentCorrections } from "@/server/services/corrections";
 import { listMyParentLinks } from "@/server/services/parent-links";
-import { listParentVisibleRecordings } from "@/server/services/recordings";
+import { listParentVisibleRecordings, listStudentVisibleRecordings } from "@/server/services/recordings";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getDictionary()).account.title };
@@ -58,12 +58,13 @@ async function AccountBody() {
     }),
   ]);
   const activeChildren = links.filter((l) => l.studentProfileId !== null);
-  const [myCorrections, myConsent, childConsent, childCorrections, childRecordings] = await Promise.all([
+  const [myCorrections, myConsent, childConsent, childCorrections, childRecordings, myRecordings] = await Promise.all([
     profile?.studentAccount ? listStudentCorrections(db, actor, actor.profileId) : [],
     profile?.studentAccount ? getMyConsent(db, actor) : null,
     activeChildren.length > 0 ? listMyChildrenConsent(db, actor) : [],
     Promise.all(activeChildren.map((l) => listStudentCorrections(db, actor, l.studentProfileId))),
     activeChildren.length > 0 ? listParentVisibleRecordings(db, actor) : [],
+    profile?.studentAccount ? listStudentVisibleRecordings(db, actor) : [],
   ]);
   const m = dict.media;
   const linkStatus = {
@@ -152,6 +153,35 @@ async function AccountBody() {
         <section className="card" aria-labelledby="my-corrections">
           <h2 id="my-corrections">{m.myCorrectionsHeading}</h2>
           <CorrectionList corrections={myCorrections} actor={actor} dict={dict} locale={locale} />
+          <h3>{m.myRecordingsHeading}</h3>
+          {myRecordings.length === 0 ? (
+            <p className="muted">{m.noRecordings}</p>
+          ) : (
+            <ul className="list">
+              {myRecordings.map((r) => (
+                <li key={r.id} className="row">
+                  <span>
+                    {r.title ?? m.untitled} <span className="muted">({r.tenant.name})</span>
+                  </span>
+                  {r.approvalScope === "WHOLE" ? (
+                    <MediaPlayButton kind="recording" id={r.id} label={m.play} loading={dict.common.loading} results={dict.results} />
+                  ) : (
+                    r.segments.map((seg) => (
+                      <MediaPlayButton
+                        key={seg.id}
+                        kind="recording"
+                        id={r.id}
+                        segmentId={seg.id}
+                        label={`${m.play} ${Math.floor(seg.startMs / 1000)}–${Math.ceil(seg.endMs / 1000)} s`}
+                        loading={dict.common.loading}
+                        results={dict.results}
+                      />
+                    ))
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       ) : null}
 

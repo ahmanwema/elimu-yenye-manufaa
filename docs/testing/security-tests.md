@@ -90,6 +90,16 @@ Not covered locally: a real browser-recorded M4A file (no ffmpeg/sample file on 
 | Option C request/enable, entitlement-only model | `tests/services/option-c.test.ts` |
 | New policy helpers; server-only entitlement table; DOB verification columns hidden | `tests/unit/policy-media.test.ts`, `tests/db/rls-media.test.ts` |
 
+## 2026-10-16 tests (A92–A98)
+
+| Area | File |
+|---|---|
+| Admin author approves/rejects own recording; teacher and other-Markaz admin cannot; deletion self-approval still refused | `tests/services/recordings.test.ts`, `tests/unit/policy-media.test.ts` |
+| Student own-recording access and every denial gate; departed student (interim); consent valid at capture vs later withdrawal; never-valid consent; offline consent Markaz-specific | `tests/services/recordings.test.ts` |
+| DOB self-verification refused (service + DB); student/guardian entry verified by admin; single-admin Markaz stays unverified | `tests/services/consent.test.ts` |
+| Option C cancel/decline/enable/disable, audit, history kept after disable, DB consistency | `tests/services/option-c.test.ts` |
+| 10 MB = 10,485,760 bytes | `tests/unit/policy-media.test.ts`, `tests/services/correction-audio.test.ts` |
+
 ## Method
 
 Prefer integration tests running against a real (test) Postgres instance with RLS enabled — testing RLS policies by mocking them defeats the purpose, since the policies themselves are the thing under test.

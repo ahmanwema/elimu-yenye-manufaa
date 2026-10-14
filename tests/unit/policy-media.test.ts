@@ -132,3 +132,19 @@ describe("deletion and approval authority (A73, A78)", () => {
     expect(canRecordOfflineConsent(actorFor(U.adminA), "not-a-uuid")).toBe(false);
   });
 });
+
+describe("self-review: recordings vs deletion (A92 vs A84)", () => {
+  it("an admin author may review their OWN recording, but never approve their OWN deletion request", () => {
+    const admin = actorFor(U.adminA);
+    expect(canApproveRecording(admin, { tenantId: T.A, teacherProfileId: U.adminA })).toBe(true);
+    expect(canApproveMediaDeletion(admin, { tenantId: T.A, requestedById: U.adminA })).toBe(false);
+    expect(canApproveRecording(actorFor(U.adminB), { tenantId: T.A, teacherProfileId: U.adminB })).toBe(false);
+  });
+});
+
+describe("10 MB is exactly 10 × 1024 × 1024 bytes (A98)", () => {
+  it("uses 10,485,760 — never 10,000,000", async () => {
+    const { MAX_CORRECTION_CLIP_BYTES } = await import("@/server/storage/object-storage");
+    expect(MAX_CORRECTION_CLIP_BYTES).toBe(10_485_760);
+  });
+});

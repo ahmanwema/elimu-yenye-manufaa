@@ -74,7 +74,32 @@ describe("date of birth: entered by student or guardian, verified by a Markaz Ad
     expect((await dobOf(U.studentX)).dateOfBirthVerifiedAt).toBeNull();
   });
 
-  it("INTERIM: an admin who entered the DOB (as a guardian) cannot verify it themselves", async () => {
+  it("a student- or guardian-entered DOB is verified by an admin; the database refuses self-verification", async () => {
+    await enterDateOfBirth(db, await actor(db, U.studentX), { studentProfileId: U.studentX, dateOfBirth: MINOR_DOB }, O);
+    await verifyDateOfBirth(db, await actor(db, U.adminA), { tenantId: T.A, studentProfileId: U.studentX, dateOfBirth: MINOR_DOB }, O);
+    await expect(
+      pg.query("UPDATE student_accounts SET date_of_birth_verified_by_id = date_of_birth_entered_by_id WHERE profile_id = $1", [U.studentX]),
+    ).rejects.toThrow(/student_dob_not_self_verified/);
+  });
+
+  it("A93 with a single admin: their own entry stays unverified and the overview says why", async () => {
+    // Markaz B has exactly one admin (adminB), here also an ACTIVE guardian of studentY.
+    await pg.query("INSERT INTO parent_accounts (profile_id) VALUES ($1)", [U.adminB]);
+    await pg.query(
+      `INSERT INTO parent_student_links (parent_profile_id, student_profile_id, tenant_id, status, requested_by_id, verified_by_id, verified_at, activated_by_id, activated_at)
+       VALUES ($1, $2, $3, 'ACTIVE', $1, $1, now(), $1, now())`,
+      [U.adminB, U.studentY, T.B],
+    );
+    await enterDateOfBirth(db, await actor(db, U.adminB), { studentProfileId: U.studentY, dateOfBirth: MINOR_DOB }, O);
+    await expect(verifyDateOfBirth(db, await actor(db, U.adminB), { tenantId: T.B, studentProfileId: U.studentY, dateOfBirth: MINOR_DOB }, O)).rejects.toMatchObject({
+      code: "invalid_state",
+    });
+    const row = (await listTenantConsentOverview(db, await actor(db, U.adminB), T.B, O)).find((s) => s.studentProfileId === U.studentY);
+    expect(row).toMatchObject({ dateOfBirthState: "PENDING_VERIFICATION", enteredByMe: true, noOtherVerifier: true });
+    expect(await getRecordingEligibility(db, U.studentY, T.B, O)).toMatchObject({ eligible: false, eligibility: "DATE_OF_BIRTH_UNVERIFIED" });
+  });
+
+  it("A93: an admin who entered the DOB (as a guardian) cannot verify it; a second admin can", async () => {
     // adminA2 is also an ACTIVE guardian of studentX in this scenario.
     await pg.query("INSERT INTO parent_accounts (profile_id) VALUES ($1)", [M.adminA2]);
     await pg.query(

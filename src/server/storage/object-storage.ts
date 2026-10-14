@@ -43,8 +43,8 @@ export const ACCEPTED_CLIP_UPLOAD_TYPES = ["audio/mp4", "audio/x-m4a", "audio/m4
 /** A69: maximum correction clip duration. */
 export const MAX_CORRECTION_CLIP_MS = 60_000;
 /**
- * A91: maximum correction clip file size, 10 MB = 10 × 1024 × 1024 bytes (the same meaning as
- * Supabase Storage's "10MB" bucket limit). Also a DB CHECK on finalized clips.
+ * A91/A98: maximum correction clip file size — 10 MB, confirmed as exactly 10 × 1024 × 1024
+ * = 10,485,760 bytes (never 10,000,000). Same value in the DB CHECK and the bucket limit.
  */
 export const MAX_CORRECTION_CLIP_BYTES = 10 * 1024 * 1024;
 

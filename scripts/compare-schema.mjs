@@ -1,6 +1,8 @@
 // READ-ONLY schema parity check: real development Supabase vs in-process PGlite (with the
 // same migrations and the minimal Supabase stand-in used by the test suite).
 // Usage: node --env-file=.env.local scripts/compare-schema.mjs
+// Pre-apply drift check: COMPARE_UNTIL=<last migration already on the project> limits PGlite
+// to the migrations up to and including that name.
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import pg from "pg";
@@ -24,7 +26,8 @@ const SNAPSHOT = {
               FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
               WHERE n.nspname='app' OR (n.nspname='public' AND p.proname='handle_new_auth_user')`,
   triggers: `SELECT tgrelid::regclass::text||' '||tgname AS k, pg_get_triggerdef(oid) AS v FROM pg_trigger
-             WHERE NOT tgisinternal AND tgname IN ('on_auth_user_created','memberships_assign_registration_number')`,
+             WHERE NOT tgisinternal AND tgname IN ('on_auth_user_created','memberships_assign_registration_number',
+             'audit_events_no_update_delete','audit_events_no_truncate')`,
   grants: `SELECT c.relname||' '||r.rolname AS k,
              'select='||has_table_privilege(r.rolname, c.oid, 'SELECT')||' insert='||has_table_privilege(r.rolname, c.oid, 'INSERT')
              ||' update='||has_table_privilege(r.rolname, c.oid, 'UPDATE')||' delete='||has_table_privilege(r.rolname, c.oid, 'DELETE') AS v
@@ -69,7 +72,7 @@ await lite.exec(`
   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;
   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated;`);
 const dir = join(process.cwd(), "prisma", "migrations");
-for (const d of readdirSync(dir, { withFileTypes: true }).filter((x) => x.isDirectory()).map((x) => x.name).sort()) {
+for (const d of readdirSync(dir, { withFileTypes: true }).filter((x) => x.isDirectory()).map((x) => x.name).sort().filter((n) => !process.env.COMPARE_UNTIL || n <= process.env.COMPARE_UNTIL)) {
   await lite.exec(readFileSync(join(dir, d, "migration.sql"), "utf8"));
 }
 const liteSnap = await snapshot(async (sql) => (await lite.query(sql)).rows);

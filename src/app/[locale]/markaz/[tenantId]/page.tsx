@@ -11,6 +11,7 @@ import {
   approveMediaDeletionAction,
   approveRecordingAction,
   cancelMediaDeletionAction,
+  cancelOptionCAction,
   createCorrectionAction,
   createRecordingAction,
   declineMediaDeletionAction,
@@ -50,7 +51,7 @@ import { listTenantConsentOverview } from "@/server/services/consent";
 import { ANCHOR_KINDS, listTenantCorrections } from "@/server/services/corrections";
 import { listPendingInvitations } from "@/server/services/invitations";
 import { listPendingDeletionRequests } from "@/server/services/media-deletion";
-import { getOptionCStatus } from "@/server/services/option-c";
+import { getOptionCForMarkaz } from "@/server/services/option-c";
 import { listTenantRecordings } from "@/server/services/recordings";
 import { listTenantParentLinks } from "@/server/services/parent-links";
 import { listTeacherDelegation } from "@/server/services/permissions";
@@ -110,7 +111,7 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
     can.teach || can.administer ? listTenantRecordings(db, actor, tenantId) : null,
     can.administer ? listTenantConsentOverview(db, actor, tenantId) : null,
     can.administer ? listPendingDeletionRequests(db, actor, tenantId) : null,
-    can.teach || can.administer ? getOptionCStatus(db, tenantId) : null,
+    can.teach || can.administer ? getOptionCForMarkaz(db, actor, tenantId) : null,
   ]);
   const m = dict.media;
   const [roster, invitations, links, candidates, requests, verifiers] = await Promise.all([
@@ -202,6 +203,7 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
                     {s.dateOfBirthState === "VERIFIED" ? ` — ${m.minorStatus[s.minorStatus]}` : null}
                   </p>
                   {s.dateOfBirthToVerify && s.enteredByMe ? <p className="muted">{m.enteredByYou}</p> : null}
+                  {s.noOtherVerifier ? <p className="muted">{m.noOtherVerifier}</p> : null}
                   {s.dateOfBirthToVerify && !s.enteredByMe ? (
                     <ActionForm action={verifyDateOfBirthAction} submitLabel={m.verifyDob} pendingLabel={dict.common.loading} messages={dict.results} inline>
                       <span dir="ltr">{format(m.verifyDobLabel, { date: s.dateOfBirthToVerify })}</span>
@@ -242,11 +244,16 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
         <section className="card" aria-labelledby="option-c">
           <h2 id="option-c">{m.optionCHeading}</h2>
           <p>
-            <strong>{m.optionCStatus[optionC ?? "NOT_ENABLED"]}</strong>
+            <strong>{m.optionCStatus[optionC?.status ?? "NOT_ENABLED"]}</strong>
           </p>
           <p className="muted">{m.optionCNote}</p>
-          {optionC === "NOT_ENABLED" ? (
+          {optionC && optionC.status !== "PENDING" && optionC.status !== "ENABLED" ? (
             <ActionForm action={requestOptionCAction} submitLabel={m.optionCRequest} pendingLabel={dict.common.loading} messages={dict.results}>
+              <input type="hidden" name="tenantId" value={tenant.id} />
+            </ActionForm>
+          ) : null}
+          {optionC?.status === "PENDING" && optionC.requestedByMe ? (
+            <ActionForm action={cancelOptionCAction} submitLabel={m.optionCCancel} pendingLabel={dict.common.loading} messages={dict.results} variant="secondary">
               <input type="hidden" name="tenantId" value={tenant.id} />
             </ActionForm>
           ) : null}
@@ -298,9 +305,9 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
           <h2 id="recordings">{m.recordingsHeading}</h2>
           <p className="muted">{m.recordingsNote}</p>
           <p>
-            {m.optionCHeading}: <strong>{m.optionCStatus[optionC ?? "NOT_ENABLED"]}</strong>
+            {m.optionCHeading}: <strong>{m.optionCStatus[optionC?.status ?? "NOT_ENABLED"]}</strong>
           </p>
-          {can.teach && optionC === "ENABLED" ? (
+          {can.teach && optionC?.status === "ENABLED" ? (
             <ActionForm action={createRecordingAction} submitLabel={m.createRecording} pendingLabel={dict.common.loading} messages={dict.results}>
               <input type="hidden" name="tenantId" value={tenant.id} />
               <label htmlFor="recordingTitle">{m.recordingTitle}</label>

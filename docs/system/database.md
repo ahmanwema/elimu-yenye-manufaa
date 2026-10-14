@@ -134,6 +134,10 @@ Additive: new enum values (`SELF_ONLINE`, `REJECTED`, `DATE_OF_BIRTH_UNVERIFIED`
 | `recording_segments.withdrawn_at` | segments of a revoked approval never return |
 | `recording_entitlements` (NOT_ENABLED / PENDING / ENABLED) | A90 |
 
+## 14. 2026-10-16 (migrations 20261016000000 / 20261016000100)
+
+Additive: `RecordingEntitlementStatus` + DECLINED/CANCELLED/DISABLED; `recording_entitlements` + declined/cancelled/disabled by/at; audit actions OPTION_C_CANCELLED/DECLINED/DISABLED. Constraints: `student_dob_not_self_verified` (NOT VALID), `entitlement_status_fields` (rebuilt), `entitlement_cancel_by_requester`. No data changes.
+
 ## 6. Open questions
 
 See [../roadmap/open-questions.md](../roadmap/open-questions.md) for tenant-ownership-of-student-data and Markaz/teacher relationship questions that materially affect the final schema shape.

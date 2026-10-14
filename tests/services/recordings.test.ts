@@ -11,6 +11,7 @@ import {
   finalizeSegmentMedia,
   getRecordingPlaybackUrl,
   listParentVisibleRecordings,
+  listStudentVisibleRecordings,
   rejectRecording,
   updateRecordingTitle,
   registerRecordingMedia,
@@ -24,6 +25,7 @@ import { RECORDING_BUCKET } from "@/server/storage/object-storage";
 import { actor, createTestPrisma, FakeStorage } from "../db/prisma";
 import { T, U } from "../support/fixture";
 import { enableOptionCFor, insertGuardianConsent, M, MINOR_DOB, seedMedia, setDob, TEST_POLICY } from "../support/media";
+// (offline-consent tenant scope for recordings is covered at the end of this file)
 
 let pg: PGlite;
 let db: PrismaClient;
@@ -137,12 +139,28 @@ describe("approval workflow (A78)", () => {
     await expect(submitRecordingForApproval(db, await actor(db, U.teacherA), { recordingId: id }, O)).rejects.toBeInstanceOf(AuthorizationError);
   });
 
-  it("INTERIM: an admin who is also the recording's author may not approve it", async () => {
+  it("A92: a Markaz Admin who authored the recording MAY approve and reject it themselves", async () => {
     await pg.query("INSERT INTO memberships (tenant_id, profile_id, role) VALUES ($1, $2, 'TEACHER')", [T.A, M.adminA2]);
-    const id = await finishedRecording(M.adminA2);
-    await submitRecordingForApproval(db, await actor(db, M.adminA2), { recordingId: id }, O);
-    await expect(approveRecording(db, await actor(db, M.adminA2), { recordingId: id, scope: "WHOLE" }, O)).rejects.toBeInstanceOf(AuthorizationError);
-    await approveRecording(db, await actor(db, U.adminA), { recordingId: id, scope: "WHOLE" }, O);
+    const author = await actor(db, M.adminA2);
+    const approved = await finishedRecording(M.adminA2);
+    await submitRecordingForApproval(db, author, { recordingId: approved }, O);
+    await approveRecording(db, author, { recordingId: approved, scope: "WHOLE" }, O);
+    expect(await db.recording.findUniqueOrThrow({ where: { id: approved } })).toMatchObject({ status: "APPROVED", approvedById: M.adminA2, teacherProfileId: M.adminA2 });
+
+    const rejected = await finishedRecording(M.adminA2);
+    await submitRecordingForApproval(db, author, { recordingId: rejected }, O);
+    await rejectRecording(db, author, { recordingId: rejected, reason: "redo" }, O);
+    expect((await db.recording.findUniqueOrThrow({ where: { id: rejected } })).status).toBe("REJECTED");
+    expect(await db.auditEvent.count({ where: { actorId: M.adminA2, action: { in: ["RECORDING_APPROVED", "RECORDING_REJECTED"] } } })).toBe(2);
+  });
+
+  it("an ordinary teacher still never approves, and another Markaz's admin cannot either", async () => {
+    const id = await finishedRecording();
+    await submitRecordingForApproval(db, await actor(db, U.teacherA), { recordingId: id }, O);
+    for (const who of [U.teacherA, U.teacherAB, U.adminB]) {
+      await expect(approveRecording(db, await actor(db, who), { recordingId: id, scope: "WHOLE" }, O)).rejects.toBeInstanceOf(AuthorizationError);
+      await expect(rejectRecording(db, await actor(db, who), { recordingId: id }, O)).rejects.toBeInstanceOf(AuthorizationError);
+    }
   });
 
   it("revocation is not deletion: hidden from parents, kept for staff, bytes untouched (A79)", async () => {
@@ -235,25 +253,66 @@ describe("parent visibility needs ALL gates (A78)", () => {
     await expect(play(U.parentActive, id)).rejects.toBeInstanceOf(AuthorizationError);
   });
 
-  it("not after consent is withdrawn (the recording also enters deletion review)", async () => {
+  it("A95: consent valid AT CAPTURE + later withdrawal → still visible, sent to review (not auto-hidden)", async () => {
     const id = await approvedWhole();
     await withdrawConsent(db, await actor(db, U.parentActive), { consentId }, O);
-    await expect(play(U.parentActive, id)).rejects.toBeInstanceOf(AuthorizationError);
+    // The guardian who withdrew still holds an ACTIVE link; the historical recording stays visible…
+    await play(U.parentActive, id);
+    await play(U.studentX, id);
+    // …and is in the review/deletion workflow; future capture is blocked.
     expect(await db.mediaDeletionRequest.findMany({ where: { recordingId: id } })).toEqual([
       expect.objectContaining({ reason: "CONSENT_WITHDRAWN", status: "PENDING" }),
     ]);
+    const next = await createRecording(db, await actor(db, U.teacherA), { tenantId: T.A }, O);
+    await registerRecordingParticipants(db, await actor(db, U.teacherA), { recordingId: next, studentProfileIds: [U.studentX] }, O);
+    expect((await db.recordingParticipant.findFirstOrThrow({ where: { recordingId: next } })).audioIncluded).toBe(false);
+  });
+
+  it("consent invalid at capture → never visible, even after consent is given later", async () => {
+    await pg.query("UPDATE recording_consents SET withdrawn_at = now(), withdrawn_by_id = $1", [U.parentActive]);
+    const id = await finishedRecording();
+    await submitRecordingForApproval(db, await actor(db, U.teacherA), { recordingId: id }, O);
+    await approveRecording(db, await actor(db, U.adminA), { recordingId: id, scope: "WHOLE" }, O);
+    await insertGuardianConsent(pg, U.studentX); // consent given only afterwards
+    await expect(play(U.parentActive, id)).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(play(U.studentX, id)).rejects.toBeInstanceOf(AuthorizationError);
   });
 
   it("the parent list shows only recordings passing every gate", async () => {
     const approved = await approvedWhole();
     await finishedRecording(); // draft, not visible
-    expect((await listParentVisibleRecordings(db, await actor(db, U.parentActive), O)).map((r) => r.id)).toEqual([approved]);
-    expect(await listParentVisibleRecordings(db, await actor(db, U.parentVerified), O)).toEqual([]);
+    expect((await listParentVisibleRecordings(db, await actor(db, U.parentActive))).map((r) => r.id)).toEqual([approved]);
+    expect(await listParentVisibleRecordings(db, await actor(db, U.parentVerified))).toEqual([]);
   });
 
-  it("students do not get full-recording access (not decided)", async () => {
+  it("A94: the student who took part (consent valid at capture) sees their own approved recording, without a parent link", async () => {
     const id = await approvedWhole();
+    expect((await play(U.studentX, id)).url).toContain("download");
+    expect((await listStudentVisibleRecordings(db, await actor(db, U.studentX))).map((r) => r.id)).toEqual([id]);
+  });
+
+  it("student gates: other student, not approved, deleted, not a participant → denied", async () => {
+    const id = await approvedWhole();
+    await expect(play(U.studentY, id)).rejects.toBeInstanceOf(AuthorizationError); // not a participant / other student
+
+    const pending = await finishedRecording();
+    await submitRecordingForApproval(db, await actor(db, U.teacherA), { recordingId: pending }, O);
+    await expect(play(U.studentX, pending)).rejects.toBeInstanceOf(AuthorizationError);
+
+    await pg.query(
+      "UPDATE recordings SET deleted_at = now(), archived_at = now(), purge_eligible_at = now() + interval '30 days' WHERE id = $1",
+      [id],
+    );
     await expect(play(U.studentX, id)).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(play(U.parentActive, id)).rejects.toBeInstanceOf(AuthorizationError);
+    expect(await listStudentVisibleRecordings(db, await actor(db, U.studentX))).toEqual([]);
+  });
+
+  it("INTERIM (open question): a student who has left the recording's Markaz is refused", async () => {
+    const id = await approvedWhole();
+    await pg.query("UPDATE memberships SET status = 'ENDED', ended_at = now() WHERE profile_id = $1 AND tenant_id = $2", [U.studentX, T.A]);
+    await expect(play(U.studentX, id)).rejects.toBeInstanceOf(AuthorizationError);
+    await play(U.parentActive, id); // the ACTIVE parent's own gates are unchanged
   });
 });
 
@@ -299,5 +358,21 @@ describe("staff and Super Admin access (A66/A77)", () => {
     expect(await db.auditEvent.findMany({ where: { action: "SUPER_ADMIN_MEDIA_READ" } })).toEqual([
       expect.objectContaining({ actorId: U.superAdmin, tenantId: T.A, targetType: "RECORDING", targetId: id }),
     ]);
+  });
+});
+
+describe("verified offline consent is Markaz-specific (A97)", () => {
+  it("offline consent from Markaz A includes the student's audio in A only; B needs its own consent", async () => {
+    await pg.query("UPDATE recording_consents SET withdrawn_at = now(), withdrawn_by_id = $1", [U.parentActive]);
+    await pg.query(
+      `INSERT INTO recording_consents (student_profile_id, method, tenant_id, offline_consenter_description, evidence_reference, recorded_by_id, granted_at)
+       VALUES ($1, 'OFFLINE_VERIFIED', $2, 'Mother', 'Form 1', $3, now())`,
+      [U.studentX, T.A, U.adminA],
+    );
+    await enableOptionCFor(pg, T.B);
+    const inA = await finishedRecording(U.teacherA, T.A);
+    const inB = await finishedRecording(U.teacherAB, T.B);
+    expect((await db.recordingParticipant.findFirstOrThrow({ where: { recordingId: inA } })).audioIncluded).toBe(true);
+    expect(await db.recordingParticipant.findFirstOrThrow({ where: { recordingId: inB } })).toMatchObject({ audioIncluded: false, eligibility: "NO_CONSENT" });
   });
 });

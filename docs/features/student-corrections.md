@@ -162,3 +162,8 @@ A parent sees a student's corrections only through an **ACTIVE** link (A48), whi
 - **Current clip (A88):** deleting the current clip promotes nothing. The active authoring teacher or a Markaz Admin of the correction's Markaz may choose an earlier clip with **Make current** (`selectCurrentClip`): same correction, FINALIZED, not deleted/purged; one current clip; audited `CORRECTION_CLIP_PROMOTED`.
 - **Deletion (A84–A85):** approval by a **second** Markaz Admin (never the requester — service + DB CHECK `deletion_no_self_approval`; with a single admin the request stays pending and is labelled as awaiting a second admin). Requester may **cancel**; any Markaz Admin of the Markaz may **decline** (optional reason). DECLINED/CANCELLED never touch media.
 - **Abandoned uploads (A86):** `cleanupAbandonedUploads` removes the object, then marks clips still AWAITING_UPLOAD after **7 days** as FAILED (row kept as a tombstone), audits `ABANDONED_UPLOAD_CLEANED`; never touches finalized clips; safe to re-run. Not scheduled (item 49). AWAITING_EXTRACTION clips wait for the future worker and are not covered.
+
+## 2026-10-16
+
+- 10 MB is exactly **10,485,760 bytes** (A98) — constant, service check, DB CHECK and the planned bucket limit all use it.
+- Verified offline consent is Markaz-specific (A97): a clip in Markaz B is never captured on Markaz A's offline consent.

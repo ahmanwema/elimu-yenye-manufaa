@@ -12,7 +12,7 @@ import {
   withdrawConsent,
 } from "@/server/services/consent";
 import { approveMediaDeletion, cancelMediaDeletion, declineMediaDeletion, requestMediaDeletion } from "@/server/services/media-deletion";
-import { enableOptionC, requestOptionC } from "@/server/services/option-c";
+import { cancelOptionCRequest, declineOptionC, disableOptionC, enableOptionC, requestOptionC } from "@/server/services/option-c";
 import {
   approveRecording,
   createRecording,
@@ -174,6 +174,18 @@ export async function updateRecordingTitleAction(_prev: ActionResult, formData: 
 // --- Option C entitlement (no payment) ------------------------------------------------------
 export async function requestOptionCAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   return runAsActor((db, actor) => requestOptionC(db, actor, { tenantId: field(formData, "tenantId") }));
+}
+
+export async function cancelOptionCAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return runAsActor((db, actor) => cancelOptionCRequest(db, actor, { tenantId: field(formData, "tenantId") }));
+}
+
+export async function declineOptionCAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return runAsActor((db, actor) => declineOptionC(db, actor, { tenantId: field(formData, "tenantId") }));
+}
+
+export async function disableOptionCAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  return runAsActor((db, actor) => disableOptionC(db, actor, { tenantId: field(formData, "tenantId") }));
 }
 
 export async function enableOptionCAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {

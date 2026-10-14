@@ -163,6 +163,22 @@ Chronological, factual log of what has actually happened. Do not record intentio
 - Tests: 539 local (28 files; +28), lint, typecheck, build pass. Real Supabase NOT changed; pending plan in docs/testing/dev-supabase-verification.md.
 - Remaining open: items 41, 42, 46–50 (open-questions.md); RTC vendor (A35); XPPen (hardware).
 
+## 2026-10-16 — Remaining recording policy decisions (local, A92–A98) + DEV pre-apply preflight
+
+- Implemented:
+  - A92 Markaz Admin author may approve/reject own recording (deletion self-approval still refused);
+  - A93 no DOB self-verification (service + DB CHECK; single-admin Markaz stays unverified, UI explains);
+  - A94 student access to own approved recordings;
+  - A95 parent visibility on consent valid AT CAPTURE (participant snapshot) — later withdrawal → review, not auto-hide;
+  - A96 Option C cancel/decline/disable;
+  - A97 offline consent Markaz-specific;
+  - A98 10 MB = 10,485,760 bytes.
+- Migrations `20261016000000_resolve_recording_policy` (additive) and `20261016000100_resolve_recording_policy_rls`. PGlite only.
+- Fixed a documentation slip from 2026-10-15: the "Parent account model" heading in roles-permissions.md had been overwritten; restored.
+- Tests: 553 local (28 files; +14), lint, typecheck, build pass.
+- Read-only preflight of the DEV Supabase project (no writes) — see the 2026-10-16 report.
+- Open: 49 (job scheduling), 51 (departed student and full recordings — interim refused), 52 (re-request after decline/cancel/disable — implemented as allowed).
+
 ## Status snapshot
 
 | Area | Status |
@@ -170,10 +186,10 @@ Chronological, factual log of what has actually happened. Do not record intentio
 | Documentation foundation | Done (this pass) |
 | Business rules BR-01–BR-13 | Recorded as approved (A26–A38), docs reconciled 2026-10-05 |
 | Technology stack | **Approved** (A39), installed locally |
-| Database schema | 9 migrations applied to the DEVELOPMENT Supabase project (parity verified); 4 further local migrations (2026-10-14/15, media policy) NOT yet applied there |
+| Database schema | 9 migrations applied to the DEVELOPMENT Supabase project (parity verified); 6 further local migrations (2026-10-14/15/16, media policy) NOT yet applied there |
 | Auth / tenancy / roles / Parent links | Foundation implemented (no sign-in UI, no invitations, no link workflow) |
 | PWA | Basic foundation (manifest, placeholder icons, minimal SW) |
-| Tests | 539 local (2026-10-15) + 24 real-Supabase + 14-step UI E2E (real suites last run 2026-10-13) |
+| Tests | 553 local (2026-10-16) + 24 real-Supabase + 14-step UI E2E (real suites last run 2026-10-13) |
 | Version control | Git initialized; first local baseline commit created 2026-10-13; no remote |
 | Auth / onboarding / i18n | Implemented locally (OTP + magic link, invite-first, sw/en/ar + RTL) |
 | Parent links | Full workflow implemented (request/create → verify → activate → revoke) with explicit permissions and audit history |
