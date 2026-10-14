@@ -9,7 +9,7 @@ Statuses used throughout the documentation:
 - **OPEN QUESTION** — unresolved, needs an owner decision before design/implementation can proceed in that area.
 - **DEFERRED** — intentionally out of scope for now; revisit later.
 
-Last updated: 2026-10-16 (A92–A98, §1.8). Previous: 2026-10-15 (media policy decisions — A81–A91, §1.7). Previous: 2026-10-14 (recording & correction media — A66–A80, §1.6). Previous: 2026-10-13 (fourth update: delegation, child proposal, self-request, Supabase environment — A62–A65, §1.5).
+Last updated: 2026-10-16 (A92–A100, §1.8; DEV apply). Previous: 2026-10-16 (A92–A98, §1.8). Previous: 2026-10-15 (media policy decisions — A81–A91, §1.7). Previous: 2026-10-14 (recording & correction media — A66–A80, §1.6). Previous: 2026-10-13 (fourth update: delegation, child proposal, self-request, Supabase environment — A62–A65, §1.5).
 
 History: 2026-09-30 initial documentation pass. 2026-10-05 owner business decisions BR-01–BR-13 reconciled (A26–A38, §1.1).
 
@@ -120,6 +120,8 @@ These come directly from the project owner's brief and are treated as fixed requ
 | A96 | **Option C lifecycle:** the requesting Markaz Admin may **cancel** a pending request; a Super Admin may **decline** a pending request and **disable** an enabled entitlement. States NOT_ENABLED / PENDING / ENABLED / DECLINED / CANCELLED / DISABLED; every step audited. Disabling deletes nothing; it blocks new full-recording creation/start. No billing. Resolves OQ48. | Owner decision (2026-10-16) |
 | A97 | **Verified offline consent is Markaz-specific:** consent verified by Markaz A is valid for A's recording/correction capture only; Markaz B needs its own applicable consent. Online ACTIVE-guardian consent is unchanged. Resolves OQ47. | Owner decision (2026-10-16) |
 | A98 | **10 MB = 10 × 1024 × 1024 = 10,485,760 bytes**, used consistently (constant, service, DB CHECK, bucket limit). Resolves OQ50. | Owner decision (2026-10-16) |
+| A99 | **Departed student and full recordings:** after a student's membership in a Markaz ends, full class recordings of that Markaz are DENIED to them — they are restricted Markaz content, not the student's own submission. The student keeps their own corrections/submissions (A32). Resolves OQ51. | Owner decision (2026-10-16, apply instruction) |
+| A100 | **Option C re-request:** a new request is allowed after DECLINED, CANCELLED or DISABLED. Every re-request starts a NEW approval cycle needing Super Admin approval again; DISABLED never returns to ENABLED automatically. Resolves OQ52. | Owner decision (2026-10-16, apply instruction) |
 
 ### 1.8 Supersession and refinement record (2026-10-16)
 
@@ -289,6 +291,8 @@ New owner questions surfaced while reconciling the 2026-10-05 decisions are list
 2026-10-13 (parent workflow): items 14, 27, 28, 29, 30 resolved. Items 31–33 record interim engineering choices awaiting confirmation.
 
 2026-10-13 (fourth update): items 31, 32, 33 resolved (A62, A63, A64).
+
+2026-10-16 (apply instruction): items 51, 52 resolved by A99, A100.
 
 2026-10-16: items 41, 42, 46, 47, 48, 50 resolved by A92–A98; items 51–52 added.
 

@@ -131,3 +131,8 @@ No change to recording. Parent access to "approved recordings" still requires an
 - **Parent visibility (A95):** ACTIVE link + APPROVED + not deleted + the child took part with audio included. "Consent valid at capture" = `recording_participants.audio_included`, the consent verdict snapshotted when the student was registered for the session; a later withdrawal no longer hides the recording — it goes to the review/deletion workflow and future capture is blocked.
 - **Offline consent (A97):** Markaz-specific (tested for recordings and clips).
 - **Option C (A96):** NOT_ENABLED → PENDING (request) → ENABLED (Super Admin) → DISABLED (Super Admin); PENDING → DECLINED (Super Admin) or CANCELLED (requester). Only ENABLED allows creating/starting recordings; disabling deletes nothing. A new request is allowed after DECLINED/CANCELLED/DISABLED (open question 52).
+
+## 2026-10-16 (apply instruction) — A99, A100
+
+- **A99:** a student whose membership in the recording's Markaz has ended is denied that Markaz's full recordings (restricted Markaz content); their own corrections/submissions stay available (A32).
+- **A100:** after DECLINED, CANCELLED or DISABLED, a Markaz Admin may request Option C again; each request is a new PENDING cycle that a Super Admin must approve; nothing returns to ENABLED automatically.

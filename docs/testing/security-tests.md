@@ -100,6 +100,22 @@ Not covered locally: a real browser-recorded M4A file (no ffmpeg/sample file on 
 | Option C cancel/decline/enable/disable, audit, history kept after disable, DB consistency | `tests/services/option-c.test.ts` |
 | 10 MB = 10,485,760 bytes | `tests/unit/policy-media.test.ts`, `tests/services/correction-audio.test.ts` |
 
+## Real DEV Supabase media verification (2026-10-16)
+
+`tests/real/media-dev.test.ts` (run with `npm run test:dev-supabase`) checks on the real project:
+- **Bucket:** private / `audio/mp4` / 10,485,760.
+- **Uploads:** exactly 10,485,760 bytes accepted end to end; one byte more and non-audio/mp4 uploads refused by the bucket.
+- **Clips:** signed upload, server inspection and playback; no public or direct read.
+- **RLS via PostgREST:** student, same-Markaz admin and ACTIVE parent across Markaz see corrections; VERIFIED parent and Super Admin see none; DOB column denied.
+- **Consent and DOB:** departed student keeps own corrections; unverified DOB; self-verification refused (service + DB) and a second admin verifies; adult self-consent; guardian consent in both Markaz; offline consent in its own Markaz only.
+- **Deletion:** cancel / decline / self-approval refused / second-admin approval / hidden / no early purge.
+- **Option C:** full lifecycle including re-request as a new cycle.
+- **Recordings (DB-only media):**
+  - admin author approves/rejects own recording; teachers and other-Markaz admins cannot;
+  - consent valid at capture — later withdrawal stays visible and goes to review; future capture blocked;
+  - departed student denied (A99); never-consented child never visible.
+- **Super Admin:** audited clip read.
+
 ## Method
 
 Prefer integration tests running against a real (test) Postgres instance with RLS enabled — testing RLS policies by mocking them defeats the purpose, since the policies themselves are the thing under test.

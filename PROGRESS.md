@@ -179,6 +179,26 @@ Chronological, factual log of what has actually happened. Do not record intentio
 - Read-only preflight of the DEV Supabase project (no writes) — see the 2026-10-16 report.
 - Open: 49 (job scheduling), 51 (departed student and full recordings — interim refused), 52 (re-request after decline/cancel/disable — implemented as allowed).
 
+## 2026-10-16 — DEV Supabase apply (owner APPLY instruction)
+
+- Final decisions recorded first: **A99** (departed student → full Markaz recordings denied; own corrections kept) and **A100** (Option C re-request after DECLINED/CANCELLED/DISABLED = new cycle, Super Admin again, never auto-enabled). Local tests 554/554.
+- **Pre-apply gate re-confirmed:**
+  - project ref `jahyvgzqxqldaatitfvz`; 0 auth users; sign-ups disabled;
+  - 9 migrations applied, checksums matching; live schema = migrations 1–9 (no drift);
+  - working tree contained only the authorized changes.
+- **Applied with `npm run db:deploy:dev`**, all succeeded, in order: `20261014000000`, `20261014000100`, `20261015000000`, `20261015000100`, `20261016000000`, `20261016000100`. Now **15 applied**.
+- **Schema parity after apply:** exact (`scripts/compare-schema.mjs` "No differences"). 21 tables, 224 columns, 106 constraints, 61 indexes, 20 enums, 14 policies, 11 functions, 4 triggers (incl. the 2 audit append-only triggers), 42 grants.
+- **Bucket `correction-clips`:** private; allowed MIME `["audio/mp4"]`; file_size_limit 10485760. Before: no MIME or size limit. No other bucket; `recordings` NOT created. No jobs scheduled.
+- **Real verification:**
+  - `npm run test:dev-supabase` — 41/41 (24 existing + 17 new in `tests/real/media-dev.test.ts`);
+  - `scripts/dev-e2e.mjs` — 14/14.
+- **Permanent audit rows (append-only, intentionally NOT deleted):** 41, all from the media verification run, referencing deleted test tenants/users:
+  - SUPER_ADMIN_MEDIA_READ 1; RECORDING_SUBMITTED 4; RECORDING_APPROVED 3; RECORDING_REJECTED 1; RECORDING_TEACHER_NOTICE_ACKNOWLEDGED 4;
+  - MEDIA_DELETION_REQUESTED 8 (3 manual + 5 from the consent-withdrawal review); MEDIA_DELETION_APPROVED 1; MEDIA_DELETION_CANCELLED 1; MEDIA_DELETION_DECLINED 1;
+  - CONSENT_GIVEN 2; CONSENT_OFFLINE_VERIFIED 1; CONSENT_WITHDRAWN 1; DATE_OF_BIRTH_RECORDED 1; DATE_OF_BIRTH_VERIFIED 1; CORRECTION_CLIP_REPLACED 2;
+  - OPTION_C_REQUESTED 4; OPTION_C_ENABLED 2; OPTION_C_CANCELLED 1; OPTION_C_DECLINED 1; OPTION_C_DISABLED 1.
+- **Cleanup:** all test auth users, tenants, app rows and storage objects removed; DEV now holds 0 users, 0 objects, empty app tables except those 41 audit rows; sign-ups still disabled.
+
 ## Status snapshot
 
 | Area | Status |
@@ -186,10 +206,10 @@ Chronological, factual log of what has actually happened. Do not record intentio
 | Documentation foundation | Done (this pass) |
 | Business rules BR-01–BR-13 | Recorded as approved (A26–A38), docs reconciled 2026-10-05 |
 | Technology stack | **Approved** (A39), installed locally |
-| Database schema | 9 migrations applied to the DEVELOPMENT Supabase project (parity verified); 6 further local migrations (2026-10-14/15/16, media policy) NOT yet applied there |
+| Database schema | 15 migrations applied to the DEVELOPMENT Supabase project (2026-10-16); exact parity with PGlite verified |
 | Auth / tenancy / roles / Parent links | Foundation implemented (no sign-in UI, no invitations, no link workflow) |
 | PWA | Basic foundation (manifest, placeholder icons, minimal SW) |
-| Tests | 553 local (2026-10-16) + 24 real-Supabase + 14-step UI E2E (real suites last run 2026-10-13) |
+| Tests | 554 local + 41 real-Supabase + 14-step UI E2E, all passing (2026-10-16) |
 | Version control | Git initialized; first local baseline commit created 2026-10-13; no remote |
 | Auth / onboarding / i18n | Implemented locally (OTP + magic link, invite-first, sw/en/ar + RTL) |
 | Parent links | Full workflow implemented (request/create → verify → activate → revoke) with explicit permissions and audit history |

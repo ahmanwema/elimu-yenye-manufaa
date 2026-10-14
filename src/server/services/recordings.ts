@@ -419,9 +419,10 @@ type VisibleRecording = {
  * consent id; DB CHECK). A LATER withdrawal does not change it — the recording then goes to the
  * deletion/review workflow (A72) and future capture is blocked; it is not hidden automatically.
  *
- * - STUDENT (A94): the student themself took part with audio included. INTERIM (open question):
- *   a student who has since left the recording's Markaz is refused — A32 keeps a departed
- *   student's own submissions/corrections, but is silent on full lesson recordings.
+ * - STUDENT (A94): the student themself took part with audio included, AND still holds an
+ *   ACTIVE student membership in the recording's Markaz. A99: full class recordings are
+ *   restricted Markaz content, not the student's own submission — a departed student is
+ *   refused (their own corrections/submissions stay theirs under A32).
  * - PARENT (A95): an ACTIVE link to such a participant (cross-Markaz, like corrections).
  */
 function viewerQualifies(actor: Actor, recording: VisibleRecording): "STUDENT" | "PARENT" | null {

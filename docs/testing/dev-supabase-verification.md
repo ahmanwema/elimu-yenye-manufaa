@@ -67,3 +67,16 @@ Nothing has been applied. In order, after explicit owner approval:
 3. **Bucket `recordings`**: create as **private**, only when recording capture is authorized (Option C enabled + RTC vendor chosen). No size/MIME rule is approved for full recordings.
 4. **Scheduled jobs (not authorized yet):** `purgeExpiredMedia` (daily is sufficient; bytes are only removed after the 30-day grace) and `cleanupAbandonedUploads` (7-day rule). Both are idempotent server-side functions with no client entry point.
 5. **Re-verify:** `npm run test:dev-supabase` (updated storage test: verified DOB + guardian consent, real M4A bytes, ranged reads), `node scripts/compare-schema.mjs` (PGlite ↔ dev parity), `node scripts/dev-e2e.mjs`. Note: `audit_events` is append-only; audited actions leave permanent rows on the dev project.
+
+## Applied 2026-10-16 (owner APPLY instruction)
+
+The plan above was executed on the DEVELOPMENT project only:
+
+- **Migrations:** the six pending migrations applied in order (15 total); parity exact.
+- **`correction-clips` bucket:** private, `allowed_mime_types = ["audio/mp4"]`, `file_size_limit = 10485760`. `audio/x-m4a` was NOT added: the uploader always sends `audio/mp4`.
+- **Not done (not authorized):** the `recordings` bucket and any scheduled purge/cleanup job.
+- **Verification:**
+  - `npm run test:dev-supabase`: 41/41 — `supabase-dev.test.ts` 24 + `media-dev.test.ts` 17;
+  - `scripts/dev-e2e.mjs`: 14/14;
+  - `scripts/compare-schema.mjs`: no differences.
+- **Audit trail:** 41 append-only audit rows from the media verification run remain on DEV by design (see PROGRESS.md 2026-10-16). Future runs of `media-dev.test.ts` add a similar set each time; `supabase-dev.test.ts` adds none.

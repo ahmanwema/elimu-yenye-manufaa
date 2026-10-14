@@ -137,7 +137,23 @@ describe("Option C cancel / decline / disable (A96)", () => {
     });
     expect(await db.recording.findUniqueOrThrow({ where: { id: existing } })).toMatchObject({ title: "Before disable", deletedAt: null });
     await expect(disableOptionC(db, await actor(db, U.superAdmin), { tenantId: T.A }, { now: NOW })).rejects.toMatchObject({ code: "invalid_state" });
-    await requestOptionC(db, await actor(db, U.adminA), { tenantId: T.A }, { now: NOW }); // may be requested again
+    // A100: a re-request is a NEW cycle — PENDING, never ENABLED, until a Super Admin approves again.
+    await requestOptionC(db, await actor(db, U.adminA), { tenantId: T.A }, { now: NOW });
+    expect(await db.recordingEntitlement.findUniqueOrThrow({ where: { tenantId: T.A } })).toMatchObject({
+      status: "PENDING",
+      enabledById: null,
+      disabledById: null,
+    });
+    await expect(createRecording(db, teacher, { tenantId: T.A })).rejects.toMatchObject({ code: "feature_not_enabled" });
+    await enableOptionC(db, await actor(db, U.superAdmin), { tenantId: T.A }, { now: NOW });
+    expect(await status()).toBe("ENABLED");
+  });
+
+  it("A100: a re-request after CANCELLED also starts a new cycle", async () => {
+    await requestOptionC(db, await actor(db, U.adminA), { tenantId: T.A }, { now: NOW });
+    await cancelOptionCRequest(db, await actor(db, U.adminA), { tenantId: T.A }, { now: NOW });
+    await requestOptionC(db, await actor(db, U.adminA), { tenantId: T.A }, { now: NOW });
+    expect(await db.recordingEntitlement.findUniqueOrThrow({ where: { tenantId: T.A } })).toMatchObject({ status: "PENDING", cancelledById: null });
   });
 
   it("every step is audited", async () => {

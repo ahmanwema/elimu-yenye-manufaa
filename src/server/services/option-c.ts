@@ -15,7 +15,10 @@ import { DomainError } from "./errors";
 //
 // Only ENABLED makes new full recordings possible. Disabling deletes nothing: existing
 // recordings stay under the retention/access rules. Teachers can neither request nor enable.
-// The row holds the current cycle; every step is in audit_events.
+// A100: after DECLINED, CANCELLED or DISABLED a Markaz Admin may request again — every request
+// starts a NEW approval cycle (back to PENDING) that needs a Super Admin again; nothing ever
+// returns to ENABLED automatically. The row holds the current cycle; every step is in
+// audit_events.
 
 export type OptionCStatus = RecordingEntitlementStatus;
 

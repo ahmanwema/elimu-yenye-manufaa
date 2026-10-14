@@ -308,7 +308,7 @@ describe("parent visibility needs ALL gates (A78)", () => {
     expect(await listStudentVisibleRecordings(db, await actor(db, U.studentX))).toEqual([]);
   });
 
-  it("INTERIM (open question): a student who has left the recording's Markaz is refused", async () => {
+  it("A99: a student who has left the recording's Markaz is refused full recordings (restricted Markaz content)", async () => {
     const id = await approvedWhole();
     await pg.query("UPDATE memberships SET status = 'ENDED', ended_at = now() WHERE profile_id = $1 AND tenant_id = $2", [U.studentX, T.A]);
     await expect(play(U.studentX, id)).rejects.toBeInstanceOf(AuthorizationError);
