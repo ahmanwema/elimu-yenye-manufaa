@@ -34,16 +34,26 @@ const SUPABASE_STANDIN = `
 
 const MIGRATIONS_DIR = join(process.cwd(), "prisma", "migrations");
 
-export async function createTestDatabase(): Promise<PGlite> {
-  const db = new PGlite();
-  await db.exec(SUPABASE_STANDIN);
-  const dirs = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
+/** All migrations, in order (optionally only those up to and including `until`). */
+export function migrationNames(until?: string): string[] {
+  return readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name)
-    .sort();
-  for (const dir of dirs) {
+    .sort()
+    .filter((n) => !until || n <= until);
+}
+
+export async function applyMigrations(db: PGlite, names: string[]) {
+  for (const dir of names) {
     await db.exec(readFileSync(join(MIGRATIONS_DIR, dir, "migration.sql"), "utf8"));
   }
+}
+
+/** A fresh database with every migration applied — or, with `until`, only up to that one. */
+export async function createTestDatabase(until?: string): Promise<PGlite> {
+  const db = new PGlite();
+  await db.exec(SUPABASE_STANDIN);
+  await applyMigrations(db, migrationNames(until));
   return db;
 }
 

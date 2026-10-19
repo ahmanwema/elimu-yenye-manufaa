@@ -17,6 +17,9 @@ export type ResultCode =
   | "too_early"
   | "access_inactive"
   | "limit_exceeded"
+  | "timezone_required"
+  | "payment_required"
+  | "out_of_order"
   | "error";
 
 export type ActionResult<T = void> =

@@ -82,6 +82,7 @@ export async function createClassAction(_prev: ActionResult, formData: FormData)
       primaryTeacherProfileId: field(formData, "primaryTeacherProfileId"),
       enrollmentCapacity: optionalInt(formData, "enrollmentCapacity"),
       liveCapacity: optionalInt(formData, "liveCapacity"),
+      paymentRequired: checked(formData, "paymentRequired"),
     });
   });
 }
@@ -95,6 +96,8 @@ export async function updateClassAction(_prev: ActionResult, formData: FormData)
       description: field(formData, "description") ?? "",
       enrollmentCapacity: optionalInt(formData, "enrollmentCapacity"),
       liveCapacity: optionalInt(formData, "liveCapacity"),
+      // An unticked checkbox sends nothing: the hidden marker says the form carried the field.
+      paymentRequired: formData.has("paymentRequiredField") ? checked(formData, "paymentRequired") : undefined,
     }),
   );
 }
@@ -143,7 +146,11 @@ export async function enrollStudentAction(_prev: ActionResult, formData: FormDat
 
 export async function admitFromWaitlistAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   return runAsActor((db, actor) =>
-    admitFromWaitlist(db, actor, { enrollmentId: field(formData, "enrollmentId"), overrideReason: optionalText(formData, "overrideReason") }),
+    admitFromWaitlist(db, actor, {
+      enrollmentId: field(formData, "enrollmentId"),
+      overrideReason: optionalText(formData, "overrideReason"),
+      queueOverrideReason: optionalText(formData, "queueOverrideReason"),
+    }),
   );
 }
 
@@ -275,7 +282,12 @@ export async function postChatAction(_prev: ActionResult, formData: FormData): P
 
 export async function adjustAttendanceAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   return runAsActor((db, actor) =>
-    adjustAttendance(db, actor, { recordId: field(formData, "recordId"), status: field(formData, "status"), reason: field(formData, "reason") }),
+    adjustAttendance(db, actor, {
+      recordId: field(formData, "recordId"),
+      status: field(formData, "status"),
+      punctuality: formData.has("punctuality") ? field(formData, "punctuality") || null : undefined,
+      reason: field(formData, "reason"),
+    }),
   );
 }
 

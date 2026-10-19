@@ -24,7 +24,7 @@ export const MAX_SESSION_DURATION_MINUTES = 24 * 60;
 /** A121: one primary interactive device + one view-only device per account. */
 export const MAX_OPEN_DEVICES_PER_PARTICIPANT = 2;
 
-export type EnrollmentState = "WAITLISTED" | "ACTIVE" | "GRACE" | "SUSPENDED" | "ENDED";
+export type EnrollmentState = "WAITLISTED" | "PENDING_PAYMENT" | "ACTIVE" | "GRACE" | "SUSPENDED" | "ENDED";
 
 /** End of grace: an explicitly extended date, else access end + 7 days. */
 export function graceDeadline(accessUntil: Date, graceUntil: Date | null): Date {
@@ -40,7 +40,7 @@ export function effectiveEnrollmentState(
   e: { status: EnrollmentState; accessUntil: Date | null; graceUntil: Date | null },
   now: Date,
 ): EnrollmentState {
-  if (e.status === "WAITLISTED" || e.status === "ENDED" || e.status === "SUSPENDED") return e.status;
+  if (e.status === "WAITLISTED" || e.status === "ENDED" || e.status === "SUSPENDED" || e.status === "PENDING_PAYMENT") return e.status;
   if (e.status === "GRACE") {
     const deadline = e.graceUntil ?? (e.accessUntil ? graceDeadline(e.accessUntil, null) : null);
     return deadline && now.getTime() > deadline.getTime() ? "SUSPENDED" : "GRACE";
@@ -50,8 +50,13 @@ export function effectiveEnrollmentState(
   return now.getTime() > graceDeadline(e.accessUntil, e.graceUntil).getTime() ? "SUSPENDED" : "GRACE";
 }
 
-/** Seats are held by every open, non-waitlisted enrollment (ACTIVE, GRACE, SUSPENDED). */
-export const SEAT_HOLDING_STATES: readonly EnrollmentState[] = ["ACTIVE", "GRACE", "SUSPENDED"];
+/**
+ * A133: only access states that CURRENTLY occupy an active seat count against enrollment
+ * capacity — ACTIVE and GRACE (grace still has access). SUSPENDED, PENDING_PAYMENT, WAITLISTED
+ * and ENDED do not; their rows and history are kept. A SUSPENDED or PENDING_PAYMENT student
+ * needs a free seat again to (re)gain access; nobody is ever moved above capacity silently.
+ */
+export const SEAT_HOLDING_STATES: readonly EnrollmentState[] = ["ACTIVE", "GRACE"];
 
 /** A class value must be at or below the plan ceiling when one is configured (A109). */
 export function capacityWithinCeiling(value: number | null, ceiling: number | null): boolean {
@@ -113,14 +118,16 @@ export function unionDurationMs(intervals: readonly Interval[], from: Date, to: 
   return total;
 }
 
-export type AttendanceStatus = "PRESENT" | "LATE" | "ABSENT";
+export type AttendanceStatus = "PRESENT" | "ABSENT";
+export type Punctuality = "ON_TIME" | "LATE";
 
 /**
- * A122, applied in this order (the owner's two rules, made consistent):
- *   1. present for at least 50 % of the session's actual duration → PRESENT;
- *   2. otherwise, first admitted arrival after scheduled start + 15 min → LATE;
- *   3. otherwise → ABSENT (including never joined).
- * See docs/roadmap/open-questions.md item 53 for the precedence confirmation request.
+ * A132 (supersedes the 2026-10-19 interim precedence): two INDEPENDENT dimensions.
+ *   - Attendance: present for at least 50 % of the session's actual duration → PRESENT, else ABSENT.
+ *   - Punctuality: first qualifying (admitted) arrival ≤ scheduled start + 15 min → ON_TIME,
+ *     later → LATE; null when the student never arrived.
+ * So PRESENT + LATE, PRESENT + ON_TIME, ABSENT + LATE and ABSENT + ON_TIME are all possible;
+ * PRESENT never overwrites LATE.
  */
 export function computeAttendance(input: {
   actualStartAt: Date;
@@ -128,15 +135,18 @@ export function computeAttendance(input: {
   scheduledStartAt: Date;
   /** Admitted presence intervals of the student (all devices). */
   intervals: readonly Interval[];
-}): { status: AttendanceStatus; presentSeconds: number; sessionSeconds: number; firstArrivalAt: Date | null } {
+}): { status: AttendanceStatus; punctuality: Punctuality | null; presentSeconds: number; sessionSeconds: number; firstArrivalAt: Date | null } {
   const sessionMs = Math.max(0, input.actualEndAt.getTime() - input.actualStartAt.getTime());
   const presentMs = unionDurationMs(input.intervals, input.actualStartAt, input.actualEndAt);
   const starts = input.intervals
     .filter((i) => (i.end ?? input.actualEndAt).getTime() > input.actualStartAt.getTime() && i.start.getTime() < input.actualEndAt.getTime())
     .map((i) => Math.max(i.start.getTime(), input.actualStartAt.getTime()));
   const firstArrivalAt = starts.length ? new Date(Math.min(...starts)) : null;
-  let status: AttendanceStatus = "ABSENT";
-  if (presentMs > 0 && sessionMs > 0 && presentMs >= PRESENT_MIN_FRACTION * sessionMs) status = "PRESENT";
-  else if (presentMs > 0 && firstArrivalAt && firstArrivalAt.getTime() > lateThresholdAt(input.scheduledStartAt).getTime()) status = "LATE";
-  return { status, presentSeconds: Math.floor(presentMs / 1000), sessionSeconds: Math.floor(sessionMs / 1000), firstArrivalAt };
+  const status: AttendanceStatus = presentMs > 0 && sessionMs > 0 && presentMs >= PRESENT_MIN_FRACTION * sessionMs ? "PRESENT" : "ABSENT";
+  const punctuality: Punctuality | null = firstArrivalAt
+    ? firstArrivalAt.getTime() > lateThresholdAt(input.scheduledStartAt).getTime()
+      ? "LATE"
+      : "ON_TIME"
+    : null;
+  return { status, punctuality, presentSeconds: Math.floor(presentMs / 1000), sessionSeconds: Math.floor(sessionMs / 1000), firstArrivalAt };
 }

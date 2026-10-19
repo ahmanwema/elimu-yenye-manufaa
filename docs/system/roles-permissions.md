@@ -183,6 +183,7 @@ Implemented in `src/server/authz/live-class.ts` (pure, unit-tested as a matrix) 
 | Extend grace | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
 | Submit payment evidence | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
 | Verify / reject payment | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
+| …or with the explicit `payment.verify` grant (A136, finance officer / accountant; staff role required) | grant only | grant only | grant only | by role | ✗ | ✗ |
 | Create session (scheduled, from schedule, ad hoc) | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
 | Start / end session | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ |
 | Cancel scheduled session | ✓ | ✗ | ✗ | ✓ | ✗ | ✗ |
@@ -193,13 +194,17 @@ Implemented in `src/server/authz/live-class.ts` (pure, unit-tested as a matrix) 
 | Grant / revoke student whiteboard; author whiteboard | ✓ | ✓ | ✓ | ✗ | if granted (primary device) | ✗ |
 | Screen share | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ |
 | Read session attendance (incl. durations) | ✓ | ✓ | ✓ | ✓ | own status | child's status only |
-| Adjust attendance | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
+| Adjust attendance and punctuality (A132) | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
+| Admit from waitlist out of FIFO order, with reason (A134) | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
+| Detailed student data (A51/A137) — students with ACTIVE/GRACE access in the teacher's current class | ✓ | ✓ | ✗ | own Markaz | self | own category rules |
 | Read / write class chat | ✓ | ✓ | that session only | ✓ (write if joined) | with ACTIVE/GRACE access | ✗ |
 | Start / stop session recording (Option C) | ✓ | ✓ | ✓ | stop only | ✗ | ✗ |
 | Correct recording participants (before finalization) | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
 | Set Markaz time zone | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
 
-A51's teacher-detail resolver (`NO_CLASSES_YET`) is intentionally unchanged in this pass (open question 58).
+~~A51's teacher-detail resolver (`NO_CLASSES_YET`) is intentionally unchanged in this pass (open question 58).~~ **Superseded 2026-10-19 (A137):** the resolver is wired to real class data (`src/server/data/student-detail.ts`); `NO_CLASSES_YET` was removed.
+
+**Explicit permissions, 2026-10-19 (A136):** the grantable list is now six — `parent_link.create/verify/activate/revoke`, `invitation.create`, **`payment.verify`**. Like the others it is never implied by a role, is tenant-scoped, effective only for an ACTIVE Markaz Admin or Teacher there, assigned by a Markaz Admin (own Teachers) or Super Admin, never by a Teacher. Design choice: a **permission**, not a new tenant role, because a new role would ripple through invitations, roster, RLS role arrays and the typed role maps. A non-teaching finance member therefore needs a staff membership today; a dedicated Finance Officer role would be a future design if wanted.
 
 ## 3. Parent account model — options (~~OPEN QUESTION~~ **Resolved 2026-10-05: Option 1**, A27 — see [../roadmap/open-questions.md](../roadmap/open-questions.md) item 2)
 

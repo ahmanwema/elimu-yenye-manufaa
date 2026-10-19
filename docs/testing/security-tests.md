@@ -134,6 +134,17 @@ Not covered locally: a real browser-recorded M4A file (no ffmpeg/sample file on 
 | All 12 Live Class tables server-only (every role + anon), no Data API writes, RLS enabled, guard function not executable, composite FKs, partial indexes, status CHECKs | `tests/db/rls-live-class.test.ts` |
 | Action surface pinned (job entry points never exported); no LiveKit/Agora package, no `pilot/` import, no Realtime `.channel(` in `src/` | `tests/unit/auth-safety.test.ts` |
 
+## Final Live Class corrections (2026-10-19, A131–A139)
+
+| Area | File |
+|---|---|
+| Attendance × punctuality: PRESENT+ON_TIME, PRESENT+LATE, ABSENT+ON_TIME, ABSENT+LATE, never arrived; seat states | `tests/unit/live-class-rules.test.ts` |
+| `payment.verify`: grant makes a staff member a verifier; tenant-scoped; useless for students; no platform bypass; departed holder denied | `tests/unit/live-class-rules.test.ts` |
+| Suspended frees the seat, GRACE keeps it, renewal into a full class → WAITLIST, grace extension needs a seat; FIFO + audited admin order override (+ DB CHECK); paid class PENDING_PAYMENT → verified → ACTIVE, waitlist admit needs payment, override cannot bypass payment; finance holder verifies, teacher cannot, cross-tenant/Super Admin cannot; time zone fails closed | `tests/services/classes.test.ts` |
+| Mic handoff (A auto-revoked, B holds, exactly one, both audited); attendance/punctuality persisted, corrected separately, LATE attendance refused (service + DB); parent sees status + punctuality only; scheduling blocked without zone, UTC storage preserved | `tests/services/live-sessions.test.ts` |
+| Detailed student access: Primary/Co allow; unrelated, ended membership, ended assignment, other class, cross-Markaz, substitute, non-active enrollment deny | `tests/services/student-detail.test.ts` |
+| Migrations on pre-existing rows: default-only zone cleared, chosen zone kept; no default zone; paid defaults false; punctuality CHECKs; `PAYMENT_VERIFY` in `app.has_tenant_permission`; tables stay server-only | `tests/db/live-class-decisions.test.ts` |
+
 ## Method
 
 Prefer integration tests running against a real (test) Postgres instance with RLS enabled — testing RLS policies by mocking them defeats the purpose, since the policies themselves are the thing under test.

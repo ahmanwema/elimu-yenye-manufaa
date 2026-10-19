@@ -25,7 +25,13 @@ export type DomainErrorCode =
   /** Live Class (A106): no ACTIVE/GRACE enrollment (waitlisted, suspended, ended or none). */
   | "access_inactive"
   /** Live Class: above the Markaz plan capacity ceiling (A109), or too many devices (A121). */
-  | "limit_exceeded";
+  | "limit_exceeded"
+  /** A131: the Markaz has not chosen its time zone yet, so nothing can be scheduled. */
+  | "timezone_required"
+  /** A135: this class requires a VERIFIED payment/access authorization first. */
+  | "payment_required"
+  /** A134: not the next student in the FIFO waitlist; only a Markaz Admin may override, with a reason. */
+  | "out_of_order";
 
 export class DomainError extends Error {
   constructor(

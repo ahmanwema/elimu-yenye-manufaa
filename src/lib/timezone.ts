@@ -1,6 +1,6 @@
-// Markaz time-zone helpers (A112). Timestamps are ALWAYS stored as UTC instants; a Markaz's IANA
-// zone is used only to interpret schedule wall-clock times and to display. No zone is assumed:
-// the database default is "UTC" until the Markaz sets its own. Pure — uses only Intl.
+// Markaz time-zone helpers (A112, A131). Timestamps are ALWAYS stored as UTC instants; a Markaz's
+// IANA zone is used only to interpret schedule wall-clock times and to display. No zone is ever
+// assumed: a Markaz without an explicitly chosen zone cannot schedule (fails closed). Pure — Intl.
 
 export function isValidTimeZone(value: unknown): value is string {
   if (typeof value !== "string" || value.length === 0 || value.length > 64) return false;

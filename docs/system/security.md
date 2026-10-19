@@ -121,6 +121,15 @@ Everything else matched the PGlite results: RLS for tenants, students, parents (
 - **Audit (A129)** covers class, teacher, capacity override, enrollment transitions (system transitions with a null actor), grace, payment submit/verify/reject, session create/start/end/safety close/cancel/substitute, participant removal, mic and whiteboard grants/revocations, attendance adjustments (from/to) and recording participant corrections. Evidence references, reasons for payment and chat bodies are never copied into audit metadata.
 - **No RTC.** A unit test fails if a LiveKit/Agora package, a `pilot/` import or a Supabase Realtime `.channel(` appears in `src/`.
 
+### 3.11 Final Live Class corrections (2026-10-19, A131–A139)
+
+- **Finance authority** is an explicit tenant permission (`payment.verify`): never implied by a role, tenant-scoped, effective only for an ACTIVE staff member, mirrored by `app.has_tenant_permission` (no SQL change needed — it already restricts holders to Markaz Admin/Teacher). No platform bypass.
+- **Fail closed on time zone:** no scheduling path falls back to UTC.
+- **No silent capacity changes:** SUSPENDED/PENDING_PAYMENT students regain access only through a free seat or an audited admin override; out-of-order admission needs an audited admin reason.
+- **Mic handoff** happens under a session lock in one transaction; the DB partial unique index still guarantees one student holder.
+- **Detailed student data** (A137) is decided server-side from current assignments and effective enrollment state; substitutes get none.
+- Parents still never receive durations or raw join/leave times — now also covering punctuality, which is a status only.
+
 ## 4. Recording consent & private annotation leakage
 
 - Lesson recording must have a clear consent/notice model — ~~OPEN QUESTION~~ **APPROVED 2026-10-05 (A30)**: (1) general consent during enrollment/account setup **and** (2) a clear notice when recording begins; general consent alone is not sufficient UX. This applies to any recorded audio, including Option B correction clips (A29). Retention/deletion: see §7. Still open: consent on behalf of minors (open question 17).

@@ -177,7 +177,7 @@ async function AccountBody() {
           ) : (
             <ul className="list">
               {myAttendance.map((r) => (
-                <li key={r.id}>{format(live.attendanceRecordLine, { date: dateOnly(r.sessionDate), className: r.className, status: live.attendanceStatuses[r.status] })}</li>
+                <li key={r.id}>{format(live.attendanceRecordLine, { date: dateOnly(r.sessionDate), className: r.className, status: live.attendanceStatuses[r.status], punctuality: r.punctuality ? live.punctualityStatuses[r.punctuality] : live.noArrival })}</li>
               ))}
             </ul>
           )}
@@ -264,7 +264,7 @@ async function AccountBody() {
             ) : (
               <ul className="list">
                 {childAttendance[i].map((r) => (
-                  <li key={r.id}>{format(live.attendanceRecordLine, { date: dateOnly(r.sessionDate, r.timezone), className: r.className, status: live.attendanceStatuses[r.status] })}</li>
+                  <li key={r.id}>{format(live.attendanceRecordLine, { date: dateOnly(r.sessionDate, r.timezone ?? undefined), className: r.className, status: live.attendanceStatuses[r.status], punctuality: r.punctuality ? live.punctualityStatuses[r.punctuality] : live.noArrival })}</li>
                 ))}
               </ul>
             )}

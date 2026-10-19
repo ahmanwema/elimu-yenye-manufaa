@@ -36,6 +36,7 @@ import {
   GRACE_PERIOD_DAYS,
   graceDeadline,
   safetyCloseAt,
+  SEAT_HOLDING_STATES,
   startAllowedFrom,
   unionDurationMs,
   waitingRoomOpensAt,
@@ -108,8 +109,11 @@ describe("enrollment lifecycle (A108)", () => {
     expect(effectiveEnrollmentState({ status: "GRACE", accessUntil, graceUntil: extended }, new Date(accessUntil.getTime() + 10 * DAY))).toBe("GRACE");
     expect(effectiveEnrollmentState({ status: "ACTIVE", accessUntil: null, graceUntil: null }, new Date("2099-01-01"))).toBe("ACTIVE");
   });
+  it("A133: only ACTIVE and GRACE occupy an active seat (SUSPENDED / PENDING_PAYMENT / WAITLISTED / ENDED do not)", () => {
+    expect([...SEAT_HOLDING_STATES].sort()).toEqual(["ACTIVE", "GRACE"]);
+  });
   it("terminal / waiting states are never upgraded by time", () => {
-    for (const status of ["WAITLISTED", "SUSPENDED", "ENDED"] as const) {
+    for (const status of ["WAITLISTED", "SUSPENDED", "ENDED", "PENDING_PAYMENT"] as const) {
       expect(effectiveEnrollmentState({ status, accessUntil: null, graceUntil: null }, t0)).toBe(status);
     }
   });
@@ -137,16 +141,29 @@ describe("attendance computation (A122)", () => {
     expect(unionDurationMs([{ start: t0, end: plus(60) }, { start: t0, end: plus(60) }], t0, plus(60))).toBe(60 * MIN);
     expect(unionDurationMs([{ start: plus(-10), end: null }], t0, plus(60))).toBe(60 * MIN); // clipped to the session
   });
-  it(">= 50% → PRESENT", () => {
-    expect(computeAttendance({ ...base, intervals: [{ start: t0, end: plus(30) }] }).status).toBe("PRESENT");
-    expect(computeAttendance({ ...base, intervals: [{ start: plus(20), end: plus(60) }] }).status).toBe("PRESENT");
+  // A132: attendance and punctuality are independent — PRESENT never overwrites LATE.
+  const att = (start: number, end: number) => {
+    const r = computeAttendance({ ...base, intervals: [{ start: plus(start), end: plus(end) }] });
+    return [r.status, r.punctuality];
+  };
+  it(">= 50% + on time = PRESENT + ON_TIME", () => {
+    expect(att(0, 30)).toEqual(["PRESENT", "ON_TIME"]);
+    expect(att(15, 60)).toEqual(["PRESENT", "ON_TIME"]); // exactly at the threshold is on time
   });
-  it("< 50% and first arrival after start + 15 → LATE; on time but < 50% → ABSENT; never joined → ABSENT", () => {
-    expect(computeAttendance({ ...base, intervals: [{ start: plus(40), end: plus(60) }] }).status).toBe("LATE");
-    expect(computeAttendance({ ...base, intervals: [{ start: plus(16), end: plus(30) }] }).status).toBe("LATE");
-    expect(computeAttendance({ ...base, intervals: [{ start: plus(15), end: plus(29) }] }).status).toBe("ABSENT");
-    expect(computeAttendance({ ...base, intervals: [{ start: t0, end: plus(10) }] }).status).toBe("ABSENT");
-    expect(computeAttendance({ ...base, intervals: [] })).toMatchObject({ status: "ABSENT", presentSeconds: 0, firstArrivalAt: null });
+  it(">= 50% + late = PRESENT + LATE (PRESENT does not overwrite LATE)", () => {
+    expect(att(16, 60)).toEqual(["PRESENT", "LATE"]);
+    expect(att(20, 60)).toEqual(["PRESENT", "LATE"]);
+  });
+  it("< 50% + on time = ABSENT + ON_TIME", () => {
+    expect(att(0, 10)).toEqual(["ABSENT", "ON_TIME"]);
+    expect(att(15, 29)).toEqual(["ABSENT", "ON_TIME"]);
+  });
+  it("< 50% + late = ABSENT + LATE", () => {
+    expect(att(40, 60)).toEqual(["ABSENT", "LATE"]);
+    expect(att(16, 30)).toEqual(["ABSENT", "LATE"]);
+  });
+  it("never arrived → ABSENT with no punctuality", () => {
+    expect(computeAttendance({ ...base, intervals: [] })).toMatchObject({ status: "ABSENT", punctuality: null, presentSeconds: 0, firstArrivalAt: null });
   });
   it("reports seconds and the first arrival", () => {
     const r = computeAttendance({ ...base, intervals: [{ start: plus(5), end: plus(35) }] });
@@ -222,6 +239,18 @@ describe("Live Class role/action matrix (pure rules)", () => {
     ["chat read (student with ACTIVE access)", (a: Actor) => canReadSessionChat(a, ctx, a === who.student ? "ACTIVE" : null), only("primary", "co", "sub", "admin", "student")],
   ])("%s", (_name, fn, expected) => {
     expect(row(fn)).toEqual(expected);
+  });
+
+  it("A136 finance authority: payment.verify grant (staff only) or the Markaz Admin role; never a teacher by default", () => {
+    const withGrant = (a: Actor, tenantId: string): Actor => ({ ...a, permissionGrants: [...a.permissionGrants, { tenantId, permission: "payment.verify" }] });
+    expect(canVerifyPayment(who.primary, T.A)).toBe(false); // teacher by default
+    expect(canVerifyPayment(withGrant(who.primary, T.A), T.A)).toBe(true); // finance officer / accountant
+    expect(canVerifyPayment(withGrant(who.primary, T.A), T.B)).toBe(false); // tenant-scoped
+    expect(canVerifyPayment(withGrant(who.student, T.A), T.A)).toBe(false); // ineligible role: grant is useless
+    expect(canVerifyPayment(withGrant(who.superAdmin, T.A), T.A)).toBe(false); // no platform bypass
+    const departed: Actor = { ...withGrant(who.primary, T.A), memberships: who.primary.memberships.map((m) => ({ ...m, status: "ENDED" as const })) };
+    expect(canVerifyPayment(departed, T.A)).toBe(false);
+    expect(canSubmitPayment(withGrant(who.student, T.A), ctx)).toBe(false);
   });
 
   it("class creation is a Markaz Admin action in their own Markaz only", () => {

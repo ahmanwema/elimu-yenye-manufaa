@@ -99,6 +99,17 @@ describe("Scheduling (A112): UTC storage, Markaz time zone", () => {
     await expect(generateSessionsFromSchedule(db, await as(L.teacherA3), { classId, fromDate: "2026-11-02", days: 14 }, { now: NOW })).rejects.toBeInstanceOf(AuthorizationError);
   });
 
+  it("A131: no silent UTC fallback — scheduling fails closed until the Markaz zone is explicitly set", async () => {
+    const classId = await classWithStudents(db);
+    await pg.query("UPDATE tenants SET timezone = NULL WHERE id = $1", [T.A]);
+    await expect(scheduled(classId)).rejects.toMatchObject({ code: "timezone_required" });
+    await expect(generateSessionsFromSchedule(db, await as(U.adminA), { classId, fromDate: "2026-11-02", days: 7 }, { now: NOW })).rejects.toMatchObject({ code: "timezone_required" });
+    expect(await db.liveSession.count({ where: { classId } })).toBe(0);
+    await setTenantTimezone(db, await as(U.adminA), { tenantId: T.A, timezone: "Africa/Nairobi" }, { now: NOW });
+    const id = await scheduled(classId);
+    expect((await db.liveSession.findUniqueOrThrow({ where: { id } })).scheduledStartAt).toEqual(at(60)); // UTC storage preserved
+  });
+
   it("a session cannot be created in the past; creators are assigned teachers and the Markaz Admin", async () => {
     const classId = await classWithStudents(db);
     await expect(scheduled(classId, -120)).rejects.toMatchObject({ code: "invalid_input" });
@@ -306,18 +317,28 @@ describe("Mic and whiteboard — permission state only (A117–A119)", () => {
     return { ...ids, x, s1, px: (await participant(ids.sessionId, U.studentX)).id, p1: (await participant(ids.sessionId, L.s1)).id };
   }
 
-  it("only ONE student holds the mic; granting another is a conflict until revoked; audited", async () => {
+  // Superseded (A138): "granting another is a conflict until revoked" — now an audited handoff.
+  it("mic handoff: grant A, grant B → A auto-revoked, B holds it, exactly one holder; both transitions audited", async () => {
     const { px, p1, sessionId } = await room();
     await raiseHand(db, await as(U.studentX), { sessionId }, When(62));
     await grantMic(db, await as(U.teacherA), { participantId: px }, When(63));
     expect((await participant(sessionId, U.studentX)).handRaisedAt).toBeNull(); // granting lowers the hand
-    await expect(grantMic(db, await as(U.teacherAB), { participantId: p1 }, When(64))).rejects.toMatchObject({ code: "conflict" });
-    await revokeMic(db, await as(U.teacherAB), { participantId: px }, When(65));
-    await grantMic(db, await as(U.adminA), { participantId: p1 }, When(66)); // the admin operates the mic
+    await grantMic(db, await as(U.teacherAB), { participantId: p1 }, When(64)); // B while A holds it
+    expect((await participant(sessionId, U.studentX)).micGrantedAt).toBeNull(); // A auto-revoked
+    expect((await participant(sessionId, L.s1)).micGrantedAt).toEqual(at(64)); // B active
+    expect(await db.liveSessionParticipant.count({ where: { sessionId, micGrantedAt: { not: null } } })).toBe(1);
+    const { rows } = await pg.query<{ action: string; target_id: string; actor_id: string; metadata: Record<string, string> }>(
+      "SELECT action, target_id, actor_id, metadata FROM audit_events WHERE action IN ('MIC_GRANTED', 'MIC_REVOKED') ORDER BY created_at, action DESC",
+    );
+    expect(rows.map((r) => [r.action, r.target_id])).toEqual([["MIC_GRANTED", px], ["MIC_REVOKED", px], ["MIC_GRANTED", p1]]);
+    expect(rows[1]).toMatchObject({ actor_id: U.teacherAB, metadata: { reason: "handoff", toParticipantId: p1 } });
+    expect(rows[2].metadata).toEqual({ handoffFromParticipantId: px });
+    // Explicit revoke and an operational (admin) grant still work.
+    await revokeMic(db, await as(U.teacherAB), { participantId: p1 }, When(65));
+    await grantMic(db, await as(U.adminA), { participantId: px }, When(66));
+    await expect(grantMic(db, await as(U.adminA), { participantId: px }, When(67))).rejects.toMatchObject({ code: "conflict" }); // already holds it
     // DB: a second concurrent student mic is impossible.
-    await expect(pg.query("UPDATE live_session_participants SET mic_granted_at = now(), mic_granted_by_id = $1 WHERE id = $2", [U.teacherA, px])).rejects.toThrow(/one_student_mic/);
-    expect(await auditCount(pg, "MIC_GRANTED")).toBe(2);
-    expect(await auditCount(pg, "MIC_REVOKED")).toBe(1);
+    await expect(pg.query("UPDATE live_session_participants SET mic_granted_at = now(), mic_granted_by_id = $1 WHERE id = $2", [U.teacherA, p1])).rejects.toThrow(/one_student_mic/);
   });
 
   it("students, parents, unrelated teachers and other Markaz cannot control mics", async () => {
@@ -388,9 +409,9 @@ describe("Attendance (A122)", () => {
     const { sessionId } = await attended();
     const rows = await listSessionAttendance(db, await as(U.teacherA), sessionId);
     const by = (id: string) => rows.find((r) => r.studentProfileId === id)!;
-    expect(by(U.studentX)).toMatchObject({ status: "PRESENT", presentSeconds: 38 * 60, sessionSeconds: 60 * 60 });
-    expect(by(L.s1)).toMatchObject({ status: "LATE", presentSeconds: 15 * 60 });
-    expect(by(L.s2)).toMatchObject({ status: "ABSENT", presentSeconds: 0 }); // enrolled, never joined
+    expect(by(U.studentX)).toMatchObject({ status: "PRESENT", punctuality: "ON_TIME", presentSeconds: 38 * 60, sessionSeconds: 60 * 60 });
+    expect(by(L.s1)).toMatchObject({ status: "ABSENT", punctuality: "LATE", presentSeconds: 15 * 60 }); // A132: two dimensions
+    expect(by(L.s2)).toMatchObject({ status: "ABSENT", punctuality: null, presentSeconds: 0 }); // enrolled, never joined
     expect(await db.liveSessionConnection.count({ where: { sessionId, disconnectedAt: null } })).toBe(0);
   });
 
@@ -403,17 +424,23 @@ describe("Attendance (A122)", () => {
     }
     await adjustAttendance(db, await as(U.teacherAB), { recordId: late.id, status: "PRESENT", reason: "Connection problems confirmed" }, When(130));
     const after = await db.attendanceRecord.findUniqueOrThrow({ where: { id: late.id } });
-    expect(after).toMatchObject({ status: "PRESENT", computedStatus: "LATE", adjustedById: U.teacherAB });
-    const { rows: audit } = await pg.query<{ metadata: { from: string; to: string } }>("SELECT metadata FROM audit_events WHERE action = 'ATTENDANCE_ADJUSTED'");
-    expect(audit).toEqual([{ metadata: { from: "LATE", to: "PRESENT" } }]);
+    // Attendance corrected; punctuality (LATE) is kept — PRESENT never overwrites LATE.
+    expect(after).toMatchObject({ status: "PRESENT", computedStatus: "ABSENT", punctuality: "LATE", computedPunctuality: "LATE", adjustedById: U.teacherAB });
+    const { rows: audit } = await pg.query<{ metadata: Record<string, string> }>("SELECT metadata FROM audit_events WHERE action = 'ATTENDANCE_ADJUSTED'");
+    expect(audit).toEqual([{ metadata: { from: "ABSENT", to: "PRESENT", punctualityFrom: "LATE", punctualityTo: "LATE" } }]);
+    // The obsolete single-enum value LATE cannot be stored as attendance (service + DB).
+    await expect(adjustAttendance(db, await as(U.adminA), { recordId: late.id, status: "LATE", reason: "x" }, When(131))).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(pg.query("UPDATE attendance_records SET status = 'LATE' WHERE id = $1", [late.id])).rejects.toThrow(/attendance_presence_only/);
+    await adjustAttendance(db, await as(U.adminA), { recordId: late.id, status: "PRESENT", punctuality: "ON_TIME", reason: "Clock was wrong" }, When(132));
+    expect(await db.attendanceRecord.findUniqueOrThrow({ where: { id: late.id } })).toMatchObject({ punctuality: "ON_TIME", computedPunctuality: "LATE" });
   });
 
-  it("a parent sees PRESENT/LATE/ABSENT only — never raw join/leave timestamps or durations", async () => {
+  it("a parent sees attendance + punctuality statuses only — never raw join/leave timestamps or durations", async () => {
     await attended();
     const rows = await listChildAttendance(db, await as(U.parentActive), U.studentX);
     expect(rows).toHaveLength(1);
-    expect(Object.keys(rows[0]).sort()).toEqual(["className", "id", "sessionDate", "status", "timezone"]);
-    expect(rows[0].status).toBe("PRESENT");
+    expect(Object.keys(rows[0]).sort()).toEqual(["className", "id", "punctuality", "sessionDate", "status", "timezone"]);
+    expect([rows[0].status, rows[0].punctuality]).toEqual(["PRESENT", "ON_TIME"]);
     const json = JSON.stringify(rows);
     for (const forbidden of ["presentSeconds", "firstArrival", "connectedAt", "disconnectedAt", "admittedAt"]) expect(json).not.toContain(forbidden);
     for (const who of [U.parentVerified, U.parentRevoked, U.parentUnlinked, U.teacherA]) {
@@ -424,7 +451,7 @@ describe("Attendance (A122)", () => {
   it("a student sees their own status history", async () => {
     await attended();
     const rows = await listMyAttendance(db, await as(L.s1));
-    expect(rows.map((r) => r.status)).toEqual(["LATE"]);
+    expect(rows.map((r) => [r.status, r.punctuality])).toEqual([["ABSENT", "LATE"]]);
   });
 
   it("raw attendance is staff-only: students, parents and other Markaz cannot list a session's attendance", async () => {

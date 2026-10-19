@@ -1,4 +1,4 @@
-import { hasActiveRole, isValidId, type Actor } from "./policy";
+import { hasActiveRole, hasGrantedPermission, isValidId, type Actor } from "./policy";
 
 // Live Class authorization (owner TO-BE approval 2026-10-19, A101–A130). Pure rules, no I/O:
 // the services load the class/session context, then ask these functions. Every rule needs the
@@ -24,7 +24,7 @@ export type ClassContext = {
 export type SessionContext = ClassContext & { substituteProfileId: string | null };
 
 /** Effective enrollment state of the actor in this class (null = no open enrollment). */
-export type EnrollmentAccess = "WAITLISTED" | "ACTIVE" | "GRACE" | "SUSPENDED" | "ENDED" | null;
+export type EnrollmentAccess = "WAITLISTED" | "PENDING_PAYMENT" | "ACTIVE" | "GRACE" | "SUSPENDED" | "ENDED" | null;
 
 export type ClassRelation = {
   primary: boolean;
@@ -115,9 +115,13 @@ export function canSubmitPayment(actor: Actor, ctx: ClassContext): boolean {
   return r.admin || assignedTeacher(r);
 }
 
-/** Payment VERIFICATION: Markaz Admin only — a teacher never verifies (A107). */
+/**
+ * Payment VERIFICATION (A136): a Markaz Admin of that Markaz by role, or the finance authority —
+ * whoever holds the explicit, tenant-scoped `payment.verify` grant there (Finance Officer /
+ * Accountant). A Teacher never verifies by default: the permission is never implied by a role.
+ */
 export function canVerifyPayment(actor: Actor, tenantId: unknown): boolean {
-  return isValidId(tenantId) && hasActiveRole(actor, tenantId, "MARKAZ_ADMIN");
+  return isValidId(tenantId) && (hasActiveRole(actor, tenantId, "MARKAZ_ADMIN") || hasGrantedPermission(actor, tenantId, "payment.verify"));
 }
 
 // --- Sessions ------------------------------------------------------------------------------

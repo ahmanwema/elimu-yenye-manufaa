@@ -84,6 +84,7 @@ export const GRANTABLE_PERMISSIONS = [
   "parent_link.activate",
   "parent_link.revoke",
   "invitation.create",
+  "payment.verify",
 ] as const;
 export type GrantablePermission = (typeof GRANTABLE_PERMISSIONS)[number];
 
@@ -95,6 +96,7 @@ export const GRANTABLE_PERMISSION_ROLES: Record<GrantablePermission, readonly Te
   "parent_link.activate": STAFF,
   "parent_link.revoke": STAFF,
   "invitation.create": STAFF,
+  "payment.verify": STAFF,
 };
 
 export type GrantablePermissionDb =
@@ -102,7 +104,8 @@ export type GrantablePermissionDb =
   | "PARENT_LINK_VERIFY"
   | "PARENT_LINK_ACTIVATE"
   | "PARENT_LINK_REVOKE"
-  | "INVITATION_CREATE";
+  | "INVITATION_CREATE"
+  | "PAYMENT_VERIFY";
 
 /** Database enum ↔ application name. */
 export const GRANTABLE_PERMISSION_DB: Record<GrantablePermission, GrantablePermissionDb> = {
@@ -111,6 +114,7 @@ export const GRANTABLE_PERMISSION_DB: Record<GrantablePermission, GrantablePermi
   "parent_link.activate": "PARENT_LINK_ACTIVATE",
   "parent_link.revoke": "PARENT_LINK_REVOKE",
   "invitation.create": "INVITATION_CREATE",
+  "payment.verify": "PAYMENT_VERIFY",
 };
 
 export const GRANTABLE_PERMISSION_FROM_DB = Object.fromEntries(
@@ -300,19 +304,18 @@ export function canReadStudentAccount(
 }
 
 /**
- * Future hook for DETAILED student data (A51). (2026-10-19: classes/enrollments now exist, but
- * no detailed-student view uses them yet — open question 58; until then the default stays.)
- * Originally: classes/enrollments did not exist yet,
- * so the default resolver says "teaches nobody" and teachers get no detailed access.
- * When classes exist, supply a resolver backed by class assignments.
+ * Hook for DETAILED student data (A51). Since 2026-10-19 (A137) the resolver is backed by real
+ * class data: src/server/data/student-detail.ts builds it from the teacher's ACTIVE Primary /
+ * Co-Teacher assignments in that Markaz and the students holding ACTIVE/GRACE access in those
+ * classes. A Substitute gets no ongoing detailed access. (History: until classes existed the
+ * default resolver `NO_CLASSES_YET` said "teaches nobody"; it was removed so no caller can rely
+ * on a silent default.)
  */
 export type ClassAssignmentResolver = (input: {
   tenantId: string;
   teacherProfileId: string;
   studentProfileId: string;
 }) => boolean;
-
-export const NO_CLASSES_YET: ClassAssignmentResolver = () => false;
 
 /**
  * Detailed (non-private) student data within one Markaz: the student, a Markaz Admin of
@@ -323,7 +326,7 @@ export const NO_CLASSES_YET: ClassAssignmentResolver = () => false;
 export function canReadStudentDetail(
   actor: Actor,
   input: { tenantId: unknown; studentProfileId: unknown; studentIsActiveInTenant: boolean },
-  teaches: ClassAssignmentResolver = NO_CLASSES_YET,
+  teaches: ClassAssignmentResolver,
 ): boolean {
   const { tenantId, studentProfileId } = input;
   if (!isValidId(tenantId) || !isValidId(studentProfileId)) return false;

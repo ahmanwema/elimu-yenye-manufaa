@@ -111,3 +111,28 @@ The plan above was executed on the DEVELOPMENT project only:
 - No bucket change is needed (Live Class stores no media). No scheduled job is created (`closeStaleSessions`, `advanceEnrollmentStates` stay unscheduled — OQ59).
 
 **Rollback / recovery:** both migrations are additive. Before any real Live Class data exists, a rollback is a hand-written down script: drop the 4 triggers and the function, drop the 12 tables (reverse FK order), drop the 4 new `recording_participants` columns, `recordings.live_session_id`, the 3 `tenants` columns and the 12 new enum types, then delete the two `_prisma_migrations` rows. New values added to `AuditAction`/`AuditTargetType` **cannot be removed** in PostgreSQL without recreating the type; they are harmless if unused and should be left in place. After real data exists, prefer roll-forward fixes. Take a DEV schema dump (`pg_dump --schema-only`) immediately before applying.
+
+## DEV pre-apply plan — UPDATED for the final Live Class corrections (2026-10-19, NOT applied)
+
+**Supersedes the migration list and expected counts of the plan above** (its gate, verification and rollback steps still apply). Status: awaiting explicit owner APPLY approval; nothing has been written to DEV.
+
+**Migrations, in this exact order** (after the 15 already applied — 4 pending):
+
+1. `20261019000000_live_class_foundation` (additive, generated offline).
+2. `20261019000100_live_class_foundation_rls` (constraints, triggers, RLS — server-only).
+3. `20261019000200_live_class_decisions` (generated offline, additive): enum `Punctuality`; new values `ClassEnrollmentStatus.PENDING_PAYMENT`, `TenantPermission.PAYMENT_VERIFY`, `AuditAction.ENROLLMENT_WAITLIST_ORDER_OVERRIDE` / `ENROLLMENT_PENDING_PAYMENT`; columns `classes.payment_required` (NOT NULL DEFAULT false), `class_enrollments.queue_override_*` (nullable), `attendance_records.computed_punctuality` / `punctuality` (nullable); `tenants.timezone` → DROP NOT NULL, DROP DEFAULT.
+4. `20261019000300_live_class_decisions_rls` (hand-written): `UPDATE tenants SET timezone = NULL` where no `TENANT_TIMEZONE_SET` audit exists (the value came only from migration 1's default); rebuilt `tenant_timezone_present` and `attendance_adjustment_fields`; new `attendance_presence_only`, `attendance_punctuality_with_arrival`, `enrollment_queue_override_fields`.
+
+Migration 3 adds enum values that migration 4 does not use; `prisma migrate deploy` applies each file in its own transaction.
+
+**Expected schema after apply** (PGlite snapshot, same queries as `scripts/compare-schema.mjs`; current DEV in brackets): tables 33 [21], columns 380 [224], constraints 172 [106], indexes 107 [61], enums 33 [20], policies 14 [14], functions 12 [11], triggers 8 [4], grant rows 66 [42, the 24 new ones all false].
+
+**Destructive operations:** none (no DROP TABLE/COLUMN; two CHECK constraints are dropped and immediately re-created in a wider form inside migration 4). **Backfill / row impact:** the only data statement is the time-zone clear. DEV holds **0 tenants** today (last cleanup 2026-10-16), so expected impact is **0 rows**; if tenants exist at apply time, each gets `timezone = NULL` unless an admin had set one — scheduling for that Markaz is then blocked until a Markaz Admin chooses its zone (by decision A131). `payment_required` defaults to false for any existing class (none exist on DEV).
+
+**Gate:** as above (`COMPARE_UNTIL=20261016000100_resolve_recording_policy_rls` → no drift; 15 known migrations, checksums match; sign-ups disabled).
+
+**Apply:** `npm run db:deploy:dev` (applies exactly the 4 pending migrations).
+
+**Verify:** `scripts/compare-schema.mjs` → "No differences"; `npm run test:dev-supabase` 41/41; `scripts/dev-e2e.mjs` 14/14. Proposed extra real-DEV checks (not written yet; audited actions leave permanent rows): the 12 Live Class tables refuse every API role; `app.has_tenant_permission(…, 'PAYMENT_VERIFY')` true only for a staff grant holder; a new Markaz has `timezone IS NULL`.
+
+**Rollback:** as above, plus: drop the three new CHECKs and re-create the two original ones, drop the 6 new columns, drop enum `Punctuality`, `ALTER TABLE tenants ALTER COLUMN timezone SET DEFAULT 'UTC'` (re-filling NULLs with a value would invent a zone — leave NULL and set zones explicitly). Added enum values (`PENDING_PAYMENT`, `PAYMENT_VERIFY`, audit actions) cannot be removed and stay harmless if unused.

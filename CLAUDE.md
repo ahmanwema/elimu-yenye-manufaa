@@ -6,6 +6,8 @@ This file is the entry point for any AI assistant or engineer working on this re
 
 Elimu Yenye Manufaa is a multi-teacher, multi-institution online Islamic education platform (Qur'an, Tajwid, Hifdh, Hadith, Aqidah, Fiqh, Tafsir, Arabic language). Independent teachers and Markaz (institutions) run classes; students self-register and join via invitation links. See [docs/README.md](docs/README.md) for the full documentation map.
 
+**Status as of 2026-10-19 (final corrections):** A131–A139 implemented locally (attendance vs punctuality, time zone fail-closed, seats/FIFO/paid classes, `payment.verify`, detailed-access wiring, mic handoff); 4 Live Class migrations pending for DEV (19 locally). Updated pre-apply plan in docs/testing/dev-supabase-verification.md.
+
 **Status as of 2026-10-19:** Live Class class structure, capacity & session foundation (A101–A130, Markaz-only, provider-neutral) implemented **LOCALLY**: 2 new additive migrations (17 total locally; DEV still has 15 — pre-apply plan in [docs/testing/dev-supabase-verification.md](docs/testing/dev-supabase-verification.md), awaiting owner approval). No media transport, no RTC vendor (A35), no payment gateway, no scheduled jobs. Live Class rules: `src/server/authz/live-class.ts`; all 12 Live Class tables are server-only.
 
 **Status as of 2026-10-16:** recording & correction media policy (A66–A100) implemented and **applied to the DEV Supabase project** (15 migrations, exact parity; `correction-clips` private, audio/mp4, 10,485,760 bytes). 554 local + 41 real-DEV tests + 14-step E2E. Not production; nothing pushed or deployed. RTC vendor undecided (A35); XPPen pending hardware.

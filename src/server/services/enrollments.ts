@@ -4,22 +4,27 @@ import type { AuditAction } from "@/generated/prisma/enums";
 import { canExtendGrace, canManageEnrollment, canOverrideCapacity, canSubmitPayment, canVerifyPayment } from "@/server/authz/live-class";
 import { AuthorizationError, isValidId, type Actor } from "@/server/authz/policy";
 import { recordAudit, type Tx } from "./audit";
-import { hasActiveMembership, loadClassContext, lockClass, type LoadedClass } from "./class-context";
+import { hasActiveMembership, loadClassContext, lockClass } from "./class-context";
 import { DomainError, isUniqueViolation } from "./errors";
 import { effectiveCapacity, effectiveEnrollmentState, graceDeadline, SEAT_HOLDING_STATES, type EnrollmentState } from "./live-rules";
 
-// Enrollment, waitlist, grace and MANUAL payment/access verification (owner TO-BE approval
-// 2026-10-19, A106–A110).
+// Enrollment, waitlist, grace and MANUAL payment/access verification (A106–A110, finalized by
+// A133–A136 on 2026-10-19).
 //
-//   (enroll) ──seat free──▶ ACTIVE ──access period ends──▶ GRACE (7 days, extendable) ──▶ SUSPENDED
-//      │                     ▲                                │                             │
-//      └─class full─▶ WAITLISTED ──admit──┘   verified renewal └──────────▶ ACTIVE ◀─────────┘
+//   free class:  (enroll) ──seat free──▶ ACTIVE        ──class full──▶ WAITLISTED
+//   paid class:  (enroll) ──▶ PENDING_PAYMENT ──verified payment──▶ ACTIVE (seat free) / WAITLISTED
+//   ACTIVE ──access period ends──▶ GRACE (7 days, extendable) ──▶ SUSPENDED
+//   GRACE ──verified renewal──▶ ACTIVE;  SUSPENDED ──verified renewal──▶ ACTIVE (seat free) / WAITLISTED
+//   WAITLISTED ──admit, FIFO (a Markaz Admin may admit out of order, with a reason)──▶ ACTIVE
 //   any open state ──end (staff)──▶ ENDED (row kept as history)
 //
+// Seats (A133): only ACTIVE and GRACE occupy an active seat. SUSPENDED / PENDING_PAYMENT keep
+// their row and history but no seat, so regaining access needs a free seat — capacity is never
+// exceeded silently (only by an audited Markaz Admin override).
+//
 // Payment: an assigned teacher or Markaz Admin SUBMITS evidence (a reference, never the evidence
-// itself); only a Markaz Admin VERIFIES (A107). Verification extends access_until and returns
-// GRACE/SUSPENDED enrollments to ACTIVE. No amounts, currencies, prices, providers, invoices,
-// refunds or revenue sharing exist here — none are decided (A34).
+// itself); a Markaz Admin or the holder of `payment.verify` VERIFIES (A136). Submission grants
+// nothing. No amounts, currencies, prices, providers, invoices, refunds or revenue sharing exist.
 
 export type EnrollmentOptions = { now?: Date };
 
@@ -27,7 +32,7 @@ async function audit(tx: Tx, actorId: string | null, tenantId: string, action: A
   await recordAudit(tx, { actorId, tenantId, action, targetType: "CLASS_ENROLLMENT", targetId, metadata, now });
 }
 
-/** Seats currently held in a class (ACTIVE, GRACE, SUSPENDED — students only, A109). */
+/** Active seats currently held in a class (A133: ACTIVE and GRACE students only). */
 async function seatsTaken(tx: Tx, classId: string, now: Date) {
   const rows = await tx.classEnrollment.findMany({
     where: { classId, status: { in: [...SEAT_HOLDING_STATES] } },
@@ -36,9 +41,14 @@ async function seatsTaken(tx: Tx, classId: string, now: Date) {
   return rows.filter((r) => SEAT_HOLDING_STATES.includes(effectiveEnrollmentState(r, now))).length;
 }
 
-function hasFreeSeat(cls: LoadedClass, taken: number) {
+function hasFreeSeat(cls: { enrollmentCapacity: number | null; tenant: { classEnrollmentCapacityMax: number | null } }, taken: number) {
   const capacity = effectiveCapacity(cls.enrollmentCapacity, cls.tenant.classEnrollmentCapacityMax);
   return capacity === null || taken < capacity;
+}
+
+/** A135: verified access currently covers this enrollment (an access period ending in the future). */
+function hasVerifiedAccess(e: { accessUntil: Date | null }, now: Date) {
+  return e.accessUntil !== null && e.accessUntil.getTime() > now.getTime();
 }
 
 const overrideReason = z.string().trim().min(1).max(500).optional();
@@ -46,8 +56,9 @@ const enrollSchema = z.object({ classId: z.uuid(), studentProfileId: z.uuid(), o
 
 /**
  * An assigned teacher or a Markaz Admin enrolls an ACTIVE student of the class's Markaz (A106).
- * Class full → WAITLISTED (A110), unless a Markaz Admin gives a controlled override with a reason
- * (recorded on the row and audited). Capacity counts students only.
+ * Payment-required class (A135): the enrollment starts PENDING_PAYMENT — no access and no seat
+ * until a payment is VERIFIED. Free class: a free seat → ACTIVE; full → WAITLISTED (A110),
+ * unless a Markaz Admin gives a controlled override with a reason (recorded and audited).
  */
 export async function enrollStudent(db: PrismaClient, actor: Actor, input: unknown, options: EnrollmentOptions = {}) {
   const parsed = enrollSchema.safeParse(input);
@@ -57,14 +68,17 @@ export async function enrollStudent(db: PrismaClient, actor: Actor, input: unkno
   if (!canManageEnrollment(actor, cls)) throw new AuthorizationError();
   if (reason && !canOverrideCapacity(actor, cls)) throw new AuthorizationError();
   if (cls.status !== "ACTIVE") throw new DomainError("invalid_state");
+  // A capacity override only makes sense where a seat is being taken now.
+  if (reason && cls.paymentRequired) throw new DomainError("payment_required");
   // An ACTIVE student membership in THIS Markaz (also a DB trigger). Anything else looks forbidden.
   if (!(await hasActiveMembership(db, cls.tenantId, studentProfileId, "STUDENT"))) throw new AuthorizationError();
   const now = options.now ?? new Date();
 
   return db.$transaction(async (tx) => {
     await lockClass(tx, cls.id);
-    const free = hasFreeSeat(cls, await seatsTaken(tx, cls.id, now));
-    const status: EnrollmentState = free || reason ? "ACTIVE" : "WAITLISTED";
+    const free = cls.paymentRequired ? false : hasFreeSeat(cls, await seatsTaken(tx, cls.id, now));
+    const overridden = !cls.paymentRequired && !free && Boolean(reason);
+    const status: EnrollmentState = cls.paymentRequired ? "PENDING_PAYMENT" : free || overridden ? "ACTIVE" : "WAITLISTED";
     let id: string;
     try {
       const row = await tx.classEnrollment.create({
@@ -77,7 +91,7 @@ export async function enrollStudent(db: PrismaClient, actor: Actor, input: unkno
           enrolledAt: now,
           statusChangedAt: now,
           waitlistedAt: status === "WAITLISTED" ? now : null,
-          ...(!free && reason ? { capacityOverrideById: actor.profileId, capacityOverrideAt: now, capacityOverrideReason: reason } : {}),
+          ...(overridden ? { capacityOverrideById: actor.profileId, capacityOverrideAt: now, capacityOverrideReason: reason } : {}),
         },
         select: { id: true },
       });
@@ -86,8 +100,9 @@ export async function enrollStudent(db: PrismaClient, actor: Actor, input: unkno
       if (isUniqueViolation(error)) throw new DomainError("conflict"); // already has an open enrollment
       throw error;
     }
-    await audit(tx, actor.profileId, cls.tenantId, status === "WAITLISTED" ? "ENROLLMENT_WAITLISTED" : "ENROLLMENT_CREATED", id, now, { classId: cls.id });
-    if (!free && reason) {
+    const action: AuditAction = status === "WAITLISTED" ? "ENROLLMENT_WAITLISTED" : status === "PENDING_PAYMENT" ? "ENROLLMENT_PENDING_PAYMENT" : "ENROLLMENT_CREATED";
+    await audit(tx, actor.profileId, cls.tenantId, action, id, now, { classId: cls.id });
+    if (overridden) {
       await recordAudit(tx, { actorId: actor.profileId, tenantId: cls.tenantId, action: "CLASS_CAPACITY_OVERRIDE", targetType: "CLASS", targetId: cls.id, metadata: { enrollmentId: id }, now });
     }
     return { enrollmentId: id, status };
@@ -104,22 +119,41 @@ async function loadEnrollment(db: Tx | PrismaClient, enrollmentId: unknown) {
   return e;
 }
 
-const admitSchema = z.object({ enrollmentId: z.uuid(), overrideReason });
+const admitSchema = z.object({
+  enrollmentId: z.uuid(),
+  /** Admit although no seat is free (Markaz Admin, A110). */
+  overrideReason,
+  /** Admit ahead of the FIFO order (Markaz Admin, A134). */
+  queueOverrideReason: overrideReason,
+});
 
-/** Admit a WAITLISTED student when a seat is free (or by a Markaz Admin override). */
+/**
+ * Admit a WAITLISTED student. Default order is FIFO (earliest waitlisted first, A134). Admitting
+ * anyone else needs a Markaz Admin's explicit order override with a reason (recorded, audited) —
+ * the queue is never reordered silently. Needs a free seat, or a Markaz Admin capacity override.
+ * A payment-required class also needs verified access (A135).
+ */
 export async function admitFromWaitlist(db: PrismaClient, actor: Actor, input: unknown, options: EnrollmentOptions = {}) {
   const parsed = admitSchema.safeParse(input);
   if (!parsed.success) throw new DomainError("invalid_input");
   const e = await loadEnrollment(db, parsed.data.enrollmentId);
   const cls = await loadClassContext(db, e.classId);
-  const reason = parsed.data.overrideReason;
+  const { overrideReason: reason, queueOverrideReason: queueReason } = parsed.data;
   if (!canManageEnrollment(actor, cls)) throw new AuthorizationError();
-  if (reason && !canOverrideCapacity(actor, cls)) throw new AuthorizationError();
+  if ((reason || queueReason) && !canOverrideCapacity(actor, cls)) throw new AuthorizationError();
   if (cls.status !== "ACTIVE") throw new DomainError("invalid_state");
   if (!(await hasActiveMembership(db, cls.tenantId, e.studentProfileId, "STUDENT"))) throw new DomainError("access_inactive");
   const now = options.now ?? new Date();
+  if (cls.paymentRequired && !hasVerifiedAccess(e, now)) throw new DomainError("payment_required");
   await db.$transaction(async (tx) => {
     await lockClass(tx, cls.id);
+    const head = await tx.classEnrollment.findFirst({
+      where: { classId: cls.id, status: "WAITLISTED" },
+      orderBy: [{ waitlistedAt: "asc" }, { enrolledAt: "asc" }, { id: "asc" }],
+      select: { id: true },
+    });
+    const outOfOrder = head !== null && head.id !== e.id;
+    if (outOfOrder && !queueReason) throw new DomainError("out_of_order");
     const free = hasFreeSeat(cls, await seatsTaken(tx, cls.id, now));
     if (!free && !reason) throw new DomainError("limit_exceeded");
     const { count } = await tx.classEnrollment.updateMany({
@@ -128,15 +162,18 @@ export async function admitFromWaitlist(db: PrismaClient, actor: Actor, input: u
         status: "ACTIVE",
         statusChangedAt: now,
         ...(!free && reason ? { capacityOverrideById: actor.profileId, capacityOverrideAt: now, capacityOverrideReason: reason } : {}),
+        ...(outOfOrder ? { queueOverrideById: actor.profileId, queueOverrideAt: now, queueOverrideReason: queueReason } : {}),
       },
     });
     if (count !== 1) throw new DomainError("invalid_state");
     await audit(tx, actor.profileId, cls.tenantId, "ENROLLMENT_ADMITTED_FROM_WAITLIST", e.id, now);
+    if (outOfOrder) await audit(tx, actor.profileId, cls.tenantId, "ENROLLMENT_WAITLIST_ORDER_OVERRIDE", e.id, now, { skippedEnrollmentId: head.id });
     if (!free && reason) {
       await recordAudit(tx, { actorId: actor.profileId, tenantId: cls.tenantId, action: "CLASS_CAPACITY_OVERRIDE", targetType: "CLASS", targetId: cls.id, metadata: { enrollmentId: e.id }, now });
     }
   });
 }
+
 
 /** End an enrollment (any open state). The row is kept as history (A106). */
 export async function endEnrollment(db: PrismaClient, actor: Actor, input: unknown, options: EnrollmentOptions = {}) {
@@ -183,6 +220,11 @@ export async function extendGrace(db: PrismaClient, actor: Actor, input: unknown
   if (state !== "GRACE" && state !== "SUSPENDED") throw new DomainError("invalid_state");
   const previous = e.accessUntil ? graceDeadline(e.accessUntil, e.graceUntil) : e.graceUntil;
   await db.$transaction(async (tx) => {
+    // A133: a SUSPENDED student holds no seat; returning to GRACE (which has access) needs one.
+    if (state === "SUSPENDED") {
+      await lockClass(tx, cls.id);
+      if (!hasFreeSeat(cls, await seatsTaken(tx, cls.id, now))) throw new DomainError("limit_exceeded");
+    }
     const { count } = await tx.classEnrollment.updateMany({
       where: { id: e.id, status: e.status },
       data: { status: "GRACE", graceUntil: until, statusChangedAt: now },
@@ -225,7 +267,7 @@ export async function advanceEnrollmentStates(db: PrismaClient, now: Date = new 
   return { grace, suspended };
 }
 
-// --- Manual payment/access verification (A107) -------------------------------------------------
+// --- Manual payment/access verification (A107, A135–A136) -------------------------------------------------
 
 const submitSchema = z.object({
   tenantId: z.uuid(),
@@ -251,7 +293,8 @@ export async function submitPaymentEvidence(db: PrismaClient, actor: Actor, inpu
   if (periodEnd <= periodStart) throw new DomainError("invalid_input");
   const ids = [...new Set(d.enrollmentIds)];
   const enrollments = await db.classEnrollment.findMany({
-    where: { id: { in: ids }, tenantId: d.tenantId, studentProfileId: d.studentProfileId, status: { notIn: ["ENDED", "WAITLISTED"] } },
+    // Any open enrollment — incl. PENDING_PAYMENT (first payment of a paid class) and WAITLISTED.
+    where: { id: { in: ids }, tenantId: d.tenantId, studentProfileId: d.studentProfileId, status: { not: "ENDED" } },
     select: { id: true, classId: true },
   });
   if (enrollments.length !== ids.length) throw new AuthorizationError();
@@ -291,8 +334,11 @@ async function loadSubmission(db: PrismaClient, submissionId: unknown) {
 }
 
 /**
- * A Markaz Admin verifies a submission: access is extended to the period end and every covered
- * open enrollment in GRACE or SUSPENDED returns to ACTIVE (renewal restores access).
+ * A Markaz Admin or a `payment.verify` holder verifies a submission (A136). Every covered open
+ * enrollment gets access until the period end, then:
+ *   ACTIVE / GRACE → ACTIVE (they already hold a seat);
+ *   PENDING_PAYMENT / SUSPENDED → ACTIVE if a seat is free, otherwise WAITLISTED (A133, A135);
+ *   WAITLISTED → stays WAITLISTED (admission follows the FIFO waitlist, A134).
  */
 export async function verifyPayment(db: PrismaClient, actor: Actor, input: unknown, options: EnrollmentOptions = {}) {
   const parsed = z.object({ submissionId: z.uuid() }).safeParse(input);
@@ -307,20 +353,33 @@ export async function verifyPayment(db: PrismaClient, actor: Actor, input: unkno
     });
     if (count !== 1) throw new DomainError("invalid_state");
     const rows = await tx.classEnrollment.findMany({
-      where: { id: { in: s.enrollments.map((e) => e.enrollmentId) }, status: { notIn: ["ENDED", "WAITLISTED"] } },
-      select: { id: true, status: true, accessUntil: true, graceUntil: true },
+      where: { id: { in: s.enrollments.map((e) => e.enrollmentId) }, status: { not: "ENDED" } },
+      select: { id: true, classId: true, status: true, accessUntil: true, graceUntil: true, class: { select: { enrollmentCapacity: true, tenant: { select: { classEnrollmentCapacityMax: true } } } } },
     });
     for (const e of rows) {
       const before = effectiveEnrollmentState(e, now);
       const accessUntil = e.accessUntil && e.accessUntil > s.periodEnd ? e.accessUntil : s.periodEnd;
-      await tx.classEnrollment.update({ where: { id: e.id }, data: { status: "ACTIVE", accessUntil, graceUntil: null, statusChangedAt: now } });
-      if (before === "GRACE" || before === "SUSPENDED") await audit(tx, actor.profileId, s.tenantId, "ENROLLMENT_REACTIVATED", e.id, now, { from: before });
+      if (before === "WAITLISTED") {
+        await tx.classEnrollment.update({ where: { id: e.id }, data: { accessUntil, graceUntil: null } });
+        continue;
+      }
+      let next: "ACTIVE" | "WAITLISTED" = "ACTIVE";
+      if (before === "PENDING_PAYMENT" || before === "SUSPENDED") {
+        await lockClass(tx, e.classId);
+        if (!hasFreeSeat(e.class, await seatsTaken(tx, e.classId, now))) next = "WAITLISTED";
+      }
+      await tx.classEnrollment.update({
+        where: { id: e.id },
+        data: { status: next, accessUntil, graceUntil: null, statusChangedAt: now, ...(next === "WAITLISTED" ? { waitlistedAt: now } : {}) },
+      });
+      if (next === "WAITLISTED") await audit(tx, actor.profileId, s.tenantId, "ENROLLMENT_WAITLISTED", e.id, now, { from: before });
+      else if (before !== "ACTIVE") await audit(tx, actor.profileId, s.tenantId, "ENROLLMENT_REACTIVATED", e.id, now, { from: before });
     }
     await recordAudit(tx, { actorId: actor.profileId, tenantId: s.tenantId, action: "PAYMENT_ACCESS_VERIFIED", targetType: "PAYMENT_SUBMISSION", targetId: s.id, metadata: { enrollments: rows.length }, now });
   });
 }
 
-/** A Markaz Admin rejects a submission (optional reason). Access is untouched. */
+/** A Markaz Admin or a `payment.verify` holder rejects a submission (optional reason). Access is untouched. */
 export async function rejectPayment(db: PrismaClient, actor: Actor, input: unknown, options: EnrollmentOptions = {}) {
   const parsed = z.object({ submissionId: z.uuid(), reason: z.string().trim().max(500).optional() }).safeParse(input);
   if (!parsed.success) throw new DomainError("invalid_input");
@@ -337,7 +396,7 @@ export async function rejectPayment(db: PrismaClient, actor: Actor, input: unkno
   });
 }
 
-/** Payment submissions of a Markaz, for its Markaz Admins (the verifiers). */
+/** Payment submissions of a Markaz, for its verifiers (Markaz Admins and `payment.verify` holders). */
 export async function listPaymentSubmissions(db: PrismaClient, actor: Actor, tenantId: unknown) {
   if (!canVerifyPayment(actor, tenantId)) throw new AuthorizationError();
   return db.accessPaymentSubmission.findMany({

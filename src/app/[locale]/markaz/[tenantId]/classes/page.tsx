@@ -56,7 +56,7 @@ async function ClassesBody({ params }: { params: PageProps<"/[locale]/markaz/[te
     canVerifyPayment(actor, tenantId) ? listPaymentSubmissions(db, actor, tenantId) : null,
   ]);
   const name = (n: string | null | undefined) => n ?? dict.markaz.unnamed;
-  const dateFmt = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: settings.timezone });
+  const dateFmt = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: settings.timezone ?? "UTC" }); // display only (A131)
   const ceiling = (n: number | null) => (n === null ? l.noCeiling : String(n));
 
   return (
@@ -66,6 +66,7 @@ async function ClassesBody({ params }: { params: PageProps<"/[locale]/markaz/[te
       </p>
       <h1>{l.classesTitle}</h1>
       <p className="muted">{l.classesNote}</p>
+      {settings.timezone === null ? <p role="alert" className="callout">{l.timezoneRequired}</p> : null}
       <p className="muted">{format(l.ceilingLine, { enrollment: ceiling(settings.classEnrollmentCapacityMax), live: ceiling(settings.classLiveCapacityMax) })}</p>
 
       <section className="card" aria-labelledby="class-list">
@@ -123,6 +124,9 @@ async function ClassesBody({ params }: { params: PageProps<"/[locale]/markaz/[te
               <label htmlFor="liveCapacity">{l.liveCapacity}</label>
               <input id="liveCapacity" name="liveCapacity" type="number" min={1} max={settings.classLiveCapacityMax ?? undefined} />
               <p className="muted">{l.capacityHint}</p>
+              <label>
+                <input type="checkbox" name="paymentRequired" /> {l.paymentRequired}
+              </label>
             </ActionForm>
           )}
         </section>
@@ -132,11 +136,11 @@ async function ClassesBody({ params }: { params: PageProps<"/[locale]/markaz/[te
         <section className="card" aria-labelledby="timezone">
           <h2 id="timezone">{l.timezoneHeading}</h2>
           <p className="muted">{l.timezoneNote}</p>
-          <p>{format(l.timezoneCurrent, { timezone: settings.timezone })}</p>
+          <p>{format(l.timezoneCurrent, { timezone: settings.timezone ?? l.timezoneNotSet })}</p>
           <ActionForm action={setTimezoneAction} submitLabel={l.timezoneSave} pendingLabel={dict.common.loading} messages={dict.results} inline>
             <input type="hidden" name="tenantId" value={tenant.id} />
             <label htmlFor="tz" className="visually-hidden">{l.timezoneLabel}</label>
-            <input id="tz" name="timezone" defaultValue={settings.timezone} maxLength={64} required dir="ltr" placeholder={l.timezoneLabel} />
+            <input id="tz" name="timezone" defaultValue={settings.timezone ?? ""} maxLength={64} required dir="ltr" placeholder={l.timezoneLabel} />
           </ActionForm>
         </section>
       ) : null}

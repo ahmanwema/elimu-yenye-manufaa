@@ -2,6 +2,8 @@
 
 Status: **This is the first implementation priority** (A11, APPROVED at the feature-selection level). The detailed design below is **PROPOSED** and requires review before implementation begins.
 
+> **2026-10-19 — final corrections A131–A139** (time zone fail-closed, attendance vs punctuality, seats, FIFO override, paid classes, finance authority, detailed access, mic handoff): see the last section.
+>
 > **2026-10-19 — Class structure, capacity and session foundation APPROVED (A101–A130) and implemented LOCALLY.** See "Implemented foundation (2026-10-19)" at the end of this file. It is **provider-neutral business state only**: no audio, whiteboard drawing or screen-share transport exists, and no RTC vendor is chosen (A35). Where the PROPOSED text below conflicts with A101–A130 (notably "Permissions"), A101–A130 win — see DECISIONS §1.9.
 
 ## Purpose
@@ -138,3 +140,22 @@ SCHEDULED ──start (from −15 min; not after end + 30)──▶ LIVE ──e
 **Recording (Option C).** A recording-enabled session needs Option C to start; recording start checks it again and creates a recording linked to the session (`recordings.live_session_id`). Participants come from presence: admitted+connected at start (`SESSION_PRESENCE`), or when admitted later (`SESSION_LATE_JOIN`); consent is evaluated at that moment and audio may be captured only from `audio_included_from`. A Primary/Co/Admin may correct the list before media finalization (excluded rows are kept and audited). The free-form list is refused for session recordings.
 
 **NOT implemented (by decision):** media transport of any kind, RTC vendor SDKs or tokens, whiteboard sync, screen sharing, a production scheduler, payment amounts/providers.
+
+## Final decision corrections (2026-10-19, A131–A139)
+
+Supersedes the interim behaviour noted above where they differ (DECISIONS §1.10).
+
+- **Time zone (A131).** `tenants.timezone` has no default; until a Markaz Admin sets an IANA zone, adding a weekly slot, scheduling a session and generating sessions fail with `timezone_required`, and the class pages show a "time zone setup required" banner (times are displayed in UTC, labelled, meanwhile). Ad hoc sessions do not interpret a wall time and remain available.
+- **Attendance + punctuality (A132).** Two dimensions: attendance PRESENT (≥ 50 %) / ABSENT, punctuality ON_TIME (first admitted arrival ≤ start + 15 min) / LATE / none. Both are corrected manually by Primary, Co-Teacher or Markaz Admin (audited from/to for each). Parents and students see both statuses, never timestamps or durations.
+- **Seats (A133).** Only ACTIVE and GRACE occupy an active seat. SUSPENDED keeps its row; regaining access (renewal, grace extension) needs a free seat — a renewal into a full class goes to the WAITLIST with the verified period kept.
+- **Waitlist (A134).** FIFO by waitlist time; a Markaz Admin may admit out of order with a reason (`queue_override_*` + `ENROLLMENT_WAITLIST_ORDER_OVERRIDE` audit); anyone else gets `out_of_order`.
+- **Paid classes (A135).** `classes.payment_required` (default false). Paid: enrollment starts PENDING_PAYMENT (no access, no seat); verification activates it (or waitlists it when full); admission from the waitlist needs verified access; a capacity override cannot bypass payment.
+- **Finance authority (A136).** `payment.verify` explicit permission or Markaz Admin role.
+- **Detailed student data (A137).** Teacher → only current Primary/Co-Teacher assignment + student ACTIVE/GRACE in that class.
+- **Mic handoff (A138).** Granting B while A holds the mic revokes A and grants B in one transaction; `MIC_REVOKED` (reason handoff) and `MIC_GRANTED` are both audited.
+
+```
+free class:  (enroll) ──seat──▶ ACTIVE / ──full──▶ WAITLISTED ──FIFO admit──▶ ACTIVE
+paid class:  (enroll) ──▶ PENDING_PAYMENT ──verified──▶ ACTIVE (seat) / WAITLISTED (full)
+ACTIVE ──▶ GRACE (7 d) ──▶ SUSPENDED (seat freed) ──verified──▶ ACTIVE (seat) / WAITLISTED (full)
+```

@@ -74,14 +74,14 @@ model Tenant {
   classes              Class[]
   paymentSubmissions   AccessPaymentSubmission[]
 
-  /// Live Class (2026-10-19): the Markaz's IANA time zone. Timestamps are always stored in UTC;
-  /// schedules are entered and displayed in this zone. Default UTC until the Markaz sets it —
-  /// no regional zone (e.g. EAT) is assumed.
-  timezone                   String @default("UTC")
+  /// Live Class: the Markaz's IANA time zone. Timestamps are always stored in UTC; schedules are
+  /// entered and displayed in this zone. NULL = not yet chosen: scheduling fails closed until a
+  /// Markaz Admin explicitly sets it (A131 — no zone is ever invented or silently assumed).
+  timezone                   String?
   /// Plan/package-level ceilings for a Class's capacities. NULL = no ceiling configured. Exact
   /// numbers are NOT approved (A33); nothing in code sets a default. Set by a Super Admin.
-  classEnrollmentCapacityMax Int?   @map("class_enrollment_capacity_max")
-  classLiveCapacityMax       Int?   @map("class_live_capacity_max")
+  classEnrollmentCapacityMax Int?    @map("class_enrollment_capacity_max")
+  classLiveCapacityMax       Int?    @map("class_live_capacity_max")
 
   @@map("tenants")
 }
@@ -219,6 +219,9 @@ enum TenantPermission {
   PARENT_LINK_ACTIVATE
   PARENT_LINK_REVOKE
   INVITATION_CREATE
+  /// Live Class payment verification (A136): the finance authority. Never implied by a role;
+  /// a Markaz Admin verifies by role, anyone else only with this explicit grant.
+  PAYMENT_VERIFY
 }
 
 enum ParentLinkInitiator {
@@ -771,6 +774,9 @@ enum AuditAction {
   ATTENDANCE_ADJUSTED
   RECORDING_SESSION_STARTED
   RECORDING_PARTICIPANTS_ADJUSTED
+  // Live Class decision fixes (2026-10-19, A131–A137)
+  ENROLLMENT_WAITLIST_ORDER_OVERRIDE
+  ENROLLMENT_PENDING_PAYMENT
 }
 
 enum AuditTargetType {
@@ -878,6 +884,9 @@ model Class {
   /// Enrollment capacity (students). NULL = no class-level limit; must be at or below the
   /// Markaz plan ceiling when one is configured.
   enrollmentCapacity Int?        @map("enrollment_capacity")
+  /// A135: when true, a VERIFIED payment/access authorization is required before first active
+  /// access (new enrollments start PENDING_PAYMENT). Not every class is paid; no pricing here.
+  paymentRequired    Boolean     @default(false) @map("payment_required")
   /// Live concurrent student capacity. Same rules.
   liveCapacity       Int?        @map("live_capacity")
   createdById        String      @map("created_by_id") @db.Uuid
@@ -953,12 +962,15 @@ model ClassSchedule {
 /// Enrollment lifecycle (A106-A110). WAITLISTED = class full (A110). ACTIVE becomes GRACE when
 /// the verified access period ends, then SUSPENDED after grace; a verified renewal returns to
 /// ACTIVE. ENDED rows are kept as history; re-enrolling creates a new row.
+/// PENDING_PAYMENT (A135): enrolled in a payment-required class, no verified access yet.
+/// Seats (A133): only ACTIVE and GRACE occupy an active seat.
 enum ClassEnrollmentStatus {
   WAITLISTED
   ACTIVE
   GRACE
   SUSPENDED
   ENDED
+  PENDING_PAYMENT
 }
 
 model ClassEnrollment {
@@ -979,6 +991,10 @@ model ClassEnrollment {
   capacityOverrideById   String?               @map("capacity_override_by_id") @db.Uuid
   capacityOverrideAt     DateTime?             @map("capacity_override_at") @db.Timestamptz(6)
   capacityOverrideReason String?               @map("capacity_override_reason")
+  /// Admitted from the waitlist ahead of the FIFO order by a Markaz Admin (A134).
+  queueOverrideById      String?               @map("queue_override_by_id") @db.Uuid
+  queueOverrideAt        DateTime?             @map("queue_override_at") @db.Timestamptz(6)
+  queueOverrideReason    String?               @map("queue_override_reason")
   endedAt                DateTime?             @map("ended_at") @db.Timestamptz(6)
   endedById              String?               @map("ended_by_id") @db.Uuid
 
@@ -1200,30 +1216,42 @@ model LiveSessionConnection {
   @@map("live_session_connections")
 }
 
+/// Attendance only (A132): PRESENT / ABSENT. LATE is LEGACY (2026-10-19 interim, never stored:
+/// a DB CHECK refuses it) — punctuality is the separate `Punctuality` dimension.
 enum AttendanceStatus {
   PRESENT
   LATE
   ABSENT
 }
 
-/// Computed when a session ends (A122): at least 50 % of the session = PRESENT; otherwise LATE
-/// when the first admitted arrival was after scheduled start + 15 min, else ABSENT. A manual
-/// correction (Primary, Co-Teacher, Markaz Admin) overrides the computed status and is audited.
+/// Punctuality (A132), independent of attendance: first qualifying arrival ≤ scheduled start +
+/// 15 min = ON_TIME, later = LATE. NULL when the student never arrived.
+enum Punctuality {
+  ON_TIME
+  LATE
+}
+
+/// Computed when a session ends (A132): attendance PRESENT when ≥ 50 % of the session, else
+/// ABSENT; punctuality ON_TIME / LATE from the first admitted arrival. A manual correction
+/// (Primary, Co-Teacher, Markaz Admin) overrides either and is audited.
 model AttendanceRecord {
-  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String           @map("tenant_id") @db.Uuid
-  sessionId        String           @map("session_id") @db.Uuid
-  studentProfileId String           @map("student_profile_id") @db.Uuid
-  computedStatus   AttendanceStatus @map("computed_status")
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String           @map("tenant_id") @db.Uuid
+  sessionId           String           @map("session_id") @db.Uuid
+  studentProfileId    String           @map("student_profile_id") @db.Uuid
+  computedStatus      AttendanceStatus @map("computed_status")
   /// Effective status (= computed unless manually adjusted).
-  status           AttendanceStatus
-  presentSeconds   Int              @map("present_seconds")
-  sessionSeconds   Int              @map("session_seconds")
-  firstArrivalAt   DateTime?        @map("first_arrival_at") @db.Timestamptz(6)
-  computedAt       DateTime         @map("computed_at") @db.Timestamptz(6)
-  adjustedById     String?          @map("adjusted_by_id") @db.Uuid
-  adjustedAt       DateTime?        @map("adjusted_at") @db.Timestamptz(6)
-  adjustmentReason String?          @map("adjustment_reason")
+  status              AttendanceStatus
+  presentSeconds      Int              @map("present_seconds")
+  sessionSeconds      Int              @map("session_seconds")
+  firstArrivalAt      DateTime?        @map("first_arrival_at") @db.Timestamptz(6)
+  computedPunctuality Punctuality?     @map("computed_punctuality")
+  /// Effective punctuality (= computed unless manually adjusted).
+  punctuality         Punctuality?
+  computedAt          DateTime         @map("computed_at") @db.Timestamptz(6)
+  adjustedById        String?          @map("adjusted_by_id") @db.Uuid
+  adjustedAt          DateTime?        @map("adjusted_at") @db.Timestamptz(6)
+  adjustmentReason    String?          @map("adjustment_reason")
 
   session LiveSession    @relation(fields: [sessionId, tenantId], references: [id, tenantId], onDelete: Restrict)
   student StudentAccount @relation(fields: [studentProfileId], references: [profileId], onDelete: Restrict)

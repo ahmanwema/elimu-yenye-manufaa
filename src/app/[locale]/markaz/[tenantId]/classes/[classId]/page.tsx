@@ -102,8 +102,12 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
   ]);
   const activeTeacherIds = new Set((activeTeachers ?? []).map((t) => t.profileId));
   const name = (n: string | null | undefined) => n ?? dict.markaz.unnamed;
-  const dateTime = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: cls.timezone });
-  const dateOnly = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: cls.timezone });
+  // A131: display only — an unset zone is shown in UTC with a clear banner; scheduling stays blocked.
+  const tzSet = cls.timezone !== null;
+  const displayTz = cls.timezone ?? "UTC";
+  const dateTime = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: displayTz });
+  const dateOnly = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: displayTz });
+  const punct = (p: "ON_TIME" | "LATE" | null) => (p ? l.punctualityStatuses[p] : l.noArrival);
   const results = dict.results;
   const loading = dict.common.loading;
   const enrolledIds = new Set(view.enrollments.filter((e) => e.status !== "ENDED").map((e) => e.studentProfileId));
@@ -111,7 +115,7 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
   const waitlist = view.enrollments.filter((e) => e.effectiveStatus === "WAITLISTED");
   const upcoming = view.sessions.filter((s) => s.status === "SCHEDULED" || s.status === "LIVE").reverse();
   const past = view.sessions.filter((s) => s.status === "ENDED" || s.status === "CANCELLED");
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: cls.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: displayTz, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 
   return (
     <>
@@ -122,6 +126,8 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
       {cls.subject ? <p className="muted">{cls.subject}</p> : null}
       {cls.description ? <p>{cls.description}</p> : null}
       {!active ? <p className="badge">{l.archivedLabel}</p> : null}
+      {!tzSet ? <p role="alert" className="callout">{l.timezoneRequired}</p> : null}
+      {cls.paymentRequired ? <p className="badge">{l.paymentRequiredBadge}</p> : null}
       {view.myAccess ? <p className="callout">{format(l.myAccess, { state: l.enrollmentStates[view.myAccess] })}</p> : null}
       {view.staff ? (
         <p className="muted">
@@ -189,6 +195,10 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
             <input id="edEnroll" name="enrollmentCapacity" type="number" min={1} max={cls.ceilings.enrollment ?? undefined} defaultValue={cls.enrollmentCapacity ?? ""} />
             <label htmlFor="edLive">{l.liveCapacity}</label>
             <input id="edLive" name="liveCapacity" type="number" min={1} max={cls.ceilings.live ?? undefined} defaultValue={cls.liveCapacity ?? ""} />
+            <input type="hidden" name="paymentRequiredField" value="1" />
+            <label>
+              <input type="checkbox" name="paymentRequired" defaultChecked={cls.paymentRequired} /> {l.paymentRequired}
+            </label>
             <p className="muted">{l.capacityHint}</p>
           </ActionForm>
           <ActionForm action={archiveClassAction} submitLabel={l.archive} pendingLabel={loading} messages={results} variant="secondary">
@@ -233,6 +243,7 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
                     {e.accessUntil ? <span className="muted">{format(l.accessUntil, { date: dateOnly.format(e.accessUntil) })}</span> : null}
                     {e.effectiveStatus === "GRACE" && e.graceUntil ? <span className="muted">{format(l.graceUntil, { date: dateOnly.format(e.graceUntil) })}</span> : null}
                     {e.capacityOverrideReason ? <span className="muted">{format(l.overridden, { reason: e.capacityOverrideReason })}</span> : null}
+                    {e.queueOverrideReason ? <span className="muted">{format(l.queueOverridden, { reason: e.queueOverrideReason })}</span> : null}
                     {canManageEnrollment(actor, ctx) ? (
                       <ActionForm action={endEnrollmentAction} submitLabel={l.endEnrollment} pendingLabel={loading} messages={results} variant="secondary" inline>
                         <input type="hidden" name="enrollmentId" value={e.id} />
@@ -289,6 +300,12 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
                         <>
                           <label htmlFor={`ov-${e.id}`} className="visually-hidden">{l.overrideReason}</label>
                           <input id={`ov-${e.id}`} name="overrideReason" maxLength={500} placeholder={l.overrideReason} />
+                          {waitlist[0]?.id !== e.id ? (
+                            <>
+                              <label htmlFor={`qo-${e.id}`} className="visually-hidden">{l.queueOverrideReason}</label>
+                              <input id={`qo-${e.id}`} name="queueOverrideReason" maxLength={500} required placeholder={l.queueOverrideReason} />
+                            </>
+                          ) : null}
                         </>
                       ) : null}
                     </ActionForm>
@@ -302,7 +319,7 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
 
       <section className="card" aria-labelledby="schedule">
         <h2 id="schedule">{l.schedulesHeading}</h2>
-        <p className="muted">{format(l.timezoneCurrent, { timezone: cls.timezone })}</p>
+        <p className="muted">{format(l.timezoneCurrent, { timezone: cls.timezone ?? l.timezoneNotSet })}</p>
         {view.schedules.length === 0 ? (
           <p className="muted">{l.noSchedules}</p>
         ) : (
@@ -325,7 +342,7 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
             ))}
           </ul>
         )}
-        {admin && active ? (
+        {admin && active && tzSet ? (
           <ActionForm action={addScheduleAction} submitLabel={l.addSchedule} pendingLabel={loading} messages={results} inline>
             <input type="hidden" name="classId" value={cls.id} />
             <label htmlFor="weekday" className="visually-hidden">{l.weekday}</label>
@@ -342,7 +359,7 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
             <input id="schedDuration" name="durationMinutes" type="number" min={1} max={1440} defaultValue={60} required placeholder={l.duration} />
           </ActionForm>
         ) : null}
-        {active && canCreateSession(actor, ctx) && view.schedules.length > 0 ? (
+        {active && tzSet && canCreateSession(actor, ctx) && view.schedules.length > 0 ? (
           <>
             <h3>{l.generateHeading}</h3>
             <ActionForm action={generateSessionsAction} submitLabel={l.generate} pendingLabel={loading} messages={results} inline>
@@ -360,6 +377,7 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
         <h2 id="sessions">{view.staff ? l.sessionsHeading : l.upcomingHeading}</h2>
         {active && canCreateSession(actor, ctx) ? (
           <>
+            {tzSet ? (
             <details>
               <summary>{l.newSession}</summary>
               <ActionForm action={createSessionAction} submitLabel={l.createSession} pendingLabel={loading} messages={results}>
@@ -377,6 +395,7 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
                 </label>
               </ActionForm>
             </details>
+            ) : null}
             <details>
               <summary>{l.adHocHeading}</summary>
               <p className="muted">{l.adHocNote}</p>
@@ -471,6 +490,7 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
                           {format(l.attendanceLine, {
                             name: name(r.student.profile.displayName),
                             status: l.attendanceStatuses[r.status],
+                            punctuality: punct(r.punctuality),
                             minutes: Math.round(r.presentSeconds / 60),
                             total: Math.round(r.sessionSeconds / 60),
                           })}
@@ -481,9 +501,18 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
                             <input type="hidden" name="recordId" value={r.id} />
                             <label htmlFor={`as-${r.id}`} className="visually-hidden">{l.attendanceHeading}</label>
                             <select id={`as-${r.id}`} name="status" defaultValue={r.status}>
-                              {(["PRESENT", "LATE", "ABSENT"] as const).map((st) => (
+                              {(["PRESENT", "ABSENT"] as const).map((st) => (
                                 <option key={st} value={st}>
                                   {l.attendanceStatuses[st]}
+                                </option>
+                              ))}
+                            </select>
+                            <label htmlFor={`ap-${r.id}`} className="visually-hidden">{l.punctualityLabel}</label>
+                            <select id={`ap-${r.id}`} name="punctuality" defaultValue={r.punctuality ?? ""}>
+                              <option value="">{l.noArrival}</option>
+                              {(["ON_TIME", "LATE"] as const).map((pt) => (
+                                <option key={pt} value={pt}>
+                                  {l.punctualityStatuses[pt]}
                                 </option>
                               ))}
                             </select>
@@ -511,7 +540,7 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
               {myAttendance
                 .filter((r) => r.classId === cls.id)
                 .map((r) => (
-                  <li key={r.id}>{format(l.attendanceRecordLine, { date: dateOnly.format(r.sessionDate), className: r.className, status: l.attendanceStatuses[r.status] })}</li>
+                  <li key={r.id}>{format(l.attendanceRecordLine, { date: dateOnly.format(r.sessionDate), className: r.className, status: l.attendanceStatuses[r.status], punctuality: punct(r.punctuality) })}</li>
                 ))}
             </ul>
           )}

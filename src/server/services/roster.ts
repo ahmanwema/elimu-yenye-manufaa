@@ -4,8 +4,7 @@ import { requireTenantPermission, type Actor } from "@/server/authz/policy";
 /**
  * BASIC roster fields (A51). This is the complete list — nothing else about a student
  * is returned by the roster. Detailed data needs canReadStudentDetail() and, for
- * teachers, a class assignment (classes exist since 2026-10-19, but no detailed-student view is
- * wired to them yet — open question 58).
+ * teachers, a current class assignment — see src/server/data/student-detail.ts (A137).
  */
 export const BASIC_ROSTER_FIELDS = ["profileId", "displayName"] as const;
 

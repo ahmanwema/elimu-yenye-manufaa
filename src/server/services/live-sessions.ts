@@ -21,7 +21,7 @@ import {
 } from "@/server/authz/live-class";
 import { AuthorizationError, hasActiveRole, isValidId, parentMaySee, type Actor } from "@/server/authz/policy";
 import type { ConsentPolicy } from "@/server/authz/recording-consent";
-import { addLocalDays, isValidTimeZone, localWeekday, parseLocalDate, zonedWallTimeToUtc } from "@/lib/timezone";
+import { addLocalDays, localWeekday, parseLocalDate, zonedWallTimeToUtc } from "@/lib/timezone";
 import { recordAudit, type Tx } from "./audit";
 import {
   enrollmentAccess,
@@ -29,6 +29,7 @@ import {
   loadClassContext,
   loadSessionContext,
   lockSession,
+  requireMarkazTimezone,
   type LoadedSession,
 } from "./class-context";
 import { DomainError, isUniqueViolation } from "./errors";
@@ -94,7 +95,7 @@ export async function createScheduledSession(db: PrismaClient, actor: Actor, inp
   const cls = await loadClassContext(db, d.classId);
   if (!canCreateSession(actor, cls)) throw new AuthorizationError();
   if (cls.status !== "ACTIVE") throw new DomainError("invalid_state");
-  const tz = isValidTimeZone(cls.tenant.timezone) ? cls.tenant.timezone : "UTC";
+  const tz = requireMarkazTimezone(cls.tenant.timezone); // A131: no silent UTC fallback
   const [hh, mm] = d.startTime.split(":").map(Number);
   const start = zonedWallTimeToUtc(d.date, hh * 60 + mm, tz);
   const end = new Date(start.getTime() + d.durationMinutes * MINUTE);
@@ -133,7 +134,7 @@ export async function generateSessionsFromSchedule(db: PrismaClient, actor: Acto
   const cls = await loadClassContext(db, parsed.data.classId);
   if (!canCreateSession(actor, cls)) throw new AuthorizationError();
   if (cls.status !== "ACTIVE") throw new DomainError("invalid_state");
-  const tz = isValidTimeZone(cls.tenant.timezone) ? cls.tenant.timezone : "UTC";
+  const tz = requireMarkazTimezone(cls.tenant.timezone); // A131: no silent UTC fallback
   const now = options.now ?? new Date();
   const schedules = await db.classSchedule.findMany({ where: { classId: cls.id, endedAt: null } });
   const rows: { scheduleId: string; start: Date; end: Date }[] = [];
@@ -584,9 +585,10 @@ export async function lowerHand(db: PrismaClient, actor: Actor, input: unknown) 
 
 /**
  * Grant a student's mic PERMISSION (business state only — no audio is transported). Only ONE
- * student may hold it per session (A117; also a partial unique index): granting while another
- * student holds it is a conflict — the holder must be revoked first. Teaching roles and the
- * Markaz Admin (operational) may grant.
+ * student may hold it per session (A117; also a partial unique index). A138 handoff: granting
+ * Student B while Student A holds it revokes A and grants B in ONE transaction, auditing both
+ * transitions, so the one-holder invariant is never broken. Teaching roles and the Markaz Admin
+ * (operational) may grant.
  */
 export async function grantMic(db: PrismaClient, actor: Actor, input: unknown, options: SessionOptions = {}) {
   const parsed = participantSchema.safeParse(input);
@@ -594,8 +596,18 @@ export async function grantMic(db: PrismaClient, actor: Actor, input: unknown, o
   const { p, session, ctx } = await loadParticipant(db, parsed.data.participantId);
   if (!canControlMic(actor, ctx)) throw new AuthorizationError();
   requireInteractiveStudent(p, session);
+  if (p.micGrantedAt) throw new DomainError("conflict"); // already holds it
   const now = options.now ?? new Date();
   await db.$transaction(async (tx) => {
+    await lockSession(tx, session.id);
+    const holder = await tx.liveSessionParticipant.findFirst({
+      where: { sessionId: session.id, micGrantedAt: { not: null }, id: { not: p.id } },
+      select: { id: true },
+    });
+    if (holder) {
+      await tx.liveSessionParticipant.update({ where: { id: holder.id }, data: { micGrantedAt: null, micGrantedById: null } });
+      await recordAudit(tx, { actorId: actor.profileId, tenantId: session.tenantId, action: "MIC_REVOKED", targetType: "LIVE_SESSION_PARTICIPANT", targetId: holder.id, metadata: { reason: "handoff", toParticipantId: p.id }, now });
+    }
     try {
       const { count } = await tx.liveSessionParticipant.updateMany({
         where: { id: p.id, micGrantedAt: null, removedAt: null },
@@ -606,7 +618,7 @@ export async function grantMic(db: PrismaClient, actor: Actor, input: unknown, o
       if (isUniqueViolation(error)) throw new DomainError("conflict");
       throw error;
     }
-    await recordAudit(tx, { actorId: actor.profileId, tenantId: session.tenantId, action: "MIC_GRANTED", targetType: "LIVE_SESSION_PARTICIPANT", targetId: p.id, now });
+    await recordAudit(tx, { actorId: actor.profileId, tenantId: session.tenantId, action: "MIC_GRANTED", targetType: "LIVE_SESSION_PARTICIPANT", targetId: p.id, metadata: { handoffFromParticipantId: holder?.id ?? null }, now });
   });
 }
 
@@ -780,6 +792,8 @@ async function finalizeAttendance(
       studentProfileId,
       computedStatus: result.status,
       status: result.status,
+      computedPunctuality: result.punctuality,
+      punctuality: result.punctuality,
       presentSeconds: result.presentSeconds,
       sessionSeconds: result.sessionSeconds,
       firstArrivalAt: result.firstArrivalAt,
@@ -800,6 +814,8 @@ export async function listSessionAttendance(db: PrismaClient, actor: Actor, sess
       studentProfileId: true,
       status: true,
       computedStatus: true,
+      punctuality: true,
+      computedPunctuality: true,
       presentSeconds: true,
       sessionSeconds: true,
       firstArrivalAt: true,
@@ -811,13 +827,21 @@ export async function listSessionAttendance(db: PrismaClient, actor: Actor, sess
   });
 }
 
-const adjustSchema = z.object({ recordId: z.uuid(), status: z.enum(["PRESENT", "LATE", "ABSENT"]), reason: z.string().trim().min(1).max(500) });
+const adjustSchema = z.object({
+  recordId: z.uuid(),
+  /** A132: attendance only. */
+  status: z.enum(["PRESENT", "ABSENT"]),
+  /** A132: punctuality is corrected separately; omitted = unchanged; null = no arrival. */
+  punctuality: z.union([z.enum(["ON_TIME", "LATE"]), z.null()]).optional(),
+  reason: z.string().trim().min(1).max(500),
+});
 
 /** Manual correction: Primary, Co-Teacher or Markaz Admin — not the Substitute (A122). Audited. */
 export async function adjustAttendance(db: PrismaClient, actor: Actor, input: unknown, options: SessionOptions = {}) {
   const parsed = adjustSchema.safeParse(input);
   if (!parsed.success) throw new DomainError("invalid_input");
-  const record = await db.attendanceRecord.findUnique({ where: { id: parsed.data.recordId }, select: { id: true, sessionId: true, status: true } });
+  const record = await db.attendanceRecord.findUnique({ where: { id: parsed.data.recordId }, select: { id: true, sessionId: true, status: true, punctuality: true } });
+  const punctuality = parsed.data.punctuality === undefined ? record?.punctuality ?? null : parsed.data.punctuality;
   if (!record) throw new AuthorizationError();
   const { session } = await loadSessionContext(db, record.sessionId);
   const cls = await loadClassContext(db, session.classId);
@@ -826,7 +850,7 @@ export async function adjustAttendance(db: PrismaClient, actor: Actor, input: un
   await db.$transaction(async (tx) => {
     await tx.attendanceRecord.update({
       where: { id: record.id },
-      data: { status: parsed.data.status, adjustedById: actor.profileId, adjustedAt: now, adjustmentReason: parsed.data.reason },
+      data: { status: parsed.data.status, punctuality, adjustedById: actor.profileId, adjustedAt: now, adjustmentReason: parsed.data.reason },
     });
     await recordAudit(tx, {
       actorId: actor.profileId,
@@ -834,7 +858,7 @@ export async function adjustAttendance(db: PrismaClient, actor: Actor, input: un
       action: "ATTENDANCE_ADJUSTED",
       targetType: "ATTENDANCE_RECORD",
       targetId: record.id,
-      metadata: { from: record.status, to: parsed.data.status },
+      metadata: { from: record.status, to: parsed.data.status, punctualityFrom: record.punctuality, punctualityTo: punctuality },
       now,
     });
   });
@@ -844,11 +868,11 @@ export async function adjustAttendance(db: PrismaClient, actor: Actor, input: un
 export async function listMyAttendance(db: PrismaClient, actor: Actor) {
   const rows = await db.attendanceRecord.findMany({
     where: { studentProfileId: actor.profileId },
-    select: { id: true, status: true, session: { select: { scheduledStartAt: true, title: true, classId: true, class: { select: { name: true } } } } },
+    select: { id: true, status: true, punctuality: true, session: { select: { scheduledStartAt: true, title: true, classId: true, class: { select: { name: true } } } } },
     orderBy: { session: { scheduledStartAt: "desc" } },
     take: 200,
   });
-  return rows.map((r) => ({ id: r.id, status: r.status, sessionDate: r.session.scheduledStartAt, classId: r.session.classId, className: r.session.class.name, title: r.session.title }));
+  return rows.map((r) => ({ id: r.id, status: r.status, punctuality: r.punctuality, sessionDate: r.session.scheduledStartAt, classId: r.session.classId, className: r.session.class.name, title: r.session.title }));
 }
 
 /**
@@ -859,12 +883,12 @@ export async function listChildAttendance(db: PrismaClient, actor: Actor, studen
   if (!parentMaySee(actor, studentProfileId, "attendance")) throw new AuthorizationError();
   const rows = await db.attendanceRecord.findMany({
     where: { studentProfileId: studentProfileId as string },
-    select: { id: true, status: true, session: { select: { scheduledStartAt: true, class: { select: { name: true, tenant: { select: { timezone: true } } } } } } },
+    select: { id: true, status: true, punctuality: true, session: { select: { scheduledStartAt: true, class: { select: { name: true, tenant: { select: { timezone: true } } } } } } },
     orderBy: { session: { scheduledStartAt: "desc" } },
     take: 200,
   });
   // Deliberately NOT selected: present_seconds, first_arrival_at, connection rows.
-  return rows.map((r) => ({ id: r.id, status: r.status, sessionDate: r.session.scheduledStartAt, className: r.session.class.name, timezone: r.session.class.tenant.timezone }));
+  return rows.map((r) => ({ id: r.id, status: r.status, punctuality: r.punctuality, sessionDate: r.session.scheduledStartAt, className: r.session.class.name, timezone: r.session.class.tenant.timezone }));
 }
 
 // --- Chat (A120) -------------------------------------------------------------------------------

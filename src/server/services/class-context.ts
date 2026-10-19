@@ -2,6 +2,8 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import type { EnrollmentAccess, SessionContext } from "@/server/authz/live-class";
 import { AuthorizationError, isValidId } from "@/server/authz/policy";
 import type { Tx } from "./audit";
+import { isValidTimeZone } from "@/lib/timezone";
+import { DomainError } from "./errors";
 import { effectiveEnrollmentState } from "./live-rules";
 
 // Loads the context the pure Live Class rules (src/server/authz/live-class.ts) decide on.
@@ -17,10 +19,20 @@ const classSelect = {
   description: true,
   status: true,
   enrollmentCapacity: true,
+  paymentRequired: true,
   liveCapacity: true,
   teachers: { where: { endedAt: null }, select: { id: true, teacherProfileId: true, role: true } },
   tenant: { select: { timezone: true, classEnrollmentCapacityMax: true, classLiveCapacityMax: true } },
 } as const;
+
+/**
+ * A131: scheduling needs the Markaz's EXPLICITLY chosen IANA zone. No fallback, no default:
+ * an unset (or unusable) zone fails closed.
+ */
+export function requireMarkazTimezone(timezone: string | null): string {
+  if (!timezone || !isValidTimeZone(timezone)) throw new DomainError("timezone_required");
+  return timezone;
+}
 
 export async function loadClassContext(db: Db, classId: unknown) {
   if (!isValidId(classId)) throw new AuthorizationError();

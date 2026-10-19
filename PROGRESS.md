@@ -218,6 +218,14 @@ Chronological, factual log of what has actually happened. Do not record intentio
 - **Not built (by decision):** any RTC/whiteboard/screen-share transport or vendor SDK, payment amounts/gateways, production scheduling, DEV apply.
 - Tests: **703 local** (33 files; +149: 6 new suites), lint, typecheck and build pass; 5/5 deliberate security mutations caught. Real Supabase **not** changed; DEV pre-apply plan in docs/testing/dev-supabase-verification.md.
 
+## 2026-10-19 — Final Live Class decision corrections (local, A131–A139)
+
+- Pre-state: commit a3d1655, clean tree, 703/703.
+- Decisions recorded as A131–A139 (DECISIONS §1, supersession §1.10, ninth authorization §2); open questions 53–58 resolved.
+- **Migrations (local only, additive):** `20261019000200_live_class_decisions` (offline diff) and `20261019000300_live_class_decisions_rls` (timezone null-handling, attendance/punctuality and queue-override CHECKs). Existing migrations untouched (repository convention: new pairs, no squashing). 19 locally; DEV still 15.
+- **Implemented:** attendance PRESENT/ABSENT separate from punctuality ON_TIME/LATE (parents see both statuses, no timestamps); no default Markaz time zone, scheduling fails closed (`timezone_required`), UI banner; only ACTIVE/GRACE hold a seat (SUSPENDED freed, renewal into a full class → WAITLIST); FIFO waitlist with audited Markaz Admin order override; per-class `payment_required` with PENDING_PAYMENT; `payment.verify` explicit permission as finance authority; A51 detailed-student resolver wired to current assignments + ACTIVE/GRACE enrollments (`NO_CLASSES_YET` removed); audited mic handoff.
+- Tests: **740 local** (35 files; +37), lint, typecheck, build pass; Prisma format/validate/generate clean; migration 3 equals a fresh offline diff; secrets scan 0 matches. Real Supabase NOT changed; updated pre-apply plan in docs/testing/dev-supabase-verification.md.
+
 ## Status snapshot
 
 | Area | Status |
@@ -228,7 +236,7 @@ Chronological, factual log of what has actually happened. Do not record intentio
 | Database schema | 15 migrations applied to the DEVELOPMENT Supabase project (2026-10-16); exact parity with PGlite verified |
 | Auth / tenancy / roles / Parent links | Foundation implemented (no sign-in UI, no invitations, no link workflow) |
 | PWA | Basic foundation (manifest, placeholder icons, minimal SW) |
-| Tests | 703 local (2026-10-19); 41 real-Supabase + 14-step UI E2E last run 2026-10-16 |
+| Tests | 740 local (2026-10-19, final corrections); 41 real-Supabase + 14-step UI E2E last run 2026-10-16 |
 | Version control | Git initialized; first local baseline commit created 2026-10-13; no remote |
 | Auth / onboarding / i18n | Implemented locally (OTP + magic link, invite-first, sw/en/ar + RTL) |
 | Parent links | Full workflow implemented (request/create → verify → activate → revoke) with explicit permissions and audit history |

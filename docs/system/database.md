@@ -165,3 +165,11 @@ Indexes cover tenant, class, session, student, active enrollment (`class_id, sta
 ## 6. Open questions
 
 See [../roadmap/open-questions.md](../roadmap/open-questions.md) for tenant-ownership-of-student-data and Markaz/teacher relationship questions that materially affect the final schema shape.
+
+## 16. Final Live Class corrections (2026-10-19, migrations 20261019000200 / 20261019000300, LOCAL ONLY)
+
+Additive: enum `Punctuality` (ON_TIME, LATE); `ClassEnrollmentStatus` + PENDING_PAYMENT; `TenantPermission` + PAYMENT_VERIFY; `AuditAction` + ENROLLMENT_WAITLIST_ORDER_OVERRIDE, ENROLLMENT_PENDING_PAYMENT; `classes.payment_required BOOLEAN NOT NULL DEFAULT false`; `class_enrollments.queue_override_by_id/at/reason`; `attendance_records.computed_punctuality`, `punctuality`; `tenants.timezone` becomes **nullable without default** (A131).
+
+Hand-written: `tenants.timezone` is set to NULL wherever no Markaz Admin ever chose it (no `TENANT_TIMEZONE_SET` audit event) — a column default is not a choice; `tenant_timezone_present` rebuilt to allow NULL; `attendance_presence_only` (attendance is PRESENT/ABSENT — the enum value LATE is legacy and refused); `attendance_punctuality_with_arrival`; `attendance_adjustment_fields` rebuilt to cover punctuality; `enrollment_queue_override_fields`. No table or column is dropped.
+
+Seat rule (A133) is enforced in the service: only ACTIVE/GRACE count toward `enrollment_capacity`.

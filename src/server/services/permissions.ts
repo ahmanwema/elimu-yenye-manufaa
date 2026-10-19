@@ -18,7 +18,7 @@ import { DomainError, isUniqueViolation } from "./errors";
 // Explicit permission grants (A47, A58, A62). Nobody holds any of them by default.
 // Assignment rules live in canAssignPermission():
 //   Super Admin → any grantable permission, any Markaz, eligible grantee.
-//   Markaz Admin → any of the five, own Markaz, to an ACTIVE Teacher, never self.
+//   Markaz Admin → any grantable permission (the five + payment.verify, A136), own Markaz, to an ACTIVE Teacher, never self.
 
 const grantSchema = z.object({
   tenantId: z.uuid(),

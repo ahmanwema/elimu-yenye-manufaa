@@ -25,6 +25,7 @@ import {
   verifyPayment,
 } from "@/server/services/enrollments";
 import { effectiveEnrollmentState } from "@/server/services/live-rules";
+import { grantTenantPermission } from "@/server/services/permissions";
 import { actor, createTestPrisma, spyDb } from "../db/prisma";
 import { T, U } from "../support/fixture";
 import { auditCount, classWithStudents, endMembership, L, NOW, seedLive } from "../support/live";
@@ -150,8 +151,14 @@ describe("Markaz settings", () => {
     expect(await auditCount(pg, "TENANT_TIMEZONE_SET")).toBe(1);
   });
 
-  it("the database default zone is UTC, not EAT", async () => {
-    expect((await db.tenant.findUniqueOrThrow({ where: { id: T.B } })).timezone).toBe("UTC");
+  // Superseded (A131): "the database default zone is UTC". A Markaz has NO zone until one is chosen.
+  it("no zone is invented: a new Markaz has none, and scheduling fails closed until one is set", async () => {
+    expect((await db.tenant.findUniqueOrThrow({ where: { id: T.B } })).timezone).toBeNull();
+    await pg.query("UPDATE tenants SET timezone = NULL WHERE id = $1", [T.A]);
+    const classId = await classWithStudents(db);
+    await expect(addClassSchedule(db, await as(U.adminA), { classId, weekday: 1, startTime: "09:00", durationMinutes: 60 }, O)).rejects.toMatchObject({ code: "timezone_required" });
+    await setTenantTimezone(db, await as(U.adminA), { tenantId: T.A, timezone: "Africa/Nairobi" }, O);
+    await expect(addClassSchedule(db, await as(U.adminA), { classId, weekday: 1, startTime: "09:00", durationMinutes: 60 }, O)).resolves.toBeTypeOf("string");
   });
 
   it("plan ceilings: Super Admin only; NULL = none; class values must fit; never lowered silently", async () => {
@@ -390,5 +397,133 @@ describe("Grace (A108)", () => {
     await addClassSchedule(db, await as(U.adminA), { classId, weekday: 1, startTime: "09:00", durationMinutes: 60 }, O);
     await expect(addClassSchedule(db, await as(U.teacherAB), { classId, weekday: 2, startTime: "09:00", durationMinutes: 60 }, O)).rejects.toBeInstanceOf(AuthorizationError);
     expect(await db.classSchedule.count({ where: { classId } })).toBe(1);
+  });
+});
+
+// =====================================================================================
+// Final decision fixes (2026-10-19, A133–A136)
+// =====================================================================================
+
+describe("Seats (A133): only ACTIVE and GRACE occupy an active seat", () => {
+  it("a SUSPENDED student keeps the enrollment but frees the seat; GRACE still holds one", async () => {
+    const classId = await classWithStudents(db, { enrollmentCapacity: 2 }); // fixture capacity
+    const x = await enrollmentOf(classId, U.studentX);
+    await db.classEnrollment.update({ where: { id: x.id }, data: { accessUntil: new Date(NOW.getTime() - 2 * DAY) } }); // GRACE
+    expect((await enrollStudent(db, await as(U.adminA), { classId, studentProfileId: L.s2 }, O)).status).toBe("WAITLISTED"); // GRACE holds its seat
+    await db.classEnrollment.update({ where: { id: x.id }, data: { accessUntil: new Date(NOW.getTime() - 10 * DAY) } }); // SUSPENDED
+    expect(await db.classEnrollment.count({ where: { id: x.id } })).toBe(1); // never deleted
+    expect((await enrollStudent(db, await as(U.adminA), { classId, studentProfileId: L.s3 }, O)).status).toBe("ACTIVE"); // seat was free
+  });
+
+  it("a SUSPENDED student renewing into a full class is WAITLISTED, never silently above capacity", async () => {
+    const classId = await classWithStudents(db, { enrollmentCapacity: 2 });
+    const x = await enrollmentOf(classId, U.studentX);
+    await db.classEnrollment.update({ where: { id: x.id }, data: { accessUntil: new Date(NOW.getTime() - 10 * DAY) } }); // SUSPENDED, seat freed
+    await enrollStudent(db, await as(U.adminA), { classId, studentProfileId: L.s2 }, O); // takes the seat
+    const id = await submitPaymentEvidence(db, await as(U.teacherA), { tenantId: T.A, studentProfileId: U.studentX, enrollmentIds: [x.id], coverageNote: "x", evidenceReference: "R", periodStart: "2026-11-01", periodEnd: "2026-11-30" }, O);
+    await verifyPayment(db, await as(U.adminA), { submissionId: id }, O);
+    const after = await db.classEnrollment.findUniqueOrThrow({ where: { id: x.id } });
+    expect(after.status).toBe("WAITLISTED");
+    expect(after.accessUntil?.toISOString()).toBe("2026-11-30T23:59:59.000Z"); // the verified payment is kept
+    expect(await auditCount(pg, "ENROLLMENT_WAITLISTED", x.id)).toBe(1);
+  });
+
+  it("a SUSPENDED student given a grace extension needs a free seat", async () => {
+    const classId = await classWithStudents(db, { enrollmentCapacity: 2 });
+    const x = await enrollmentOf(classId, U.studentX);
+    await db.classEnrollment.update({ where: { id: x.id }, data: { status: "SUSPENDED", accessUntil: new Date(NOW.getTime() - 10 * DAY) } });
+    await enrollStudent(db, await as(U.adminA), { classId, studentProfileId: L.s2 }, O);
+    await expect(extendGrace(db, await as(U.teacherA), { enrollmentId: x.id, graceUntil: "2026-12-31", reason: "x" }, O)).rejects.toMatchObject({ code: "limit_exceeded" });
+  });
+});
+
+describe("Waitlist order (A134): FIFO, admin override with reason + audit", () => {
+  async function fullClassWithQueue() {
+    const classId = await classWithStudents(db, { enrollmentCapacity: 2 });
+    const first = await enrollStudent(db, await as(U.teacherA), { classId, studentProfileId: L.s2 }, O);
+    const second = await enrollStudent(db, await as(U.teacherA), { classId, studentProfileId: L.s3 }, { now: new Date(NOW.getTime() + 60_000) });
+    await endEnrollment(db, await as(U.adminA), { enrollmentId: (await enrollmentOf(classId, L.s1)).id }, O); // one seat frees
+    return { classId, first: first.enrollmentId, second: second.enrollmentId };
+  }
+
+  it("default is FIFO: the head of the queue is admitted; skipping it is refused", async () => {
+    const { first, second } = await fullClassWithQueue();
+    await expect(admitFromWaitlist(db, await as(U.teacherA), { enrollmentId: second }, O)).rejects.toMatchObject({ code: "out_of_order" });
+    await admitFromWaitlist(db, await as(U.teacherA), { enrollmentId: first }, O);
+    expect((await db.classEnrollment.findUniqueOrThrow({ where: { id: first } })).status).toBe("ACTIVE");
+  });
+
+  it("only a Markaz Admin may admit out of order, with a reason that is recorded and audited", async () => {
+    const { first, second } = await fullClassWithQueue();
+    await expect(admitFromWaitlist(db, await as(U.teacherA), { enrollmentId: second, queueOverrideReason: "urgent" }, O)).rejects.toBeInstanceOf(AuthorizationError);
+    await admitFromWaitlist(db, await as(U.adminA), { enrollmentId: second, queueOverrideReason: "Hifdh exam next week" }, O);
+    const row = await db.classEnrollment.findUniqueOrThrow({ where: { id: second } });
+    expect(row).toMatchObject({ status: "ACTIVE", queueOverrideById: U.adminA, queueOverrideReason: "Hifdh exam next week" });
+    expect(row.queueOverrideAt).toEqual(NOW);
+    expect(await auditCount(pg, "ENROLLMENT_WAITLIST_ORDER_OVERRIDE", second)).toBe(1);
+    expect((await db.classEnrollment.findUniqueOrThrow({ where: { id: first } })).status).toBe("WAITLISTED"); // queue not silently reordered
+    // DB: an override without a reason is impossible.
+    await expect(pg.query("UPDATE class_enrollments SET queue_override_reason = NULL WHERE id = $1", [second])).rejects.toThrow(/enrollment_queue_override_fields/);
+  });
+});
+
+describe("Payment required per class (A135)", () => {
+  async function paidClass() {
+    return createClass(db, await as(U.adminA), { tenantId: T.A, name: "Paid Hifdh", primaryTeacherProfileId: U.teacherA, paymentRequired: true, enrollmentCapacity: 5 }, O);
+  }
+
+  it("a free class (default) activates on enrollment without any payment", async () => {
+    const classId = await classWithStudents(db, { students: [] });
+    expect((await db.class.findUniqueOrThrow({ where: { id: classId } })).paymentRequired).toBe(false);
+    expect((await enrollStudent(db, await as(U.teacherA), { classId, studentProfileId: L.s2 }, O)).status).toBe("ACTIVE");
+  });
+
+  it("a paid class needs VERIFIED access before first access; a teacher's submission grants nothing", async () => {
+    const classId = await paidClass();
+    const r = await enrollStudent(db, await as(U.teacherA), { classId, studentProfileId: L.s2 }, O);
+    expect(r.status).toBe("PENDING_PAYMENT");
+    expect(await auditCount(pg, "ENROLLMENT_PENDING_PAYMENT", r.enrollmentId)).toBe(1);
+    const id = await submitPaymentEvidence(db, await as(U.teacherA), { tenantId: T.A, studentProfileId: L.s2, enrollmentIds: [r.enrollmentId], coverageNote: "x", evidenceReference: "R", periodStart: "2026-11-01", periodEnd: "2026-11-30" }, O);
+    expect((await db.classEnrollment.findUniqueOrThrow({ where: { id: r.enrollmentId } })).status).toBe("PENDING_PAYMENT");
+    await expect(verifyPayment(db, await as(U.teacherA), { submissionId: id }, O)).rejects.toBeInstanceOf(AuthorizationError);
+    await verifyPayment(db, await as(U.adminA), { submissionId: id }, O);
+    expect((await db.classEnrollment.findUniqueOrThrow({ where: { id: r.enrollmentId } })).status).toBe("ACTIVE");
+  });
+
+  it("a waitlisted student of a paid class cannot be admitted without verified access", async () => {
+    const classId = await paidClass();
+    await db.classEnrollment.create({ data: { tenantId: T.A, classId, studentProfileId: L.s2, status: "WAITLISTED", waitlistedAt: NOW, enrolledById: U.adminA, enrolledAt: NOW, statusChangedAt: NOW } });
+    const e = await enrollmentOf(classId, L.s2);
+    await expect(admitFromWaitlist(db, await as(U.adminA), { enrollmentId: e.id }, O)).rejects.toMatchObject({ code: "payment_required" });
+  });
+
+  it("a capacity override cannot bypass payment", async () => {
+    const classId = await paidClass();
+    await expect(enrollStudent(db, await as(U.adminA), { classId, studentProfileId: L.s2, overrideReason: "x" }, O)).rejects.toMatchObject({ code: "payment_required" });
+  });
+});
+
+describe("Finance authority (A136): payment.verify", () => {
+  async function pending() {
+    const classId = await createClass(db, await as(U.adminA), { tenantId: T.A, name: "Paid", primaryTeacherProfileId: U.teacherA, paymentRequired: true }, O);
+    const r = await enrollStudent(db, await as(U.teacherA), { classId, studentProfileId: L.s2 }, O);
+    return submitPaymentEvidence(db, await as(U.teacherA), { tenantId: T.A, studentProfileId: L.s2, enrollmentIds: [r.enrollmentId], coverageNote: "x", evidenceReference: "R", periodStart: "2026-11-01", periodEnd: "2026-11-30" }, O);
+  }
+
+  it("a staff member holding payment.verify (Finance Officer / Accountant) verifies; without it a teacher cannot", async () => {
+    const id = await pending();
+    await expect(verifyPayment(db, await as(L.teacherA3), { submissionId: id }, O)).rejects.toBeInstanceOf(AuthorizationError);
+    await grantTenantPermission(db, await as(U.adminA), { tenantId: T.A, profileId: L.teacherA3, permission: "payment.verify" });
+    await verifyPayment(db, await as(L.teacherA3), { submissionId: id }, O);
+    expect(await auditCount(pg, "PAYMENT_ACCESS_VERIFIED", id)).toBe(1);
+  });
+
+  it("the grant is tenant-scoped, never implied by a role, and a teacher cannot assign it", async () => {
+    const id = await pending();
+    await expect(grantTenantPermission(db, await as(U.teacherA), { tenantId: T.A, profileId: L.teacherA3, permission: "payment.verify" })).rejects.toBeInstanceOf(AuthorizationError);
+    await grantTenantPermission(db, await as(U.superAdmin), { tenantId: T.B, profileId: U.teacherAB, permission: "payment.verify" });
+    await expect(verifyPayment(db, await as(U.teacherAB), { submissionId: id }, O)).rejects.toBeInstanceOf(AuthorizationError); // granted in B only
+    await expect(verifyPayment(db, await as(U.adminB), { submissionId: id }, O)).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(verifyPayment(db, await as(U.superAdmin), { submissionId: id }, O)).rejects.toBeInstanceOf(AuthorizationError);
   });
 });

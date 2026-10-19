@@ -4,7 +4,7 @@ import { canCreateClass, canManageClass, canReadClass, canViewClassAsStaff, clas
 import { AuthorizationError, hasActiveRole, isValidId, type Actor } from "@/server/authz/policy";
 import { isValidTimeZone } from "@/lib/timezone";
 import { recordAudit } from "./audit";
-import { enrollmentAccess, hasActiveMembership, loadClassContext } from "./class-context";
+import { enrollmentAccess, hasActiveMembership, loadClassContext, requireMarkazTimezone } from "./class-context";
 import { DomainError, isUniqueViolation } from "./errors";
 import { capacityWithinCeiling, effectiveCapacity, effectiveEnrollmentState, SEAT_HOLDING_STATES } from "./live-rules";
 
@@ -83,6 +83,7 @@ const createSchema = z.object({
   description: z.string().trim().max(2000).optional(),
   primaryTeacherProfileId: z.uuid(),
   enrollmentCapacity: capacityInput,
+  paymentRequired: z.boolean().optional(),
   liveCapacity: capacityInput,
 });
 
@@ -109,6 +110,7 @@ export async function createClass(db: PrismaClient, actor: Actor, input: unknown
         subject: d.subject || null,
         description: d.description || null,
         enrollmentCapacity,
+        paymentRequired: d.paymentRequired ?? false,
         liveCapacity,
         createdById: actor.profileId,
         createdAt: now,
@@ -140,6 +142,7 @@ const updateSchema = z.object({
   description: z.string().trim().max(2000).optional(),
   enrollmentCapacity: capacityInput,
   liveCapacity: capacityInput,
+  paymentRequired: z.boolean().optional(),
 });
 
 /**
@@ -170,6 +173,7 @@ export async function updateClass(db: PrismaClient, actor: Actor, input: unknown
         ...(d.subject !== undefined ? { subject: d.subject || null } : {}),
         ...(d.description !== undefined ? { description: d.description || null } : {}),
         enrollmentCapacity,
+        ...(d.paymentRequired !== undefined ? { paymentRequired: d.paymentRequired } : {}),
         liveCapacity,
         updatedAt: now,
       },
@@ -180,7 +184,7 @@ export async function updateClass(db: PrismaClient, actor: Actor, input: unknown
       action: "CLASS_UPDATED",
       targetType: "CLASS",
       targetId: cls.id,
-      metadata: { enrollmentCapacity, liveCapacity },
+      metadata: { enrollmentCapacity, liveCapacity, paymentRequired: d.paymentRequired ?? cls.paymentRequired },
       now,
     });
   });
@@ -313,6 +317,8 @@ export async function addClassSchedule(db: PrismaClient, actor: Actor, input: un
   const cls = await loadClassContext(db, d.classId);
   if (!canManageClass(actor, cls)) throw new AuthorizationError();
   if (cls.status !== "ACTIVE") throw new DomainError("invalid_state");
+  // A131: a weekly slot is Markaz-local wall time — meaningless until the zone is chosen.
+  requireMarkazTimezone(cls.tenant.timezone);
   const [hh, mm] = d.startTime.split(":").map(Number);
   const now = options.now ?? new Date();
   return db.$transaction(async (tx) => {
@@ -467,6 +473,7 @@ export async function getClassOverview(db: PrismaClient, actor: Actor, classId: 
             graceUntil: true,
             capacityOverrideAt: true,
             capacityOverrideReason: true,
+            queueOverrideReason: true,
             endedAt: true,
             student: { select: { profile: { select: { displayName: true } } } },
           },
@@ -474,7 +481,7 @@ export async function getClassOverview(db: PrismaClient, actor: Actor, classId: 
         })
       : db.classEnrollment.findMany({
           where: { classId: cls.id, studentProfileId: actor.profileId, status: { not: "ENDED" } },
-          select: { id: true, studentProfileId: true, status: true, enrolledAt: true, waitlistedAt: true, accessUntil: true, graceUntil: true, capacityOverrideAt: true, capacityOverrideReason: true, endedAt: true, student: { select: { profile: { select: { displayName: true } } } } },
+          select: { id: true, studentProfileId: true, status: true, enrolledAt: true, waitlistedAt: true, accessUntil: true, graceUntil: true, capacityOverrideAt: true, capacityOverrideReason: true, queueOverrideReason: true, endedAt: true, student: { select: { profile: { select: { displayName: true } } } } },
         }),
   ]);
 
@@ -489,6 +496,7 @@ export async function getClassOverview(db: PrismaClient, actor: Actor, classId: 
       description: cls.description,
       status: cls.status,
       enrollmentCapacity: cls.enrollmentCapacity,
+      paymentRequired: cls.paymentRequired,
       liveCapacity: cls.liveCapacity,
       timezone: cls.tenant.timezone,
       ceilings: { enrollment: cls.tenant.classEnrollmentCapacityMax, live: cls.tenant.classLiveCapacityMax },

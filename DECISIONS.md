@@ -9,7 +9,7 @@ Statuses used throughout the documentation:
 - **OPEN QUESTION** — unresolved, needs an owner decision before design/implementation can proceed in that area.
 - **DEFERRED** — intentionally out of scope for now; revisit later.
 
-Last updated: 2026-10-19 (Live Class foundation — A101–A130, §1.9). Previous: 2026-10-16 (A92–A100, §1.8; DEV apply). Previous: 2026-10-16 (A92–A98, §1.8). Previous: 2026-10-15 (media policy decisions — A81–A91, §1.7). Previous: 2026-10-14 (recording & correction media — A66–A80, §1.6). Previous: 2026-10-13 (fourth update: delegation, child proposal, self-request, Supabase environment — A62–A65, §1.5).
+Last updated: 2026-10-19 (final Live Class corrections — A131–A139, §1.10). Previous: 2026-10-19 (Live Class foundation — A101–A130, §1.9). Previous: 2026-10-16 (A92–A100, §1.8; DEV apply). Previous: 2026-10-16 (A92–A98, §1.8). Previous: 2026-10-15 (media policy decisions — A81–A91, §1.7). Previous: 2026-10-14 (recording & correction media — A66–A80, §1.6). Previous: 2026-10-13 (fourth update: delegation, child proposal, self-request, Supabase environment — A62–A65, §1.5).
 
 History: 2026-09-30 initial documentation pass. 2026-10-05 owner business decisions BR-01–BR-13 reconciled (A26–A38, §1.1).
 
@@ -153,6 +153,27 @@ These come directly from the project owner's brief and are treated as fixed requ
 | A129 | **Audit** important Live Class actions (class, teacher assignment, capacity override, enrollment transitions, grace, sessions incl. safety close and substitute, attendance adjustment, mic, recording participant adjustment, payment submission/verification) without secrets, signed URLs, payment credentials or raw evidence. | Owner TO-BE approval (2026-10-19) |
 | A130 | **Provider-neutral Live Class shell only** while the RTC vendor is unresolved (A35): may show status, teachers, presence/waiting room, raise hand, mic/whiteboard permission, chat and recording eligibility — no media transport, no LiveKit/Agora SDK, and the UI must not pretend audio works. | Owner TO-BE approval (2026-10-19) |
 
+| A131 | **Markaz time zone must be chosen explicitly** during Markaz setup before scheduling is usable. No zone is invented and nothing is silently scheduled in UTC: scheduling fails closed until a valid IANA zone is configured; the UI states that setup is required. Resolves OQ54. | Owner decision (2026-10-19, final corrections) |
+| A132 | **Attendance and punctuality are separate.** Attendance: PRESENT when attended ≥ 50 % of the session, otherwise ABSENT. Punctuality: ON_TIME when the first qualifying arrival is ≤ scheduled start + 15 min, LATE when later. PRESENT + LATE, PRESENT + ON_TIME and ABSENT + LATE are all possible; PRESENT never overwrites LATE. A parent may see attendance and punctuality status, never raw join/leave timestamps. Resolves OQ53; supersedes the interim single-status precedence. | Owner decision (2026-10-19, final corrections) |
+| A133 | **SUSPENDED enrollment** keeps its enrollment/history but does NOT count against enrollment capacity; only access states that currently occupy an active seat count. Resolves OQ56 (seat part). | Owner decision (2026-10-19, final corrections) |
+| A134 | **Waitlist admission is FIFO by default;** a Markaz Admin may override the order, recording actor, reason and time, audited; the queue is never reordered silently. Resolves OQ56 (waitlist part). | Owner decision (2026-10-19, final corrections) |
+| A135 | **Payment required per Class** (`payment_required` true/false). False: access activates under the normal enrollment rules. True: a VERIFIED payment/access authorization is required before first active access. Not every class is paid; no pricing. Resolves OQ57 (payment part). | Owner decision (2026-10-19, final corrections) |
+| A136 | **Finance authority:** final payment verification by the Markaz Admin or a Finance Officer / Accountant, implemented as the explicit, tenant-scoped capability `payment.verify`. A Teacher may submit evidence but never verifies by default and never receives `payment.verify` automatically. No broader finance powers. Resolves OQ57 (finance part). | Owner decision (2026-10-19, final corrections) |
+| A137 | **Teacher detailed student access (A51) wired to classes** — not a new rule: only an ACTIVE Teacher of that Markaz, currently assigned as Primary or Co-Teacher to a class in which the student has active access (ACTIVE/GRACE). A Substitute gets no ongoing detailed access; Markaz Admins keep own-Markaz access; cross-tenant denied. Resolves OQ58. | Existing rule A51, implementation confirmed (2026-10-19) |
+| A138 | **Student mic handoff:** granting Student B while Student A holds the mic automatically revokes A and grants B, keeping one-student-at-a-time; both transitions are audited. Business state only. Resolves OQ56 (mic part); supersedes the interim "refuse until revoked". | Owner decision (2026-10-19, final corrections) |
+| A139 | **Plan capacity ceilings are set by a Super Admin** (confirmed). Exact capacity numbers remain unresolved; no Starter/Standard/Pro defaults. Resolves OQ55. | Owner decision (2026-10-19, final corrections) |
+
+### 1.10 Supersession record (2026-10-19, final Live Class corrections)
+
+| Earlier entry | Earlier content (summary) | New decision | Relationship |
+|---|---|---|---|
+| Interim OQ53 | One attendance enum; ≥ 50 % PRESENT, else LATE (late arrival), else ABSENT. | A132 | **Superseded:** two dimensions (attendance PRESENT/ABSENT + punctuality ON_TIME/LATE). The `AttendanceStatus.LATE` enum value is kept only as a LEGACY label and refused by a DB CHECK. |
+| Interim OQ54 | Markaz zone defaults to `UTC` until set. | A131 | **Superseded:** no default; `tenants.timezone` is nullable; scheduling fails closed; rows that only had the old default are cleared by migration. |
+| Interim OQ56 | SUSPENDED keeps its seat; waitlist FIFO with no override; mic grant refused while held. | A133, A134, A138 | **Superseded:** SUSPENDED frees the seat; admin order override (audited); automatic audited handoff. |
+| Interim OQ57 | Enrollment ACTIVE immediately; verification Markaz Admin only. | A135, A136 | **Superseded:** per-class `payment_required`; `payment.verify` finance authority. |
+| A122 (attendance wording "otherwise ABSENT/LATE") | — | A132 | **Clarified.** |
+| A107 ("Markaz Admin / future finance authority verifies") | — | A136 | **Completed.** |
+
 ### 1.9 Supersession and refinement record (2026-10-19, Live Class foundation)
 
 | Earlier entry | Earlier content (summary) | New decision | Relationship |
@@ -268,6 +289,8 @@ Historical entries are kept, not deleted. This table records which earlier entri
 
 ## 2. Current authorization scope (as of 2026-10-19)
 
+**Authorized (2026-10-19, ninth authorization):** LOCAL implementation of the final Live Class decision corrections (A131–A139), new additive migrations, tests, docs and ONE local commit. NOT authorized: applying migrations to real Supabase DEV, deploy, push, choosing an RTC vendor.
+
 **Authorized (2026-10-19, eighth authorization):** LOCAL implementation of the approved Live Class capacity + class structure foundation (A101–A130): source code, Prisma schema, new ADDITIVE migrations, server authorization, RLS migration SQL, UI/pages/actions/services, tests, documentation, local checks, and ONE local commit. NOT authorized: applying migrations to the real Supabase DEV project, bucket changes, production resources, deploy, push, choosing an RTC vendor, LiveKit/Agora production integration, payment-gateway integration, production scheduled jobs. A DEV pre-apply plan is prepared in docs/testing/dev-supabase-verification.md and awaits owner approval.
 
 
@@ -335,6 +358,8 @@ New owner questions surfaced while reconciling the 2026-10-05 decisions are list
 2026-10-13 (parent workflow): items 14, 27, 28, 29, 30 resolved. Items 31–33 record interim engineering choices awaiting confirmation.
 
 2026-10-13 (fourth update): items 31, 32, 33 resolved (A62, A63, A64).
+
+2026-10-19 (final corrections): items 53–58 resolved by A131–A139. Still open: exact capacity numbers, RTC vendor, XPPen, scheduled-job authorization, broader commercial pricing/payment-gateway rules.
 
 2026-10-19 (Live Class foundation): item 18 resolved by A123; items 5 and 13 refined (A109; A115–A116). New items 53–60 record implementation interpretations and what remains open (payments, capacity numbers, scheduler, RTC).
 

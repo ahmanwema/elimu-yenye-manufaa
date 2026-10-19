@@ -70,7 +70,7 @@ async function LiveBody({ params }: { params: PageProps<"/[locale]/live/[session
   const canCorrect = view.relation.primary || view.relation.coTeacher || view.relation.admin;
   const sessionRecordings = canCorrect ? await listSessionRecordings(db, actor, session.id) : [];
   const name = (n: string | null | undefined) => n ?? dict.markaz.unnamed;
-  const dateTime = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: session.timezone });
+  const dateTime = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: session.timezone ?? "UTC" }); // display only (A131)
   const results = dict.results;
   const loading = dict.common.loading;
   const joined = (me?.connections.length ?? 0) > 0;

@@ -82,11 +82,14 @@ describe("parent visibility contract (A41/A48)", () => {
   });
 });
 
-describe("detailed student data (future class hook)", () => {
+describe("detailed student data (class hook — wired to real classes 2026-10-19, A137)", () => {
   const input = { tenantId: T.A, studentProfileId: U.studentX, studentIsActiveInTenant: true };
+  const teachesNobody = () => false;
 
-  it("teachers get NO detailed access until classes exist", () => {
-    expect(canReadStudentDetail(actorFor(U.teacherA), input)).toBe(false);
+  // Superseded: "teachers get NO detailed access until classes exist". The silent default
+  // resolver was removed; the class-backed resolver is tested in tests/services/student-detail.test.ts.
+  it("a teacher who teaches the student nowhere gets no detailed access", () => {
+    expect(canReadStudentDetail(actorFor(U.teacherA), input, teachesNobody)).toBe(false);
   });
 
   it("with a class resolver, a teacher gets detail only for students they teach, in that Markaz", () => {
@@ -96,10 +99,10 @@ describe("detailed student data (future class hook)", () => {
   });
 
   it("a Markaz Admin of that Markaz, and the student, have detail; others do not", () => {
-    expect(canReadStudentDetail(actorFor(U.adminA), input)).toBe(true);
-    expect(canReadStudentDetail(actorFor(U.studentX), input)).toBe(true);
-    expect(canReadStudentDetail(actorFor(U.adminB), input)).toBe(false);
-    expect(canReadStudentDetail(actorFor(U.adminA), { ...input, studentIsActiveInTenant: false })).toBe(false);
+    expect(canReadStudentDetail(actorFor(U.adminA), input, teachesNobody)).toBe(true);
+    expect(canReadStudentDetail(actorFor(U.studentX), input, teachesNobody)).toBe(true);
+    expect(canReadStudentDetail(actorFor(U.adminB), input, teachesNobody)).toBe(false);
+    expect(canReadStudentDetail(actorFor(U.adminA), { ...input, studentIsActiveInTenant: false }, teachesNobody)).toBe(false);
   });
 });
 
