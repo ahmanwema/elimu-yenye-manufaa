@@ -116,6 +116,24 @@ Not covered locally: a real browser-recorded M4A file (no ffmpeg/sample file on 
   - departed student denied (A99); never-consented child never visible.
 - **Super Admin:** audited clip read.
 
+## Live Class foundation tests (2026-10-19, A101–A130)
+
+| Area | File |
+|---|---|
+| Role/action matrix (Primary, Co-Teacher, Substitute, Markaz Admin, student, parent, other-Markaz admin, Super Admin); operational vs teaching; departed teacher; cross-Markaz context | `tests/unit/live-class-rules.test.ts` |
+| Time zone (UTC storage, Markaz-local interpretation, DST), windows (−15 join/start, +30 safety close, +15 late), grace, attendance union/precedence, capacity ceilings, device capabilities | `tests/unit/live-class-rules.test.ts` |
+| Class tenancy, one Primary (service + partial index), many Co-Teachers, replacement not silent, departed teacher keeps history, cross-tenant assignment (service + trigger), listing scope, refused request reaches no DB call | `tests/services/classes.test.ts` |
+| Enrollment eligibility (ACTIVE student membership + explicit enrollment; service + trigger), who enrolls, multi-class, history; capacity → WAITLIST, admin override audited, teacher cannot override, FIFO admission | `tests/services/classes.test.ts` |
+| Payment: submission ≠ verification, only Markaz Admin verifies, renewal restores access, package coverage, no evidence in audit, no amount/currency columns; grace 7 days, expiry → GRACE → SUSPENDED (system audit), extension by teacher/admin with stored fields, unrelated teacher denied | `tests/services/classes.test.ts` |
+| Scheduling and lifecycle (UTC/Markaz zone, recurring idempotent generation, early start/join, cancellation actors, safety close, ad hoc default, one LIVE per class, Option C at start), substitute rules (incl. DB trigger) | `tests/services/live-sessions.test.ts` |
+| Join eligibility (suspended/waitlisted/ended/none/parent/other Markaz), live capacity → WAITING_FOR_SLOT and promotion, devices (primary + view-only, third refused, no double slot), removal | `tests/services/live-sessions.test.ts` |
+| One student mic (service + partial index), mic/whiteboard actors, view-only device never publishes, admin no teaching capabilities, grants cleared on disconnect, access lapse removes capabilities | `tests/services/live-sessions.test.ts` |
+| Attendance accumulation (reconnect + second device), LATE/ABSENT/PRESENT, manual adjustment actors + audit, parent sees status only, raw attendance staff-only | `tests/services/live-sessions.test.ts` |
+| Chat persistence, authorship, waiting student cannot post, class/Markaz isolation, parent/unrelated denied, substitute session-only, suspended student loses history | `tests/services/live-sessions.test.ts` |
+| Recording: session FK (cross-tenant refused), Option C at session start and recording start, presence participants, consent snapshot, late joiner excluded until consent passes (live unaffected), free-form list refused, corrections (actors, enrolled-only, frozen after finalization, audited), excluded participant never a viewer | `tests/services/live-recording.test.ts` |
+| All 12 Live Class tables server-only (every role + anon), no Data API writes, RLS enabled, guard function not executable, composite FKs, partial indexes, status CHECKs | `tests/db/rls-live-class.test.ts` |
+| Action surface pinned (job entry points never exported); no LiveKit/Agora package, no `pilot/` import, no Realtime `.channel(` in `src/` | `tests/unit/auth-safety.test.ts` |
+
 ## Method
 
 Prefer integration tests running against a real (test) Postgres instance with RLS enabled — testing RLS policies by mocking them defeats the purpose, since the policies themselves are the thing under test.

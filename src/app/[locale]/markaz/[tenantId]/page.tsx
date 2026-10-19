@@ -131,6 +131,13 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
     <>
       <h1>{tenant.name}</h1>
       <p className="muted">{format(dict.markaz.codeLabel, { code: tenant.slug })}</p>
+      {can.teach || can.administer || hasActiveRole(actor, tenantId, "STUDENT") ? (
+        <p>
+          <a className="button button-primary" href={`/${locale}/markaz/${tenant.id}/classes`}>
+            {dict.live.classesLink}
+          </a>
+        </p>
+      ) : null}
 
       {roster && can.roster ? (
         <section className="card" aria-labelledby="roster">

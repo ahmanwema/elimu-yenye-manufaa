@@ -3,6 +3,13 @@
 Status: **PROPOSED** analysis; **no pricing, commission percentages, or subscription limits are decided or invented here**, per explicit brief instruction (Part 8). Not in Phase 1 scope.
 
 > **2026-10-13:** Not implemented. The local foundation deliberately contains **no** payment, plan, tuition, subscription, add-on or entitlement tables — not even placeholders — so that the five A34 concepts are designed properly when Phase 3 is authorized. No prices, billing cycles, capacity limits or entitlement rules exist anywhere in code.
+>
+> **2026-10-19 (A107–A109) — partly superseded:** a deliberately NARROW manual payment/access foundation now exists for Live Class enrollments only:
+> - `access_payment_submissions` (+ `access_payment_submission_enrollments`): an assigned teacher or a Markaz Admin **submits** evidence for an access period (`coverage_note` describes the class/subject/package as the Markaz sees it; `evidence_reference` is a receipt/transaction reference — never the evidence itself, never copied to the audit trail). A submission grants nothing.
+> - Only a **Markaz Admin verifies** (A107; a teacher never does). Verification extends each covered enrollment's `access_until` and returns GRACE/SUSPENDED enrollments to ACTIVE. Rejection leaves access untouched. All steps are audited.
+> - Grace (A108): 7 days by default after `access_until`, extendable by an assigned teacher or Markaz Admin with a reason (no maximum).
+> - Plan **capacity ceilings** per Markaz (`tenants.class_enrollment_capacity_max`, `class_live_capacity_max`), set by a Super Admin; NULL = none. **No numbers are defined.**
+> - There is still **no** amount, currency, price, provider, gateway, M-Pesa/Airtel integration, invoice, tax, refund, partial payment, subscription or revenue-share field or logic. The five A34 concepts remain undesigned. Remaining decisions: [../roadmap/open-questions.md](../roadmap/open-questions.md) items 55 and 57.
 
 ## Purpose
 

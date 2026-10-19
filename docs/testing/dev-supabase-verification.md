@@ -80,3 +80,34 @@ The plan above was executed on the DEVELOPMENT project only:
   - `scripts/dev-e2e.mjs`: 14/14;
   - `scripts/compare-schema.mjs`: no differences.
 - **Audit trail:** 41 append-only audit rows from the media verification run remain on DEV by design (see PROGRESS.md 2026-10-16). Future runs of `media-dev.test.ts` add a similar set each time; `supabase-dev.test.ts` adds none.
+
+## DEV pre-apply plan — Live Class foundation (prepared 2026-10-19, NOT applied)
+
+**Status: awaiting explicit owner APPLY approval. No write to the DEV project has been made.**
+
+**Migrations, in this exact order** (after the 15 already applied):
+
+1. `20261019000000_live_class_foundation` — generated offline (`prisma migrate diff`), additive only:
+   - 12 new enums: `RecordingParticipantSource`, `ClassStatus`, `ClassTeacherRole`, `ClassEnrollmentStatus`, `AccessPaymentStatus`, `LiveSessionKind`, `LiveSessionStatus`, `LiveSessionEndReason`, `LiveParticipantRole`, `LiveAdmission`, `LiveDeviceMode`, `AttendanceStatus`;
+   - new values: `AuditAction` +35, `AuditTargetType` +7 (`ALTER TYPE … ADD VALUE`; first used only by application code after commit);
+   - `tenants` + `timezone TEXT NOT NULL DEFAULT 'UTC'`, `class_enrollment_capacity_max INT NULL`, `class_live_capacity_max INT NULL`;
+   - `recordings` + `live_session_id UUID NULL` (composite FK `(live_session_id, tenant_id)` → `live_sessions(id, tenant_id)`);
+   - `recording_participants` + `source … NOT NULL DEFAULT 'LEGACY_MANUAL'`, `audio_included_from`, `excluded_at`, `excluded_by_id` (all NULL);
+   - 12 new tables: `classes`, `class_teacher_assignments`, `class_schedules`, `class_enrollments`, `grace_extensions`, `access_payment_submissions`, `access_payment_submission_enrollments`, `live_sessions`, `live_session_participants`, `live_session_connections`, `attendance_records`, `live_chat_messages`, with their indexes and RESTRICT foreign keys.
+2. `20261019000100_live_class_foundation_rls` — hand-written: CHECK constraints, partial unique indexes, function `app.require_active_membership()` (EXECUTE revoked from PUBLIC/anon/authenticated), 4 BEFORE triggers, RLS ENABLE on the 12 tables and `REVOKE ALL … FROM anon, authenticated`. **No policies, no grants.**
+
+**Expected schema after apply** (PGlite, same queries as `scripts/compare-schema.mjs`; DEV baseline in brackets): tables 33 [21], columns 374 [224], constraints 169 [106], indexes 107 [61], enums 32 [20], policies 14 [14 — unchanged], functions 12 [11], triggers 8 [4], grant rows 66 [42 — the 24 new rows are all `select/insert/update/delete = false`].
+
+**Destructive operations:** none (no DROP, no RENAME, no column type change, no rewrite of an applied migration). **Backfills:** none. **Expected row impact:** 0 rows changed. Existing `tenants` rows get `timezone = 'UTC'` and NULL ceilings from the column defaults; existing `recording_participants` (DEV currently has none) would get `source = 'LEGACY_MANUAL'`. Every new CHECK holds for existing rows (new columns are NULL/defaulted), so none needs NOT VALID. Lock impact: brief `ACCESS EXCLUSIVE` on `tenants`, `recordings`, `recording_participants` for `ADD COLUMN` with constant defaults (metadata-only on PostgreSQL 17) — DEV only.
+
+**Gate before apply (read-only):** project ref `jahyvgzqxqldaatitfvz`; sign-ups still disabled; `_prisma_migrations` shows exactly the 15 known migrations with matching checksums; `COMPARE_UNTIL=20261016000100_resolve_recording_policy_rls node --env-file=.env.local scripts/compare-schema.mjs` → no differences (no drift); working tree = the committed Live Class foundation.
+
+**Apply:** `npm run db:deploy:dev` (applies only the two pending migrations).
+
+**Verify after apply:**
+- `node --env-file=.env.local scripts/compare-schema.mjs` → "No differences" (the trigger list now includes the 4 new triggers).
+- `npm run test:dev-supabase` → existing 41/41 unchanged. Proposed additions (not yet written; need approval because audited actions leave permanent `audit_events` rows on DEV): through PostgREST with real JWTs, every one of the 12 tables refuses SELECT/INSERT for anon, a student, a teacher, a Markaz Admin and a Super Admin; `app.require_active_membership` not executable by `authenticated`; a cross-Markaz assignment insert refused by the trigger.
+- `node scripts/dev-e2e.mjs` → 14/14.
+- No bucket change is needed (Live Class stores no media). No scheduled job is created (`closeStaleSessions`, `advanceEnrollmentStates` stay unscheduled — OQ59).
+
+**Rollback / recovery:** both migrations are additive. Before any real Live Class data exists, a rollback is a hand-written down script: drop the 4 triggers and the function, drop the 12 tables (reverse FK order), drop the 4 new `recording_participants` columns, `recordings.live_session_id`, the 3 `tenants` columns and the 12 new enum types, then delete the two `_prisma_migrations` rows. New values added to `AuditAction`/`AuditTargetType` **cannot be removed** in PostgreSQL without recreating the type; they are harmless if unused and should be left in place. After real data exists, prefer roll-forward fixes. Take a DEV schema dump (`pg_dump --schema-only`) immediately before applying.

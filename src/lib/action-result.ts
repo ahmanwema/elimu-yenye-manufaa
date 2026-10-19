@@ -14,6 +14,9 @@ export type ResultCode =
   | "invalid_media"
   | "second_admin_required"
   | "feature_not_enabled"
+  | "too_early"
+  | "access_inactive"
+  | "limit_exceeded"
   | "error";
 
 export type ActionResult<T = void> =

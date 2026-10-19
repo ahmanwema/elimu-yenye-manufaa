@@ -27,7 +27,9 @@ const SNAPSHOT = {
               WHERE n.nspname='app' OR (n.nspname='public' AND p.proname='handle_new_auth_user')`,
   triggers: `SELECT tgrelid::regclass::text||' '||tgname AS k, pg_get_triggerdef(oid) AS v FROM pg_trigger
              WHERE NOT tgisinternal AND tgname IN ('on_auth_user_created','memberships_assign_registration_number',
-             'audit_events_no_update_delete','audit_events_no_truncate')`,
+             'audit_events_no_update_delete','audit_events_no_truncate',
+             'class_teacher_assignments_require_teacher','class_enrollments_require_student',
+             'live_sessions_require_substitute_teacher','access_payment_submissions_require_student')`,
   grants: `SELECT c.relname||' '||r.rolname AS k,
              'select='||has_table_privilege(r.rolname, c.oid, 'SELECT')||' insert='||has_table_privilege(r.rolname, c.oid, 'INSERT')
              ||' update='||has_table_privilege(r.rolname, c.oid, 'UPDATE')||' delete='||has_table_privilege(r.rolname, c.oid, 'DELETE') AS v

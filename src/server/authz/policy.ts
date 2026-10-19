@@ -300,7 +300,9 @@ export function canReadStudentAccount(
 }
 
 /**
- * Future hook for DETAILED student data (A51). Classes/enrollments do not exist yet,
+ * Future hook for DETAILED student data (A51). (2026-10-19: classes/enrollments now exist, but
+ * no detailed-student view uses them yet — open question 58; until then the default stays.)
+ * Originally: classes/enrollments did not exist yet,
  * so the default resolver says "teaches nobody" and teachers get no detailed access.
  * When classes exist, supply a resolver backed by class assignments.
  */

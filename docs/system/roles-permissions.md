@@ -170,6 +170,37 @@ These are role/relationship rules (like the existing correction rule), not grant
 - Play an approved full recording: the participating student (A94), an ACTIVE parent (A95), plus staff as before.
 - Option C: request (Markaz Admin, own Markaz), cancel (the requester), enable/decline/disable (Super Admin) — A96.
 
+### 2.9 Live Class (2026-10-19, A101–A130)
+
+Implemented in `src/server/authz/live-class.ts` (pure, unit-tested as a matrix) and enforced by every service before any query. Every cell also requires the person's ACTIVE membership in the class's Markaz: Primary/Co/Substitute need an ACTIVE **Teacher** membership (an assignment alone grants nothing), the Markaz Admin an ACTIVE **Markaz Admin** membership. A Super Admin has **no** Live Class powers (none were approved), except setting the plan capacity ceilings. "Admin" = Markaz Admin of that Markaz — operational, **not** teaching (A115).
+
+| Action | Primary | Co-Teacher | Substitute (that session) | Markaz Admin | Student | Parent |
+|---|---|---|---|---|---|---|
+| Create class / edit details / capacity / schedule / archive / assign or replace teachers | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
+| Read class (roster, waitlist, payments state) | ✓ | ✓ | ✗ | ✓ | own state only | ✗ |
+| Enroll / admit from waitlist / end enrollment | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
+| Capacity override (above capacity, with reason) | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
+| Extend grace | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
+| Submit payment evidence | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
+| Verify / reject payment | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
+| Create session (scheduled, from schedule, ad hoc) | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
+| Start / end session | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ |
+| Cancel scheduled session | ✓ | ✗ | ✗ | ✓ | ✗ | ✗ |
+| Assign substitute | ✓ | ✗ | ✗ | ✓ | ✗ | ✗ |
+| Join session | ✓ | ✓ | ✓ | ✓ (operational) | ACTIVE/GRACE enrollment | ✗ |
+| Remove participant | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ |
+| Grant / revoke student mic | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ |
+| Grant / revoke student whiteboard; author whiteboard | ✓ | ✓ | ✓ | ✗ | if granted (primary device) | ✗ |
+| Screen share | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ |
+| Read session attendance (incl. durations) | ✓ | ✓ | ✓ | ✓ | own status | child's status only |
+| Adjust attendance | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
+| Read / write class chat | ✓ | ✓ | that session only | ✓ (write if joined) | with ACTIVE/GRACE access | ✗ |
+| Start / stop session recording (Option C) | ✓ | ✓ | ✓ | stop only | ✗ | ✗ |
+| Correct recording participants (before finalization) | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
+| Set Markaz time zone | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
+
+A51's teacher-detail resolver (`NO_CLASSES_YET`) is intentionally unchanged in this pass (open question 58).
+
 ## 3. Parent account model — options (~~OPEN QUESTION~~ **Resolved 2026-10-05: Option 1**, A27 — see [../roadmap/open-questions.md](../roadmap/open-questions.md) item 2)
 
 - **Option 1** (**selected by A27**): Parent is its own account type, linked to one or more Student accounts via a verified relationship (e.g. invite from the student's enrollment, or verified by the teacher/Markaz). *The verification examples in brackets are still proposals, not decisions.*

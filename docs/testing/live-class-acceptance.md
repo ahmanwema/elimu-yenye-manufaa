@@ -2,6 +2,8 @@
 
 Status: **PROPOSED** — test cases to be executed once a Live Class implementation exists.
 
+> **2026-10-19:** the business-state foundation (A101–A130) exists and its rules are covered by automated tests ([security-tests.md](security-tests.md) "Live Class foundation tests"). Scenario 1's lobby/start/admission logic, permission grant/revoke state, chat, attendance and recording-participant rules are therefore testable now in the provider-neutral shell (`/[locale]/live/[sessionId]`). Every scenario that needs real audio, whiteboard drawing, screen share, latency or hardware (2, 3, …) still waits for the RTC vendor decision (A35) and the XPPen test.
+
 ## Scope
 
 End-to-end acceptance testing for [../features/live-class.md](../features/live-class.md) and its dependencies ([../features/whiteboard.md](../features/whiteboard.md), [../features/pdf-annotations.md](../features/pdf-annotations.md), [../features/student-corrections.md](../features/student-corrections.md), [../features/audio-recording.md](../features/audio-recording.md), [../features/lesson-player.md](../features/lesson-player.md)).

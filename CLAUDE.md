@@ -6,7 +6,9 @@ This file is the entry point for any AI assistant or engineer working on this re
 
 Elimu Yenye Manufaa is a multi-teacher, multi-institution online Islamic education platform (Qur'an, Tajwid, Hifdh, Hadith, Aqidah, Fiqh, Tafsir, Arabic language). Independent teachers and Markaz (institutions) run classes; students self-register and join via invitation links. See [docs/README.md](docs/README.md) for the full documentation map.
 
-**Status as of 2026-10-16:** recording & correction media policy (A66–A100) implemented and **applied to the DEV Supabase project** (15 migrations, exact parity; `correction-clips` private, audio/mp4, 10,485,760 bytes). 554 local + 41 real-DEV tests + 14-step E2E. Not production; nothing pushed or deployed. RTC vendor undecided (A35); XPPen pending. RTC vendor still undecided (A35); XPPen pending hardware.
+**Status as of 2026-10-19:** Live Class class structure, capacity & session foundation (A101–A130, Markaz-only, provider-neutral) implemented **LOCALLY**: 2 new additive migrations (17 total locally; DEV still has 15 — pre-apply plan in [docs/testing/dev-supabase-verification.md](docs/testing/dev-supabase-verification.md), awaiting owner approval). No media transport, no RTC vendor (A35), no payment gateway, no scheduled jobs. Live Class rules: `src/server/authz/live-class.ts`; all 12 Live Class tables are server-only.
+
+**Status as of 2026-10-16:** recording & correction media policy (A66–A100) implemented and **applied to the DEV Supabase project** (15 migrations, exact parity; `correction-clips` private, audio/mp4, 10,485,760 bytes). 554 local + 41 real-DEV tests + 14-step E2E. Not production; nothing pushed or deployed. RTC vendor undecided (A35); XPPen pending hardware.
 
 **Status as of 2026-10-13 (dev baseline):** All Phase 1–2B features plus A62–A64 implemented. The development Supabase project `elimu-yenye-manufaa` has all 9 migrations, a private `correction-clips` bucket and public sign-ups disabled, and is verified: 24 real-Supabase tests, a 14-step UI E2E, and exact schema parity with PGlite. Local: 388 tests. First LOCAL Git baseline commit exists; no remote, nothing pushed or deployed. Not production. See PROGRESS.md.
 
@@ -15,7 +17,7 @@ Elimu Yenye Manufaa is a multi-teacher, multi-institution online Islamic educati
 ## Non-negotiable rules for anyone working here
 
 1. **Nothing here is approved by default.** Every requirement, role, permission, schema, and technical choice in this repo is either `APPROVED`, `PROPOSED`, `OPEN QUESTION`, or `DEFERRED`. Check [DECISIONS.md](DECISIONS.md) before treating anything as final. Never silently promote a proposal into an approved requirement.
-2. **Do not implement, install, migrate, commit, push, or deploy** without explicit authorization from the project owner for that specific piece of work. Documentation and analysis are pre-authorized; application code needs explicit authorization per scope — the current scope is in [DECISIONS.md](DECISIONS.md) §2 (2026-10-13: local foundation only; no production, deploy, Git init, commit or push).
+2. **Do not implement, install, migrate, commit, push, or deploy** without explicit authorization from the project owner for that specific piece of work. Documentation and analysis are pre-authorized; application code needs explicit authorization per scope — the current scope is in [DECISIONS.md](DECISIONS.md) §2 (latest: 2026-10-19 eighth authorization — local Live Class foundation + one local commit; no DEV apply, production, deploy or push).
 3. **Before touching any feature**, follow this sequence:
    - Inspect the current repository state (don't assume prior work exists or matches memory).
    - Read this file.
@@ -43,7 +45,7 @@ Elimu Yenye Manufaa is a multi-teacher, multi-institution online Islamic educati
 | Tenancy | [docs/system/tenancy.md](docs/system/tenancy.md) |
 | Roles & permissions | [docs/system/roles-permissions.md](docs/system/roles-permissions.md) |
 | Design system | [docs/system/design-system.md](docs/system/design-system.md) |
-| Live Class (first feature) | [docs/features/live-class.md](docs/features/live-class.md) |
+| Live Class (first feature) | [docs/features/live-class.md](docs/features/live-class.md) (implemented foundation: last section) |
 | Roadmap | [docs/roadmap/phases.md](docs/roadmap/phases.md) |
 | Open questions | [docs/roadmap/open-questions.md](docs/roadmap/open-questions.md) |
 | Decisions log | [DECISIONS.md](DECISIONS.md) |

@@ -100,6 +100,47 @@ describe("server action surface", () => {
       "disableOptionCAction",
       "recordingPlaybackAction",
     ],
+    // Live Class foundation (2026-10-19). The job entry points closeStaleSessions and
+    // advanceEnrollmentStates, and the internal attendance/recording helpers, must NEVER appear.
+    "live-class.ts": [
+      "setTimezoneAction",
+      "setCapacityLimitsAction",
+      "createClassAction",
+      "updateClassAction",
+      "archiveClassAction",
+      "assignTeacherAction",
+      "removeCoTeacherAction",
+      "addScheduleAction",
+      "endScheduleAction",
+      "enrollStudentAction",
+      "admitFromWaitlistAction",
+      "endEnrollmentAction",
+      "extendGraceAction",
+      "submitPaymentAction",
+      "verifyPaymentAction",
+      "rejectPaymentAction",
+      "createSessionAction",
+      "generateSessionsAction",
+      "startAdHocSessionAction",
+      "startSessionAction",
+      "endSessionAction",
+      "cancelSessionAction",
+      "assignSubstituteAction",
+      "joinSessionAction",
+      "leaveSessionAction",
+      "raiseHandAction",
+      "lowerHandAction",
+      "grantMicAction",
+      "revokeMicAction",
+      "grantWhiteboardAction",
+      "revokeWhiteboardAction",
+      "removeParticipantAction",
+      "postChatAction",
+      "adjustAttendanceAction",
+      "startSessionRecordingAction",
+      "stopSessionRecordingAction",
+      "correctRecordingParticipantsAction",
+    ],
   };
 
   it.each(readdirSync(dir).filter((f) => readFileSync(join(dir, f), "utf8").startsWith('"use server"')))(
@@ -111,6 +152,20 @@ describe("server action surface", () => {
       expect(source).not.toMatch(/shouldCreateUser:\s*true/);
     },
   );
+
+  it("RTC boundary (A35): no vendor SDK, no pilot code, no public Realtime channel in the application", () => {
+    const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as { dependencies: Record<string, string>; devDependencies: Record<string, string> };
+    const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+    expect(deps.filter((d) => /livekit|agora/i.test(d))).toEqual([]);
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? (e.name === "generated" ? [] : walk(join(dir, e.name))) : /\.(ts|tsx)$/.test(e.name) ? [join(dir, e.name)] : []));
+    for (const file of walk(join(process.cwd(), "src"))) {
+      const source = readFileSync(file, "utf8");
+      expect(source, file).not.toMatch(/from ["'][^"']*(livekit|agora)[^"']*["']/i);
+      expect(source, file).not.toMatch(/from ["'][^"']*pilot\//);
+      expect(source, file).not.toMatch(/\.channel\(/); // no Supabase Realtime broadcast (the pilot's public whiteboard channel)
+    }
+  });
 
   it("OTP never creates accounts; only the invitation flow creates one, via the admin API", () => {
     const otp = readFileSync(join(process.cwd(), "src", "server", "otp.ts"), "utf8");

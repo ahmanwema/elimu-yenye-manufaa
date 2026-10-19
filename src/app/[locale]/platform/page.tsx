@@ -12,6 +12,8 @@ import { getDb } from "@/server/db";
 import { listPendingAppointmentRequests } from "@/server/services/appointments";
 import { listOptionCForPlatform } from "@/server/services/option-c";
 import { listPermissionOverview } from "@/server/services/platform";
+import { setCapacityLimitsAction } from "@/server/actions/live-class";
+import { listTenantCapacityLimits } from "@/server/services/classes";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getDictionary()).platform.title, robots: { index: false } };
@@ -38,10 +40,11 @@ async function PlatformBody() {
   if (!current.actor.isPlatformAdmin) return <p role="alert">{dict.platform.notAllowed}</p>;
 
   const db = getDb();
-  const [requests, overview, optionC] = await Promise.all([
+  const [requests, overview, optionC, limits] = await Promise.all([
     listPendingAppointmentRequests(db, current.actor),
     listPermissionOverview(db, current.actor),
     listOptionCForPlatform(db, current.actor),
+    listTenantCapacityLimits(db, current.actor),
   ]);
   const name = (n: string | null) => n ?? dict.markaz.unnamed;
 
@@ -113,6 +116,25 @@ async function PlatformBody() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="card" aria-labelledby="capacity">
+        <h2 id="capacity">{dict.live.platformCapacityHeading}</h2>
+        <p className="muted">{dict.live.platformCapacityNote}</p>
+        <ul className="list">
+          {limits.map((t) => (
+            <li key={t.id}>
+              <ActionForm action={setCapacityLimitsAction} submitLabel={dict.live.saveLimits} pendingLabel={dict.common.loading} messages={dict.results} inline>
+                <strong>{t.name}</strong>
+                <input type="hidden" name="tenantId" value={t.id} />
+                <label htmlFor={`ce-${t.id}`} className="visually-hidden">{dict.live.enrollmentCapacity}</label>
+                <input id={`ce-${t.id}`} name="classEnrollmentCapacityMax" type="number" min={1} defaultValue={t.classEnrollmentCapacityMax ?? ""} placeholder={dict.live.enrollmentCapacity} />
+                <label htmlFor={`cl-${t.id}`} className="visually-hidden">{dict.live.liveCapacity}</label>
+                <input id={`cl-${t.id}`} name="classLiveCapacityMax" type="number" min={1} defaultValue={t.classLiveCapacityMax ?? ""} placeholder={dict.live.liveCapacity} />
+              </ActionForm>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="card" aria-labelledby="grants">

@@ -2,6 +2,8 @@
 
 Status: **This is the first implementation priority** (A11, APPROVED at the feature-selection level). The detailed design below is **PROPOSED** and requires review before implementation begins.
 
+> **2026-10-19 — Class structure, capacity and session foundation APPROVED (A101–A130) and implemented LOCALLY.** See "Implemented foundation (2026-10-19)" at the end of this file. It is **provider-neutral business state only**: no audio, whiteboard drawing or screen-share transport exists, and no RTC vendor is chosen (A35). Where the PROPOSED text below conflicts with A101–A130 (notably "Permissions"), A101–A130 win — see DECISIONS §1.9.
+
 ## Purpose
 
 Let a teacher run a real-time lesson — voice, whiteboard, PDF/Qur'an-page annotation, screen share — with a class of students on phones and desktops, including individual corrections that stay private, attendance tracking, and recording for later replay.
@@ -40,6 +42,8 @@ Teacher, Student. (Super Admin has support-level access. The Markaz Admin role i
 See entity groups in [../system/database.md](../system/database.md) §2 ("Live Class" and "Corrections/annotations" groups): class sessions, attendance records, whiteboard documents/pages, operation logs + snapshots, recording metadata, permission-grant events, chat messages, private annotation records.
 
 ## Permissions
+
+> **SUPERSEDED 2026-10-19** by A113, A115–A120 and A122 (role/action matrix in [../system/roles-permissions.md](../system/roles-permissions.md) §2.9). The original 2026-09-30 proposal is kept below for history.
 
 - Only the class's teacher can start/end the session, grant/revoke mic and whiteboard-write access, and see all students' corrections in that class.
 - A student sees: the shared whiteboard/PDF state, their own private corrections, their own attendance, class-wide chat.
@@ -93,3 +97,44 @@ See [../testing/live-class-acceptance.md](../testing/live-class-acceptance.md), 
 - RTC provider — Agora vs LiveKit pilot (A35); no vendor selected.
 - Relationship of class replay to the Option C add-on (item 18).
 - Whether simultaneous multi-student mic grant is ever needed (not currently requested; flagged for completeness).
+
+## Implemented foundation (2026-10-19, A101–A130)
+
+Local only (not applied to the DEV Supabase project — see [../testing/dev-supabase-verification.md](../testing/dev-supabase-verification.md)). Code: `src/server/authz/live-class.ts` (pure rules), `src/server/services/{classes,enrollments,live-sessions,session-recording,live-rules}.ts`, pages under `/[locale]/markaz/[tenantId]/classes`, `/[locale]/live/[sessionId]`, account and platform sections.
+
+**Tenancy.** Markaz-only (A101). Every row carries `tenant_id` and is pinned to its parent by composite `(id, tenant_id)` foreign keys; a DB trigger refuses a teacher/student/substitute who lacks the right ACTIVE membership in the same Markaz.
+
+**Class.** One Markaz; exactly one active PRIMARY (partial unique index), any number of CO_TEACHERs; ended assignments are kept. A Primary is only *replaced* (explicitly, audited), never removed or silently reassigned; a departed teacher's row grants nothing (authority always requires an ACTIVE Teacher membership). Archive keeps everything.
+
+**Enrollment / access.**
+
+```
+(enroll) ──seat free──▶ ACTIVE ──access period ends──▶ GRACE (7 days, extendable) ──▶ SUSPENDED
+   └──class full──▶ WAITLISTED ──admit (seat or admin override)──▶ ACTIVE
+GRACE / SUSPENDED ──verified payment──▶ ACTIVE        any open state ──end──▶ ENDED (kept)
+```
+
+Access decisions use the *effective* state computed from the dates, so a lifecycle job that has not run never grants access. Joining needs an ACTIVE student membership AND an ACTIVE/GRACE enrollment.
+
+**Capacity.** Enrollment and live capacities count students only. A Class value must be ≤ the Markaz plan ceiling (set by a Super Admin; NULL = none). No numbers exist in code (A33). Full → WAITLISTED; a Markaz Admin override records actor/time/reason and is audited. Live full → WAITING_FOR_SLOT; slots are given first-come-first-served.
+
+**Sessions.**
+
+```
+SCHEDULED ──start (from −15 min; not after end + 30)──▶ LIVE ──end (manual)──────────────▶ ENDED (MANUAL)
+    │                                                    └──still LIVE at end + 30 min──▶ ENDED (SAFETY_CLOSE)
+    └──cancel (Primary / Markaz Admin)──▶ CANCELLED
+(ad hoc: default 60 min, changeable) ──create──▶ LIVE
+```
+
+"Waiting room open" (from −15 min) is derived, not stored. One LIVE session per class. Timestamps are UTC; schedules (weekly, Markaz-local wall time) are converted with the Markaz IANA zone. `closeStaleSessions(now)` and `advanceEnrollmentStates(now)` are safe, re-runnable entry points — **not scheduled anywhere**.
+
+**Participation (business state only).** One row per person per session (role, admission, hand, mic grant, whiteboard grant, removal) and one row per device connection (PRIMARY / VIEW_ONLY, raw presence). One student mic at a time (partial unique index; a second grant is refused until the first is revoked). Capabilities a future provider adapter must enforce: `getMyDeviceCapabilities()` — a VIEW_ONLY device never publishes mic or writes the whiteboard; a Markaz Admin has no teaching capabilities by role.
+
+**Attendance.** Computed at session end from the UNION of admitted connection intervals (reconnects and a second device never double-count): ≥ 50 % → PRESENT; else first arrival after start + 15 → LATE; else ABSENT (precedence: OQ53). Manual correction by Primary/Co/Admin is audited (from/to). Parents receive status + class + session date only.
+
+**Chat.** Public to the class, persistent, tenant + class + session scoped, authorship kept. Readers per A120; posting needs a LIVE session, a joined (and, for students, admitted) participant.
+
+**Recording (Option C).** A recording-enabled session needs Option C to start; recording start checks it again and creates a recording linked to the session (`recordings.live_session_id`). Participants come from presence: admitted+connected at start (`SESSION_PRESENCE`), or when admitted later (`SESSION_LATE_JOIN`); consent is evaluated at that moment and audio may be captured only from `audio_included_from`. A Primary/Co/Admin may correct the list before media finalization (excluded rows are kept and audited). The free-form list is refused for session recordings.
+
+**NOT implemented (by decision):** media transport of any kind, RTC vendor SDKs or tokens, whiteboard sync, screen sharing, a production scheduler, payment amounts/providers.

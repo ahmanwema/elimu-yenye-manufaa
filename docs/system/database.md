@@ -138,6 +138,30 @@ Additive: new enum values (`SELF_ONLINE`, `REJECTED`, `DATE_OF_BIRTH_UNVERIFIED`
 
 Additive: `RecordingEntitlementStatus` + DECLINED/CANCELLED/DISABLED; `recording_entitlements` + declined/cancelled/disabled by/at; audit actions OPTION_C_CANCELLED/DECLINED/DISABLED. Constraints: `student_dob_not_self_verified` (NOT VALID), `entitlement_status_fields` (rebuilt), `entitlement_cancel_by_requester`. No data changes.
 
+## 15. Live Class foundation (2026-10-19, migrations 20261019000000 / 20261019000100, LOCAL ONLY)
+
+Minimum normalized model (A101–A130). Merged rather than separate tables: waitlist = an enrollment status; capacity override = enrollment columns + audit; attendance adjustment history = record columns + append-only audit; enrollment history = rows are never deleted + audit; the derived "waiting room open" is not a stored state.
+
+| Table | Purpose | Key rules |
+|---|---|---|
+| `tenants` (+3 columns) | `timezone` (IANA, default `UTC`), `class_enrollment_capacity_max`, `class_live_capacity_max` (NULL = no ceiling) | CHECK positive / non-empty |
+| `classes` | One Markaz; name, subject, status ACTIVE/ARCHIVED, `enrollment_capacity`, `live_capacity` | unique `(id, tenant_id)`; archive fields together |
+| `class_teacher_assignments` | PRIMARY / CO_TEACHER; ended rows kept | partial unique: one active PRIMARY per class; one active row per teacher; trigger: ACTIVE TEACHER in same Markaz |
+| `class_schedules` | Weekly slot in Markaz-local time (weekday, start minute, duration, optional validity dates) | ranges CHECK |
+| `class_enrollments` | WAITLISTED/ACTIVE/GRACE/SUSPENDED/ENDED; `access_until`, `grace_until`, override actor/time/reason | partial unique: one non-ENDED per (class, student); trigger: ACTIVE STUDENT |
+| `grace_extensions` | Append-only: previous/new grace date, reason, grantor, time | reason required |
+| `access_payment_submissions` | Manual evidence reference + access period; SUBMITTED/VERIFIED/REJECTED | no amount/currency/provider columns; status fields CHECK; trigger: ACTIVE STUDENT |
+| `access_payment_submission_enrollments` | Which enrollments a submission covers (class / subject / package) | composite FKs both sides |
+| `live_sessions` | SCHEDULED/LIVE/ENDED/CANCELLED; SCHEDULED/AD_HOC; scheduled + actual start/end (UTC); end reason MANUAL/SAFETY_CLOSE; cancel actor/reason; substitute; `recording_enabled` | partial unique: one LIVE per class; unique `(schedule_id, scheduled_start_at)`; status fields CHECK; trigger: substitute is ACTIVE TEACHER |
+| `live_session_participants` | One per person per session: role, admission, hand, mic/whiteboard grant, removal | partial unique: one student mic per session; student-only state CHECK |
+| `live_session_connections` | One per device: PRIMARY/VIEW_ONLY, connected/admitted/disconnected (raw presence) | partial unique: one open PRIMARY per participant |
+| `attendance_records` | Computed + effective status, present/session seconds, first arrival, adjustment actor/time/reason | unique `(session, student)`; adjustment fields CHECK |
+| `live_chat_messages` | Class chat, tenant + class + session scoped; author + role snapshot | FK `(session, class, tenant)`; body 1–2000 |
+| `recordings` (+1) | `live_session_id` → `live_sessions(id, tenant_id)` | NULL for legacy recordings |
+| `recording_participants` (+4) | `source` (LEGACY_MANUAL default / SESSION_PRESENCE / SESSION_LATE_JOIN / MANUAL_CORRECTION), `audio_included_from`, `excluded_at/by` | audio-from requires audio; exclusion fields together |
+
+Indexes cover tenant, class, session, student, active enrollment (`class_id, status`; `student_profile_id, status`), active teacher assignment (`class_id, ended_at`; `teacher_profile_id, ended_at`), scheduled start (`class_id, scheduled_start_at`; `tenant_id, status, scheduled_start_at`), attendance lookup (`student_profile_id`; unique `session_id, student_profile_id`) and chat ordering (`session_id, created_at`; `class_id, created_at`). Every FK is RESTRICT (history is never cascaded away). All 12 new tables are server-only under RLS (security.md §3.10). Migration 1 is generated offline and purely additive; migration 2 is hand-written, changes no rows, and adds only constraints every existing row already satisfies.
+
 ## 6. Open questions
 
 See [../roadmap/open-questions.md](../roadmap/open-questions.md) for tenant-ownership-of-student-data and Markaz/teacher relationship questions that materially affect the final schema shape.

@@ -19,7 +19,13 @@ export type DomainErrorCode =
   /** A84: the requester cannot approve their own deletion request; another admin must. */
   | "second_admin_required"
   /** A90: Option C (full recording) is not enabled for this Markaz. */
-  | "feature_not_enabled";
+  | "feature_not_enabled"
+  /** Live Class (A112): before the 15-minute early window of a scheduled session. */
+  | "too_early"
+  /** Live Class (A106): no ACTIVE/GRACE enrollment (waitlisted, suspended, ended or none). */
+  | "access_inactive"
+  /** Live Class: above the Markaz plan capacity ceiling (A109), or too many devices (A121). */
+  | "limit_exceeded";
 
 export class DomainError extends Error {
   constructor(

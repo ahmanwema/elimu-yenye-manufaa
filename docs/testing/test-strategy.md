@@ -14,6 +14,8 @@ Type checking and unit/integration test suites verify code *correctness*; they d
 4. **Manual hardware/device testing** — cannot be fully automated: XPPen Deco 640 pointer/pressure behavior in real Chrome ([device-compatibility.md](device-compatibility.md)), real mobile network conditions.
 5. **Acceptance testing** — feature-level sign-off against the acceptance criteria defined in each feature doc under `docs/features/`.
 
+**As implemented (2026-10-19):** layers 1–2 run locally with `npm test` (Vitest; pure rules + real migrations, RLS and Prisma services on in-process PGlite), plus the real DEV Supabase suite (`npm run test:dev-supabase`) and the UI E2E (`scripts/dev-e2e.mjs`). Time-dependent Live Class rules take an explicit `now`, so windows (−15/+15/+30 minutes, 7-day grace) are tested deterministically. Layer 3 multi-client media tests and layer 4 hardware tests wait for the RTC vendor (A35).
+
 ## Ownership
 
 Each feature's own documentation (e.g. [../features/live-class.md](../features/live-class.md)) defines its specific acceptance criteria and testing requirements; this document defines the shared methodology, not feature-specific cases.

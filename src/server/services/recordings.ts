@@ -69,7 +69,7 @@ async function loadForAuthor(db: PrismaClient, actor: Actor, input: unknown) {
   if (!parsed.success) throw new DomainError("invalid_input");
   const recording = await db.recording.findUnique({
     where: { id: parsed.data.recordingId },
-    select: { id: true, tenantId: true, teacherProfileId: true, status: true, startedAt: true, deletedAt: true, mediaFinalizedAt: true },
+    select: { id: true, tenantId: true, teacherProfileId: true, status: true, startedAt: true, deletedAt: true, mediaFinalizedAt: true, liveSessionId: true },
   });
   if (!recording || !isActiveAuthoringTeacher(actor, recording)) throw new AuthorizationError();
   return recording;
@@ -137,6 +137,9 @@ export async function registerRecordingParticipants(db: PrismaClient, actor: Act
   if (!parsed.success) throw new DomainError("invalid_input");
   const recording = await loadForAuthor(db, actor, { recordingId: parsed.data.recordingId });
   if (recording.deletedAt) throw new DomainError("invalid_state");
+  // A124: a session recording's participants come from the session's presence, never from a
+  // free-form list. Corrections go through ./session-recording.ts (audited).
+  if (recording.liveSessionId) throw new DomainError("invalid_state");
   const now = options.now ?? new Date();
   const ids = [...new Set(parsed.data.studentProfileIds)];
   const members = await db.membership.findMany({
@@ -170,11 +173,19 @@ export async function registerRecordingParticipants(db: PrismaClient, actor: Act
  */
 export async function getCapturePlan(db: PrismaClient, actor: Actor, input: unknown) {
   const recording = await loadForAuthor(db, actor, input);
+  // Excluded participants (a pre-finalization correction) never enter the plan. A session late
+  // joiner's audio may be captured only from `includeAudioFrom` (their consent check, A125).
   const participants = await db.recordingParticipant.findMany({
-    where: { recordingId: recording.id },
-    select: { studentProfileId: true, audioIncluded: true, eligibility: true },
+    where: { recordingId: recording.id, excludedAt: null },
+    select: { studentProfileId: true, audioIncluded: true, eligibility: true, audioIncludedFrom: true },
   });
-  return participants.map((p) => ({ studentProfileId: p.studentProfileId, includeAudio: p.audioIncluded, eligibility: p.eligibility }));
+  return participants.map((p) => ({
+    studentProfileId: p.studentProfileId,
+    includeAudio: p.audioIncluded,
+    eligibility: p.eligibility,
+    // Legacy (non-session) recordings keep their original plan shape: no time bound.
+    ...(recording.liveSessionId ? { includeAudioFrom: p.audioIncludedFrom } : {}),
+  }));
 }
 
 // --- Internal media entry points for a FUTURE capture/extraction worker (no client access) ---
@@ -460,7 +471,7 @@ export async function getRecordingPlaybackUrl(
       storageBucket: true,
       storageObjectKey: true,
       mediaFinalizedAt: true,
-      participants: { select: { studentProfileId: true, audioIncluded: true } },
+      participants: { where: { excludedAt: null }, select: { studentProfileId: true, audioIncluded: true } },
       segments: { select: { id: true, storageBucket: true, storageObjectKey: true, mediaFinalizedAt: true, purgedAt: true, withdrawnAt: true } },
     },
   });
@@ -527,7 +538,7 @@ export async function listTenantRecordings(db: PrismaClient, actor: Actor, tenan
 const viewerSelect = {
   ...listSelect,
   tenant: { select: { name: true } },
-  participants: { select: { studentProfileId: true, audioIncluded: true } },
+  participants: { where: { excludedAt: null }, select: { studentProfileId: true, audioIncluded: true } },
   segments: { where: { mediaFinalizedAt: { not: null }, purgedAt: null, withdrawnAt: null }, select: { id: true, startMs: true, endMs: true } },
 };
 
@@ -536,7 +547,7 @@ export async function listParentVisibleRecordings(db: PrismaClient, actor: Actor
   const children = actor.parentLinks.filter((l) => l.status === "ACTIVE").map((l) => l.studentProfileId);
   if (children.length === 0) return [];
   const candidates = await db.recording.findMany({
-    where: { status: "APPROVED", deletedAt: null, participants: { some: { studentProfileId: { in: children }, audioIncluded: true } } },
+    where: { status: "APPROVED", deletedAt: null, participants: { some: { studentProfileId: { in: children }, audioIncluded: true, excludedAt: null } } },
     select: viewerSelect,
     orderBy: { createdAt: "desc" },
   });
@@ -546,7 +557,7 @@ export async function listParentVisibleRecordings(db: PrismaClient, actor: Actor
 /** A94: the student's own approved recordings (participated, consent valid at capture). */
 export async function listStudentVisibleRecordings(db: PrismaClient, actor: Actor) {
   const candidates = await db.recording.findMany({
-    where: { status: "APPROVED", deletedAt: null, participants: { some: { studentProfileId: actor.profileId, audioIncluded: true } } },
+    where: { status: "APPROVED", deletedAt: null, participants: { some: { studentProfileId: actor.profileId, audioIncluded: true, excludedAt: null } } },
     select: viewerSelect,
     orderBy: { createdAt: "desc" },
   });

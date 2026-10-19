@@ -33,6 +33,10 @@ model Profile {
   correctionsAuthored          Correction[]                    @relation("CorrectionTeacher")
   clipsCreated                 CorrectionAudioClip[]           @relation("ClipCreator")
   recordingsAuthored           Recording[]                     @relation("RecordingTeacher")
+  classTeacherAssignments      ClassTeacherAssignment[]
+  substituteSessions           LiveSession[]                   @relation("SessionSubstitute")
+  liveParticipations           LiveSessionParticipant[]
+  chatMessages                 LiveChatMessage[]
 
   @@map("profiles")
 }
@@ -67,6 +71,17 @@ model Tenant {
   offlineConsents      RecordingConsent[]
   deletionRequests     MediaDeletionRequest[]
   recordingEntitlement RecordingEntitlement?
+  classes              Class[]
+  paymentSubmissions   AccessPaymentSubmission[]
+
+  /// Live Class (2026-10-19): the Markaz's IANA time zone. Timestamps are always stored in UTC;
+  /// schedules are entered and displayed in this zone. Default UTC until the Markaz sets it —
+  /// no regional zone (e.g. EAT) is assumed.
+  timezone                   String @default("UTC")
+  /// Plan/package-level ceilings for a Class's capacities. NULL = no ceiling configured. Exact
+  /// numbers are NOT approved (A33); nothing in code sets a default. Set by a Super Admin.
+  classEnrollmentCapacityMax Int?   @map("class_enrollment_capacity_max")
+  classLiveCapacityMax       Int?   @map("class_live_capacity_max")
 
   @@map("tenants")
 }
@@ -125,11 +140,14 @@ model StudentAccount {
   dateOfBirthVerifiedById String?   @map("date_of_birth_verified_by_id") @db.Uuid
   dateOfBirthVerifiedAt   DateTime? @map("date_of_birth_verified_at") @db.Timestamptz(6)
 
-  profile               Profile                @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profile               Profile                   @relation(fields: [profileId], references: [id], onDelete: Cascade)
   parentLinks           ParentStudentLink[]
   corrections           Correction[]
   recordingConsents     RecordingConsent[]
   recordingParticipants RecordingParticipant[]
+  classEnrollments      ClassEnrollment[]
+  attendanceRecords     AttendanceRecord[]
+  paymentSubmissions    AccessPaymentSubmission[]
 
   @@map("student_accounts")
 }
@@ -540,9 +558,13 @@ model Recording {
   purgeEligibleAt               DateTime?               @map("purge_eligible_at") @db.Timestamptz(6)
   purgedAt                      DateTime?               @map("purged_at") @db.Timestamptz(6)
   createdAt                     DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// Live Class (2026-10-19): the session this whole-session recording belongs to. NULL only
+  /// for recordings created before session integration (legacy, free-form participant list).
+  liveSessionId                 String?                 @map("live_session_id") @db.Uuid
 
   tenant           Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   teacher          Profile                @relation("RecordingTeacher", fields: [teacherProfileId], references: [id], onDelete: Restrict)
+  liveSession      LiveSession?           @relation(fields: [liveSessionId, tenantId], references: [id, tenantId], onDelete: Restrict)
   participants     RecordingParticipant[]
   segments         RecordingSegment[]
   extractedClips   CorrectionAudioClip[]
@@ -550,6 +572,7 @@ model Recording {
 
   @@unique([id, tenantId])
   @@index([tenantId, status])
+  @@index([liveSessionId])
   @@map("recordings")
 }
 
@@ -567,17 +590,38 @@ enum RecordingEligibility {
   ADULT_CONSENT_UNDECIDED
 }
 
+enum RecordingParticipantSource {
+  LEGACY_MANUAL
+  /// Present (admitted, connected) in the live session when recording started.
+  SESSION_PRESENCE
+  /// Joined the live session after recording started.
+  SESSION_LATE_JOIN
+  /// Added by an audited pre-finalization correction.
+  MANUAL_CORRECTION
+}
+
 model RecordingParticipant {
-  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  recordingId      String               @map("recording_id") @db.Uuid
-  tenantId         String               @map("tenant_id") @db.Uuid
-  studentProfileId String               @map("student_profile_id") @db.Uuid
+  id                String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recordingId       String                     @map("recording_id") @db.Uuid
+  tenantId          String                     @map("tenant_id") @db.Uuid
+  studentProfileId  String                     @map("student_profile_id") @db.Uuid
   /// The capture boundary a future provider adapter must honor: false → this student's
   /// audio must not be included in recorded media.
-  audioIncluded    Boolean              @map("audio_included")
-  eligibility      RecordingEligibility
-  consentId        String?              @map("consent_id") @db.Uuid
-  registeredAt     DateTime             @default(now()) @map("registered_at") @db.Timestamptz(6)
+  audioIncluded     Boolean                    @map("audio_included")
+  eligibility       RecordingEligibility
+  consentId         String?                    @map("consent_id") @db.Uuid
+  registeredAt      DateTime                   @default(now()) @map("registered_at") @db.Timestamptz(6)
+  /// How the row was produced (2026-10-19). LEGACY_MANUAL = the free-form teacher list used
+  /// before session integration (existing rows; default).
+  source            RecordingParticipantSource @default(LEGACY_MANUAL)
+  /// Session recordings: from when this student's audio may enter the recording — the
+  /// recording start for students present then, the (re)join time for late joiners whose
+  /// consent check passed. NULL while audio is excluded.
+  audioIncludedFrom DateTime?                  @map("audio_included_from") @db.Timestamptz(6)
+  /// Removed from the participant list by a pre-finalization correction (audited). The row is
+  /// kept; an excluded participant never counts for capture or viewer gates.
+  excludedAt        DateTime?                  @map("excluded_at") @db.Timestamptz(6)
+  excludedById      String?                    @map("excluded_by_id") @db.Uuid
 
   recording Recording         @relation(fields: [recordingId, tenantId], references: [id, tenantId], onDelete: Restrict)
   student   StudentAccount    @relation(fields: [studentProfileId], references: [profileId], onDelete: Restrict)
@@ -691,6 +735,42 @@ enum AuditAction {
   OPTION_C_CANCELLED
   OPTION_C_DECLINED
   OPTION_C_DISABLED
+  // Live Class foundation (2026-10-19)
+  TENANT_TIMEZONE_SET
+  TENANT_CAPACITY_LIMITS_SET
+  CLASS_CREATED
+  CLASS_UPDATED
+  CLASS_ARCHIVED
+  CLASS_TEACHER_ASSIGNED
+  CLASS_TEACHER_REMOVED
+  CLASS_CAPACITY_OVERRIDE
+  CLASS_SCHEDULE_ADDED
+  CLASS_SCHEDULE_ENDED
+  ENROLLMENT_CREATED
+  ENROLLMENT_WAITLISTED
+  ENROLLMENT_ADMITTED_FROM_WAITLIST
+  ENROLLMENT_GRACE_STARTED
+  ENROLLMENT_SUSPENDED
+  ENROLLMENT_REACTIVATED
+  ENROLLMENT_ENDED
+  GRACE_EXTENDED
+  PAYMENT_ACCESS_SUBMITTED
+  PAYMENT_ACCESS_VERIFIED
+  PAYMENT_ACCESS_REJECTED
+  SESSION_CREATED
+  SESSION_STARTED
+  SESSION_ENDED
+  SESSION_SAFETY_CLOSED
+  SESSION_CANCELLED
+  SESSION_SUBSTITUTE_ASSIGNED
+  SESSION_PARTICIPANT_REMOVED
+  MIC_GRANTED
+  MIC_REVOKED
+  WHITEBOARD_GRANTED
+  WHITEBOARD_REVOKED
+  ATTENDANCE_ADJUSTED
+  RECORDING_SESSION_STARTED
+  RECORDING_PARTICIPANTS_ADJUSTED
 }
 
 enum AuditTargetType {
@@ -702,6 +782,14 @@ enum AuditTargetType {
   RECORDING_CONSENT
   STUDENT_ACCOUNT
   RECORDING_ENTITLEMENT
+  // Live Class foundation (2026-10-19)
+  TENANT
+  CLASS
+  CLASS_ENROLLMENT
+  PAYMENT_SUBMISSION
+  LIVE_SESSION
+  LIVE_SESSION_PARTICIPANT
+  ATTENDANCE_RECORD
 }
 
 /// Append-only (UPDATE/DELETE refused by a trigger). Never holds signed URLs, object keys
@@ -762,4 +850,405 @@ model RecordingEntitlement {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   @@map("recording_entitlements")
+}
+
+// =====================================================================================
+// Live Class foundation (owner TO-BE approval 2026-10-19, A101–A130).
+// MARKAZ-ONLY. Provider-neutral business state: there is NO media transport, RTC SDK or
+// provider token here (A35: no vendor selected). Every table is tenant-scoped and pinned to
+// its parent by composite (id, tenant_id) foreign keys, so a row can never point into
+// another Markaz. All tables are server-only (no Data API access).
+// =====================================================================================
+
+enum ClassStatus {
+  ACTIVE
+  /// No new enrollments or sessions. History (sessions, attendance, chat) is kept.
+  ARCHIVED
+}
+
+/// A persistent class of one Markaz (A102). Capacities count STUDENTS only (A109).
+model Class {
+  id                 String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String      @map("tenant_id") @db.Uuid
+  name               String
+  /// Optional free text (e.g. "Tajwid"). Not a curriculum entity.
+  subject            String?
+  description        String?
+  status             ClassStatus @default(ACTIVE)
+  /// Enrollment capacity (students). NULL = no class-level limit; must be at or below the
+  /// Markaz plan ceiling when one is configured.
+  enrollmentCapacity Int?        @map("enrollment_capacity")
+  /// Live concurrent student capacity. Same rules.
+  liveCapacity       Int?        @map("live_capacity")
+  createdById        String      @map("created_by_id") @db.Uuid
+  createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  archivedAt         DateTime?   @map("archived_at") @db.Timestamptz(6)
+  archivedById       String?     @map("archived_by_id") @db.Uuid
+
+  tenant      Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  teachers    ClassTeacherAssignment[]
+  schedules   ClassSchedule[]
+  enrollments ClassEnrollment[]
+  sessions    LiveSession[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, status])
+  @@map("classes")
+}
+
+enum ClassTeacherRole {
+  PRIMARY
+  CO_TEACHER
+}
+
+/// Teacher to Class (A103). Exactly one active PRIMARY per class and at most one active row
+/// per teacher (partial unique indexes). Ending a row keeps it as history; a departed
+/// teacher's row is never reassigned silently: a Markaz Admin assigns a replacement (A104).
+model ClassTeacherAssignment {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String           @map("tenant_id") @db.Uuid
+  classId          String           @map("class_id") @db.Uuid
+  teacherProfileId String           @map("teacher_profile_id") @db.Uuid
+  role             ClassTeacherRole
+  assignedById     String           @map("assigned_by_id") @db.Uuid
+  assignedAt       DateTime         @map("assigned_at") @db.Timestamptz(6)
+  endedAt          DateTime?        @map("ended_at") @db.Timestamptz(6)
+  endedById        String?          @map("ended_by_id") @db.Uuid
+
+  class   Class   @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  teacher Profile @relation(fields: [teacherProfileId], references: [id], onDelete: Restrict)
+
+  @@index([classId, endedAt])
+  @@index([teacherProfileId, endedAt])
+  @@map("class_teacher_assignments")
+}
+
+/// Weekly recurring schedule (A112). Wall-clock time in the MARKAZ time zone; sessions
+/// generated from it store UTC instants.
+model ClassSchedule {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  classId         String    @map("class_id") @db.Uuid
+  /// 0 = Sunday ... 6 = Saturday, in the Markaz time zone.
+  weekday         Int
+  /// Minutes after local midnight (0-1439).
+  startMinute     Int       @map("start_minute")
+  durationMinutes Int       @map("duration_minutes")
+  /// Optional local-date bounds (inclusive).
+  validFrom       DateTime? @map("valid_from") @db.Date
+  validUntil      DateTime? @map("valid_until") @db.Date
+  createdById     String    @map("created_by_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  endedAt         DateTime? @map("ended_at") @db.Timestamptz(6)
+  endedById       String?   @map("ended_by_id") @db.Uuid
+
+  class    Class         @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  sessions LiveSession[]
+
+  @@index([classId])
+  @@map("class_schedules")
+}
+
+/// Enrollment lifecycle (A106-A110). WAITLISTED = class full (A110). ACTIVE becomes GRACE when
+/// the verified access period ends, then SUSPENDED after grace; a verified renewal returns to
+/// ACTIVE. ENDED rows are kept as history; re-enrolling creates a new row.
+enum ClassEnrollmentStatus {
+  WAITLISTED
+  ACTIVE
+  GRACE
+  SUSPENDED
+  ENDED
+}
+
+model ClassEnrollment {
+  id                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String                @map("tenant_id") @db.Uuid
+  classId                String                @map("class_id") @db.Uuid
+  studentProfileId       String                @map("student_profile_id") @db.Uuid
+  status                 ClassEnrollmentStatus
+  enrolledById           String                @map("enrolled_by_id") @db.Uuid
+  enrolledAt             DateTime              @map("enrolled_at") @db.Timestamptz(6)
+  waitlistedAt           DateTime?             @map("waitlisted_at") @db.Timestamptz(6)
+  /// End of the last VERIFIED access period. NULL = no access period recorded (no expiry).
+  accessUntil            DateTime?             @map("access_until") @db.Timestamptz(6)
+  /// End of grace (default access_until + 7 days, or a manually extended date).
+  graceUntil             DateTime?             @map("grace_until") @db.Timestamptz(6)
+  statusChangedAt        DateTime              @map("status_changed_at") @db.Timestamptz(6)
+  /// Admitted above the enrollment capacity by a Markaz Admin's controlled override (A110).
+  capacityOverrideById   String?               @map("capacity_override_by_id") @db.Uuid
+  capacityOverrideAt     DateTime?             @map("capacity_override_at") @db.Timestamptz(6)
+  capacityOverrideReason String?               @map("capacity_override_reason")
+  endedAt                DateTime?             @map("ended_at") @db.Timestamptz(6)
+  endedById              String?               @map("ended_by_id") @db.Uuid
+
+  class              Class                               @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  student            StudentAccount                      @relation(fields: [studentProfileId], references: [profileId], onDelete: Restrict)
+  graceExtensions    GraceExtension[]
+  paymentSubmissions AccessPaymentSubmissionEnrollment[]
+
+  @@unique([id, tenantId])
+  @@index([classId, status])
+  @@index([studentProfileId, status])
+  @@map("class_enrollments")
+}
+
+/// Manual grace extension (A108): who, when, until when, why. Append-only history.
+model GraceExtension {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  enrollmentId       String    @map("enrollment_id") @db.Uuid
+  previousGraceUntil DateTime? @map("previous_grace_until") @db.Timestamptz(6)
+  graceUntil         DateTime  @map("grace_until") @db.Timestamptz(6)
+  reason             String
+  grantedById        String    @map("granted_by_id") @db.Uuid
+  grantedAt          DateTime  @map("granted_at") @db.Timestamptz(6)
+
+  enrollment ClassEnrollment @relation(fields: [enrollmentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@index([enrollmentId])
+  @@map("grace_extensions")
+}
+
+enum AccessPaymentStatus {
+  SUBMITTED
+  VERIFIED
+  REJECTED
+}
+
+/// MANUAL payment/access verification only (A107). Records that someone submitted evidence of
+/// payment for an access period covering one or more enrollments (a class, a subject or a
+/// package, as the Markaz describes it), and that a Markaz Admin verified it. Deliberately NO
+/// amount, currency, price, provider, invoice, tax, refund or revenue-share fields: none of
+/// those are decided. The evidence itself is never stored, only a reference.
+model AccessPaymentSubmission {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String              @map("tenant_id") @db.Uuid
+  studentProfileId  String              @map("student_profile_id") @db.Uuid
+  /// What the payment covers, as the Markaz describes it (class, subject, package...).
+  coverageNote      String              @map("coverage_note")
+  /// A reference to the evidence (receipt / transaction number). Never the evidence itself.
+  evidenceReference String              @map("evidence_reference")
+  periodStart       DateTime            @map("period_start") @db.Timestamptz(6)
+  periodEnd         DateTime            @map("period_end") @db.Timestamptz(6)
+  status            AccessPaymentStatus @default(SUBMITTED)
+  submittedById     String              @map("submitted_by_id") @db.Uuid
+  submittedAt       DateTime            @map("submitted_at") @db.Timestamptz(6)
+  verifiedById      String?             @map("verified_by_id") @db.Uuid
+  verifiedAt        DateTime?           @map("verified_at") @db.Timestamptz(6)
+  rejectedById      String?             @map("rejected_by_id") @db.Uuid
+  rejectedAt        DateTime?           @map("rejected_at") @db.Timestamptz(6)
+  rejectionReason   String?             @map("rejection_reason")
+
+  tenant      Tenant                              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  student     StudentAccount                      @relation(fields: [studentProfileId], references: [profileId], onDelete: Restrict)
+  enrollments AccessPaymentSubmissionEnrollment[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, status])
+  @@index([studentProfileId])
+  @@map("access_payment_submissions")
+}
+
+model AccessPaymentSubmissionEnrollment {
+  submissionId String @map("submission_id") @db.Uuid
+  enrollmentId String @map("enrollment_id") @db.Uuid
+  tenantId     String @map("tenant_id") @db.Uuid
+
+  submission AccessPaymentSubmission @relation(fields: [submissionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  enrollment ClassEnrollment         @relation(fields: [enrollmentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@id([submissionId, enrollmentId])
+  @@index([enrollmentId])
+  @@map("access_payment_submission_enrollments")
+}
+
+enum LiveSessionKind {
+  SCHEDULED
+  AD_HOC
+}
+
+/// SCHEDULED to LIVE to ENDED, or SCHEDULED to CANCELLED (A111). "Waiting room open" is
+/// derived (now at or after scheduled start - 15 min), not stored. Ad hoc sessions are created LIVE.
+enum LiveSessionStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+enum LiveSessionEndReason {
+  MANUAL
+  /// Closed by the safety close: still LIVE at scheduled end + 30 minutes (A113).
+  SAFETY_CLOSE
+}
+
+model LiveSession {
+  id                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String                @map("tenant_id") @db.Uuid
+  classId                String                @map("class_id") @db.Uuid
+  kind                   LiveSessionKind
+  status                 LiveSessionStatus
+  /// Generated from a recurring schedule (NULL for one-off and ad hoc sessions).
+  scheduleId             String?               @map("schedule_id") @db.Uuid
+  title                  String?
+  /// UTC instants. Ad hoc: start = actual start, end = start + chosen duration (default 60).
+  scheduledStartAt       DateTime              @map("scheduled_start_at") @db.Timestamptz(6)
+  scheduledEndAt         DateTime              @map("scheduled_end_at") @db.Timestamptz(6)
+  /// Session runs in recording-enabled mode: Option C is checked when it starts (A123).
+  recordingEnabled       Boolean               @default(false) @map("recording_enabled")
+  createdById            String                @map("created_by_id") @db.Uuid
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  actualStartAt          DateTime?             @map("actual_start_at") @db.Timestamptz(6)
+  startedById            String?               @map("started_by_id") @db.Uuid
+  actualEndAt            DateTime?             @map("actual_end_at") @db.Timestamptz(6)
+  /// NULL for the system safety close.
+  endedById              String?               @map("ended_by_id") @db.Uuid
+  endReason              LiveSessionEndReason? @map("end_reason")
+  cancelledAt            DateTime?             @map("cancelled_at") @db.Timestamptz(6)
+  cancelledById          String?               @map("cancelled_by_id") @db.Uuid
+  cancelReason           String?               @map("cancel_reason")
+  /// Per-session substitute (A105): temporary, never a class assignment.
+  substituteProfileId    String?               @map("substitute_profile_id") @db.Uuid
+  substituteAssignedById String?               @map("substitute_assigned_by_id") @db.Uuid
+  substituteAssignedAt   DateTime?             @map("substitute_assigned_at") @db.Timestamptz(6)
+
+  class        Class                    @relation(fields: [classId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  schedule     ClassSchedule?           @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  substitute   Profile?                 @relation("SessionSubstitute", fields: [substituteProfileId], references: [id], onDelete: Restrict)
+  participants LiveSessionParticipant[]
+  attendance   AttendanceRecord[]
+  chatMessages LiveChatMessage[]
+  recordings   Recording[]
+
+  @@unique([id, tenantId])
+  @@unique([id, classId, tenantId])
+  @@unique([scheduleId, scheduledStartAt])
+  @@index([classId, scheduledStartAt])
+  @@index([tenantId, status, scheduledStartAt])
+  @@map("live_sessions")
+}
+
+enum LiveParticipantRole {
+  PRIMARY_TEACHER
+  CO_TEACHER
+  SUBSTITUTE_TEACHER
+  MARKAZ_ADMIN
+  STUDENT
+}
+
+/// Students only: admitted, or waiting because live capacity is full (A110).
+enum LiveAdmission {
+  ADMITTED
+  WAITING_FOR_SLOT
+}
+
+/// One row per person per session (A117-A121). Vendor-neutral business state: raise hand, mic
+/// and whiteboard permission. At most one student holds the mic per session (partial unique
+/// index). Mic/whiteboard here are PERMISSIONS; no audio or drawing is transported.
+model LiveSessionParticipant {
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String              @map("tenant_id") @db.Uuid
+  sessionId             String              @map("session_id") @db.Uuid
+  profileId             String              @map("profile_id") @db.Uuid
+  role                  LiveParticipantRole
+  admission             LiveAdmission?
+  firstJoinedAt         DateTime            @map("first_joined_at") @db.Timestamptz(6)
+  handRaisedAt          DateTime?           @map("hand_raised_at") @db.Timestamptz(6)
+  micGrantedAt          DateTime?           @map("mic_granted_at") @db.Timestamptz(6)
+  micGrantedById        String?             @map("mic_granted_by_id") @db.Uuid
+  whiteboardGrantedAt   DateTime?           @map("whiteboard_granted_at") @db.Timestamptz(6)
+  whiteboardGrantedById String?             @map("whiteboard_granted_by_id") @db.Uuid
+  removedAt             DateTime?           @map("removed_at") @db.Timestamptz(6)
+  removedById           String?             @map("removed_by_id") @db.Uuid
+
+  session     LiveSession             @relation(fields: [sessionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  profile     Profile                 @relation(fields: [profileId], references: [id], onDelete: Restrict)
+  connections LiveSessionConnection[]
+
+  @@unique([sessionId, profileId])
+  @@unique([id, sessionId, tenantId])
+  @@index([profileId])
+  @@map("live_session_participants")
+}
+
+enum LiveDeviceMode {
+  /// The one interactive device of a participant.
+  PRIMARY
+  /// A second device: never publishes mic, never writes the whiteboard (A121).
+  VIEW_ONLY
+}
+
+/// One row per device connection: the RAW presence data (A122). Server-only; never shown to
+/// parents. Attendance duration is the UNION of a participant's admitted connection intervals,
+/// so reconnects and a second device never double-count.
+model LiveSessionConnection {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String         @map("tenant_id") @db.Uuid
+  sessionId      String         @map("session_id") @db.Uuid
+  participantId  String         @map("participant_id") @db.Uuid
+  mode           LiveDeviceMode
+  connectedAt    DateTime       @map("connected_at") @db.Timestamptz(6)
+  /// Students: when this connection was admitted (NULL while WAITING_FOR_SLOT).
+  admittedAt     DateTime?      @map("admitted_at") @db.Timestamptz(6)
+  disconnectedAt DateTime?      @map("disconnected_at") @db.Timestamptz(6)
+
+  participant LiveSessionParticipant @relation(fields: [participantId, sessionId, tenantId], references: [id, sessionId, tenantId], onDelete: Restrict)
+
+  @@index([participantId])
+  @@index([sessionId, disconnectedAt])
+  @@map("live_session_connections")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+}
+
+/// Computed when a session ends (A122): at least 50 % of the session = PRESENT; otherwise LATE
+/// when the first admitted arrival was after scheduled start + 15 min, else ABSENT. A manual
+/// correction (Primary, Co-Teacher, Markaz Admin) overrides the computed status and is audited.
+model AttendanceRecord {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String           @map("tenant_id") @db.Uuid
+  sessionId        String           @map("session_id") @db.Uuid
+  studentProfileId String           @map("student_profile_id") @db.Uuid
+  computedStatus   AttendanceStatus @map("computed_status")
+  /// Effective status (= computed unless manually adjusted).
+  status           AttendanceStatus
+  presentSeconds   Int              @map("present_seconds")
+  sessionSeconds   Int              @map("session_seconds")
+  firstArrivalAt   DateTime?        @map("first_arrival_at") @db.Timestamptz(6)
+  computedAt       DateTime         @map("computed_at") @db.Timestamptz(6)
+  adjustedById     String?          @map("adjusted_by_id") @db.Uuid
+  adjustedAt       DateTime?        @map("adjusted_at") @db.Timestamptz(6)
+  adjustmentReason String?          @map("adjustment_reason")
+
+  session LiveSession    @relation(fields: [sessionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  student StudentAccount @relation(fields: [studentProfileId], references: [profileId], onDelete: Restrict)
+
+  @@unique([sessionId, studentProfileId])
+  @@index([studentProfileId])
+  @@map("attendance_records")
+}
+
+/// Class chat (A120): public to the class, persistent, tenant + class + session scoped.
+/// Authorship is kept even after the author leaves (FK RESTRICT; role snapshotted).
+model LiveChatMessage {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String              @map("tenant_id") @db.Uuid
+  classId         String              @map("class_id") @db.Uuid
+  sessionId       String              @map("session_id") @db.Uuid
+  authorProfileId String              @map("author_profile_id") @db.Uuid
+  authorRole      LiveParticipantRole @map("author_role")
+  body            String
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session LiveSession @relation(fields: [sessionId, classId, tenantId], references: [id, classId, tenantId], onDelete: Restrict)
+  author  Profile     @relation(fields: [authorProfileId], references: [id], onDelete: Restrict)
+
+  @@index([sessionId, createdAt])
+  @@index([classId, createdAt])
+  @@map("live_chat_messages")
 }

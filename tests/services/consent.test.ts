@@ -293,7 +293,19 @@ describe("live participation is separate from recording eligibility (A72)", () =
       .filter((f) => /\.(ts|tsx)$/.test(f) && !f.includes("generated"))
       .filter((f) => /\b(get|require)RecordingEligibility\b/.test(readFileSync(f, "utf8")))
       .map((f) => f.replace(process.cwd(), "").replace(/\\/g, "/"));
-    expect(users.sort()).toEqual(["/src/server/services/consent.ts", "/src/server/services/correction-audio.ts", "/src/server/services/recordings.ts"]);
+    // 2026-10-19: session-recording.ts (Live Class ↔ Option C, A125) evaluates consent to decide
+    // whether a participant's AUDIO enters the recording — never whether they may join.
+    expect(users.sort()).toEqual([
+      "/src/server/services/consent.ts",
+      "/src/server/services/correction-audio.ts",
+      "/src/server/services/recordings.ts",
+      "/src/server/services/session-recording.ts",
+    ]);
+    // The live session / join / mic module never consults consent itself, and the recording
+    // integration only uses the NON-throwing check, so consent can never block live participation.
+    const read = (p: string) => readFileSync(join(process.cwd(), ...p.split("/")), "utf8");
+    expect(read("src/server/services/live-sessions.ts")).not.toMatch(/\b(get|require)RecordingEligibility\b/);
+    expect(read("src/server/services/session-recording.ts")).not.toMatch(/\brequireRecordingEligibility\b/);
   });
 
   it("the guardian's view shows the DOB state and derived status", async () => {

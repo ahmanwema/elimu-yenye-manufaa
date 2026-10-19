@@ -109,6 +109,18 @@ Everything else matched the PGlite results: RLS for tenants, students, parents (
 - Historical recording visibility uses the consent snapshot taken at capture (`audio_included`), never "current consent", so a later withdrawal cannot silently change past visibility; it triggers review instead.
 - Offline consent stays tenant-scoped in the pure policy (`tenantId === recording/correction tenant`).
 
+### 3.10 Live Class foundation (2026-10-19, A101–A130)
+
+- **Authorization before access.** Every Live Class service loads only the class/session context it needs (unknown or malformed ids look exactly like forbidden ones), asks the pure rules in `src/server/authz/live-class.ts`, then queries. Tests assert that a refused class creation never reaches the database.
+- **Tenant isolation at three layers:** (1) pure rules require an ACTIVE membership in the class's Markaz; (2) composite `(id, tenant_id)` foreign keys make a cross-Markaz pointer impossible (class ↔ schedule/enrollment/session/chat/recording); (3) the `app.require_active_membership` trigger refuses a teacher assignment, enrollment, substitute or payment submission for someone without the right ACTIVE membership in the same Markaz (the function is not executable by API roles).
+- **Server-only tables (A128).** All 12 Live Class tables have RLS enabled and **no** grants or policies for `anon`/`authenticated` — raw presence (`live_session_connections`), payment evidence references, override records, waitlist, grace extensions, attendance and chat are reachable only through the server. The new `tenants` columns (time zone, capacity ceilings) inherit the existing tenant-member read policy; they are not sensitive.
+- **Operational vs teaching authority (A115).** A Markaz Admin can operate (start/end, remove, mic, attendance) but has no whiteboard, screen-share or audio capability by role; teaching authority always needs an ACTIVE Teacher membership plus an assignment (or the session's substitute slot).
+- **Device boundary (A121).** `getMyDeviceCapabilities()` re-checks enrollment access and membership on every call; a VIEW_ONLY device never publishes mic or writes the whiteboard. A future RTC adapter must issue provider tokens only from this answer.
+- **Recording consent (A125).** Live join/mic never consult consent; capture does. Late joiners' audio is excluded until their check passes (`audio_included_from`); corrections exclude rather than delete and are audited; an excluded participant never qualifies as a viewer.
+- **Parents (A127)** get attendance status + class + session date only — the service never selects durations or connection timestamps; no chat, no live view.
+- **Audit (A129)** covers class, teacher, capacity override, enrollment transitions (system transitions with a null actor), grace, payment submit/verify/reject, session create/start/end/safety close/cancel/substitute, participant removal, mic and whiteboard grants/revocations, attendance adjustments (from/to) and recording participant corrections. Evidence references, reasons for payment and chat bodies are never copied into audit metadata.
+- **No RTC.** A unit test fails if a LiveKit/Agora package, a `pilot/` import or a Supabase Realtime `.channel(` appears in `src/`.
+
 ## 4. Recording consent & private annotation leakage
 
 - Lesson recording must have a clear consent/notice model — ~~OPEN QUESTION~~ **APPROVED 2026-10-05 (A30)**: (1) general consent during enrollment/account setup **and** (2) a clear notice when recording begins; general consent alone is not sufficient UX. This applies to any recorded audio, including Option B correction clips (A29). Retention/deletion: see §7. Still open: consent on behalf of minors (open question 17).

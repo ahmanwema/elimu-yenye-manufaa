@@ -14,6 +14,7 @@ import { getDb } from "@/server/db";
 import { listMyTenants } from "@/server/data/tenants";
 import { getMyConsent, listMyChildrenConsent } from "@/server/services/consent";
 import { listStudentCorrections } from "@/server/services/corrections";
+import { listChildAttendance, listMyAttendance } from "@/server/services/live-sessions";
 import { listMyParentLinks } from "@/server/services/parent-links";
 import { listParentVisibleRecordings, listStudentVisibleRecordings } from "@/server/services/recordings";
 
@@ -66,6 +67,13 @@ async function AccountBody() {
     activeChildren.length > 0 ? listParentVisibleRecordings(db, actor) : [],
     profile?.studentAccount ? listStudentVisibleRecordings(db, actor) : [],
   ]);
+  // Live Class attendance: the student's own; a parent sees each ACTIVE-linked child's STATUS only.
+  const [myAttendance, childAttendance] = await Promise.all([
+    profile?.studentAccount ? listMyAttendance(db, actor) : [],
+    Promise.all(activeChildren.map((l) => listChildAttendance(db, actor, l.studentProfileId))),
+  ]);
+  const live = dict.live;
+  const dateOnly = (d: Date, timeZone?: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(d);
   const m = dict.media;
   const linkStatus = {
     PENDING: dict.account.linkPending,
@@ -149,6 +157,33 @@ async function AccountBody() {
         </section>
       ) : null}
 
+      {profile?.studentAccount && tenants.some((t) => t.roles.includes("STUDENT")) ? (
+        <section className="card" aria-labelledby="my-classes">
+          <h2 id="my-classes">{live.myClassesHeading}</h2>
+          <ul className="list">
+            {tenants
+              .filter((t) => t.roles.includes("STUDENT"))
+              .map((t) => (
+                <li key={t.id}>
+                  <a href={`/${locale}/markaz/${t.id}/classes`}>
+                    {live.classesLink} — {t.name}
+                  </a>
+                </li>
+              ))}
+          </ul>
+          <h3>{live.myAttendanceHeading}</h3>
+          {myAttendance.length === 0 ? (
+            <p className="muted">{live.noAttendance}</p>
+          ) : (
+            <ul className="list">
+              {myAttendance.map((r) => (
+                <li key={r.id}>{format(live.attendanceRecordLine, { date: dateOnly(r.sessionDate), className: r.className, status: live.attendanceStatuses[r.status] })}</li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
       {profile?.studentAccount ? (
         <section className="card" aria-labelledby="my-corrections">
           <h2 id="my-corrections">{m.myCorrectionsHeading}</h2>
@@ -223,6 +258,16 @@ async function AccountBody() {
                 <input type="hidden" name="studentProfileId" value={child.studentProfileId ?? ""} />
               </ActionForm>
             ) : null}
+            <h3>{live.childAttendanceHeading}</h3>
+            {childAttendance[i].length === 0 ? (
+              <p className="muted">{live.noAttendance}</p>
+            ) : (
+              <ul className="list">
+                {childAttendance[i].map((r) => (
+                  <li key={r.id}>{format(live.attendanceRecordLine, { date: dateOnly(r.sessionDate, r.timezone), className: r.className, status: live.attendanceStatuses[r.status] })}</li>
+                ))}
+              </ul>
+            )}
             <h3>{m.correctionsHeading}</h3>
             <CorrectionList corrections={childCorrections[i]} actor={actor} dict={dict} locale={locale} />
             <h3>{m.childRecordingsHeading}</h3>

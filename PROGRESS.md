@@ -199,6 +199,25 @@ Chronological, factual log of what has actually happened. Do not record intentio
   - OPTION_C_REQUESTED 4; OPTION_C_ENABLED 2; OPTION_C_CANCELLED 1; OPTION_C_DECLINED 1; OPTION_C_DISABLED 1.
 - **Cleanup:** all test auth users, tenants, app rows and storage objects removed; DEV now holds 0 users, 0 objects, empty app tables except those 41 audit rows; sign-ups still disabled.
 
+## 2026-10-19 — Live Class class structure, capacity & session foundation (local, A101–A130)
+
+- Pre-state verified: commit 2c89136, clean tree, baseline **554/554**.
+- Owner TO-BE approval recorded as **A101–A130** (DECISIONS §1, supersession record §1.9; eighth authorization in §2). Open-question 18 resolved (A123); 5 and 13 refined; new items 53–60 record interpretations and what stays open.
+- **Migrations (local only):** `20261019000000_live_class_foundation` (offline diff, additive) and `20261019000100_live_class_foundation_rls` (CHECKs, partial unique indexes, membership-guard trigger function + 4 triggers, RLS on, all API grants revoked). 12 new tables, +3 `tenants` columns, `recordings.live_session_id`, +4 `recording_participants` columns. No DROP, no backfill, 0 rows changed.
+- **Built:**
+  - Markaz-only classes: one Primary (explicit replacement), Co-Teachers, per-session Substitute; teacher departure keeps history;
+  - enrollment with WAITLIST / ACTIVE / GRACE (7 days, extendable) / SUSPENDED / ENDED, effective-state access checks, capacity override (Markaz Admin, reason, audited);
+  - manual payment-evidence submission → Markaz Admin verification → access period (no amounts/providers);
+  - enrollment and live capacities (students only; plan ceilings by Super Admin; no numbers);
+  - Markaz IANA time zone (default UTC), weekly schedules, scheduled + ad hoc (60-min default) sessions, −15 min join/start, safety close at end + 30 (re-runnable entry point, not scheduled);
+  - vendor-neutral participation: one primary + one view-only device, admission / WAITING_FOR_SLOT with FIFO promotion, raise hand, one student mic, whiteboard grants, screen-share authorization, removal; `getMyDeviceCapabilities()` as the future adapter boundary;
+  - attendance from the union of admitted presence intervals (≥ 50 % PRESENT, else late arrival → LATE, else ABSENT), audited manual correction, parent status-only view;
+  - persistent class chat with A120 visibility;
+  - Option C session recordings: checked at session start and recording start, participants from presence, consent at capture, late joiners excluded until consent passes, audited pre-finalization corrections;
+  - UI (sw/en/ar, RTL): Markaz classes list/detail, payments verification, time zone, provider-neutral Live Class shell (states plainly that no audio exists), student "My classes"/attendance, parent child attendance, platform capacity ceilings.
+- **Not built (by decision):** any RTC/whiteboard/screen-share transport or vendor SDK, payment amounts/gateways, production scheduling, DEV apply.
+- Tests: **703 local** (33 files; +149: 6 new suites), lint, typecheck and build pass; 5/5 deliberate security mutations caught. Real Supabase **not** changed; DEV pre-apply plan in docs/testing/dev-supabase-verification.md.
+
 ## Status snapshot
 
 | Area | Status |
@@ -209,17 +228,19 @@ Chronological, factual log of what has actually happened. Do not record intentio
 | Database schema | 15 migrations applied to the DEVELOPMENT Supabase project (2026-10-16); exact parity with PGlite verified |
 | Auth / tenancy / roles / Parent links | Foundation implemented (no sign-in UI, no invitations, no link workflow) |
 | PWA | Basic foundation (manifest, placeholder icons, minimal SW) |
-| Tests | 554 local + 41 real-Supabase + 14-step UI E2E, all passing (2026-10-16) |
+| Tests | 703 local (2026-10-19); 41 real-Supabase + 14-step UI E2E last run 2026-10-16 |
 | Version control | Git initialized; first local baseline commit created 2026-10-13; no remote |
 | Auth / onboarding / i18n | Implemented locally (OTP + magic link, invite-first, sw/en/ar + RTL) |
 | Parent links | Full workflow implemented (request/create → verify → activate → revoke) with explicit permissions and audit history |
 | Correction & recording media | Policy foundation implemented locally (A66–A80): consent, primary/history clips, M4A ≤ 60 s validation, approval, deletion lifecycle, audit; no RTC capture/extraction |
-| Live Class architecture | Proposed, awaiting approval |
-| Live Class implementation | Not started |
+| Live Class architecture | Class structure/capacity/session foundation APPROVED (A101–A130); real-time layer still proposed (vendor undecided, A35) |
+| Live Class implementation | Provider-neutral foundation implemented LOCALLY (2026-10-19); not applied to DEV; no media transport |
 | Any other feature | Not started |
 | Hosting/infrastructure setup | Not started (not authorized) |
 | First deployment | Not started |
 
 ## Next expected step
 
-Owner confirms the interpretations listed in the latest report (child proposal by Markaz Admins needs both explicit grants; registration-number format) and chooses the next feature scope. Production readiness is NOT approved; the Supabase project stays development-only.
+(2026-10-19) Owner reviews the Live Class foundation report, confirms or changes the interim interpretations (open questions 53–58), and decides whether to APPLY the two Live Class migrations to the DEV project per the pre-apply plan. RTC vendor (A35), payment terms (OQ57) and job scheduling (OQ59) remain owner decisions.
+
+Earlier (2026-10-16 and before, kept for history): Owner confirms the interpretations listed in the latest report (child proposal by Markaz Admins needs both explicit grants; registration-number format) and chooses the next feature scope. Production readiness is NOT approved; the Supabase project stays development-only.

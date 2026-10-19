@@ -14,6 +14,14 @@ Authorized and built locally: project scaffold, Prisma schema + migration files,
 
 Email OTP / magic-link sign-in, invite-first onboarding, explicit `parent_link.verify` permission and PENDING → VERIFIED verification, ACTIVE-only parent access, Kiswahili/English/Arabic UI with RTL, teacher basic roster, Markaz Admin appointment requests with Super Admin review, standalone correction-audio data foundation. Not done: VERIFIED → ACTIVE, parent link creation, any Live Class/RTC work, connection to a real Supabase project.
 
+## Phase 1c — Recording & correction media policy (DONE, applied to DEV 2026-10-16)
+
+A66–A100: consent, DOB verification, correction clips, provider-neutral recordings, Option C entitlement, deletion lifecycle, audit. See [../../PROGRESS.md](../../PROGRESS.md).
+
+## Phase 1d — Live Class class structure, capacity & session foundation (DONE locally, 2026-10-19)
+
+A101–A130, Markaz-only: classes, Primary/Co-Teacher assignments, per-session substitutes, enrollment with waitlist/grace/suspension, manual payment-evidence verification, enrollment and live capacities (configurable, no numbers), recurring schedules in the Markaz time zone, scheduled and ad hoc sessions with safety close, vendor-neutral participation state (devices, raise hand, one student mic, whiteboard grants, screen-share authorization), attendance, class chat, Option C session-recording integration, and a provider-neutral Live Class shell. **Not** applied to DEV (pre-apply plan pending owner approval). **Still blocked for the real-time part:** RTC/whiteboard vendor (A35), XPPen test, production job scheduling (OQ59).
+
 ## Phase 1 — Live Class MVP (first implementation priority, per brief Part 4 / A11)
 
 Recommended minimal scope to validate the core interaction model before building the rest of the platform:
