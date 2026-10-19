@@ -33,6 +33,7 @@ import {
   verifyLinkAction,
 } from "@/server/actions/workspace";
 import { getCurrentActor } from "@/server/auth";
+import { canVerifyPayment } from "@/server/authz/live-class";
 import {
   AuthorizationError,
   canApproveMediaDeletion,
@@ -135,6 +136,14 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
         <p>
           <a className="button button-primary" href={`/${locale}/markaz/${tenant.id}/classes`}>
             {dict.live.classesLink}
+          </a>
+        </p>
+      ) : null}
+      {/* A140: the finance desk — Markaz Admins and Finance Officers only (re-checked on the page). */}
+      {canVerifyPayment(actor, tenantId) ? (
+        <p>
+          <a className="button button-secondary" href={`/${locale}/markaz/${tenant.id}/finance`}>
+            {dict.live.financeLink}
           </a>
         </p>
       ) : null}

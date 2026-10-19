@@ -152,14 +152,13 @@ export const ar: Dictionary = {
     revoke: "سحب",
     noEligible: "لا يوجد أعضاء مؤهلون.",
   },
-  roles: { MARKAZ_ADMIN: "مدير المركز", TEACHER: "معلم", STUDENT: "طالب", PARENT: "ولي أمر" },
+  roles: { FINANCE_OFFICER: "مسؤول المالية / المحاسب", MARKAZ_ADMIN: "مدير المركز", TEACHER: "معلم", STUDENT: "طالب", PARENT: "ولي أمر" },
   permissions: {
     "parent_link.create": "إنشاء روابط أولياء الأمور",
     "parent_link.verify": "التحقق من روابط أولياء الأمور",
     "parent_link.activate": "تفعيل روابط أولياء الأمور",
     "parent_link.revoke": "إلغاء روابط أولياء الأمور",
     "invitation.create": "إرسال الدعوات",
-    "payment.verify": "التحقق من المدفوعات",
   },
   statuses: {
     PENDING: "معلّق",
@@ -192,6 +191,9 @@ export const ar: Dictionary = {
   },
   live: {
     classesLink: "الفصول",
+    financeLink: "المالية",
+    financeTitle: "المالية — التحقق من المدفوعات",
+    financeEnrollmentsHeading: "التسجيلات وفترات الوصول",
     classesTitle: "الفصول",
     classesNote: "الفصول المباشرة تتبع مركزًا واحدًا. لكل فصل معلّم رئيسي واحد فقط.",
     noClasses: "لا توجد فصول بعد.",

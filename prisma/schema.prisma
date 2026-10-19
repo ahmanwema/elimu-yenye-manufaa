@@ -92,6 +92,9 @@ enum TenantRole {
   MARKAZ_ADMIN
   TEACHER
   STUDENT
+  /// A140: a real NON-TEACHING finance staff role (Finance Officer / Accountant). Verifies and
+  /// rejects payment evidence in its own Markaz; never a teacher, class operator or admin.
+  FINANCE_OFFICER
 }
 
 /// ENDED keeps the row for history (departed students keep their own records, A32).
@@ -219,8 +222,8 @@ enum TenantPermission {
   PARENT_LINK_ACTIVATE
   PARENT_LINK_REVOKE
   INVITATION_CREATE
-  /// Live Class payment verification (A136): the finance authority. Never implied by a role;
-  /// a Markaz Admin verifies by role, anyone else only with this explicit grant.
+  /// LEGACY (2026-10-19 interim A136, superseded by A140): never granted — a DB CHECK refuses
+  /// it. Payment verification comes from the MARKAZ_ADMIN or FINANCE_OFFICER role.
   PAYMENT_VERIFY
 }
 

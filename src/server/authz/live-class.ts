@@ -1,4 +1,4 @@
-import { hasActiveRole, hasGrantedPermission, isValidId, type Actor } from "./policy";
+import { hasActiveRole, isValidId, type Actor } from "./policy";
 
 // Live Class authorization (owner TO-BE approval 2026-10-19, A101–A130). Pure rules, no I/O:
 // the services load the class/session context, then ask these functions. Every rule needs the
@@ -109,19 +109,22 @@ export function canExtendGrace(actor: Actor, ctx: ClassContext): boolean {
   return r.admin || assignedTeacher(r);
 }
 
-/** Payment evidence may be SUBMITTED by an assigned teacher or a Markaz Admin (A107). */
+/**
+ * Payment evidence may be SUBMITTED by an assigned teacher, a Markaz Admin (A107) or a Finance
+ * Officer of that Markaz (A140). Submission grants nothing by itself.
+ */
 export function canSubmitPayment(actor: Actor, ctx: ClassContext): boolean {
   const r = classRelation(actor, ctx);
-  return r.admin || assignedTeacher(r);
+  return r.admin || assignedTeacher(r) || hasActiveRole(actor, ctx.tenantId, "FINANCE_OFFICER");
 }
 
 /**
- * Payment VERIFICATION (A136): a Markaz Admin of that Markaz by role, or the finance authority —
- * whoever holds the explicit, tenant-scoped `payment.verify` grant there (Finance Officer /
- * Accountant). A Teacher never verifies by default: the permission is never implied by a role.
+ * Payment VERIFICATION and REJECTION (A140, superseding the interim A136 grant): an ACTIVE Markaz
+ * Admin or an ACTIVE Finance Officer of THAT Markaz, by role. Never a Teacher (Primary, Co or
+ * Substitute), student, parent, Super Admin, or any grant.
  */
 export function canVerifyPayment(actor: Actor, tenantId: unknown): boolean {
-  return isValidId(tenantId) && (hasActiveRole(actor, tenantId, "MARKAZ_ADMIN") || hasGrantedPermission(actor, tenantId, "payment.verify"));
+  return isValidId(tenantId) && (hasActiveRole(actor, tenantId, "MARKAZ_ADMIN") || hasActiveRole(actor, tenantId, "FINANCE_OFFICER"));
 }
 
 // --- Sessions ------------------------------------------------------------------------------

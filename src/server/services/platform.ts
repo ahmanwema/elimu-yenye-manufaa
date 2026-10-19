@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import {
   AuthorizationError,
-  GRANTABLE_PERMISSION_FROM_DB,
+  grantableFromDb,
   GRANTABLE_PERMISSION_ROLES,
   type Actor,
   type GrantablePermission,
@@ -40,8 +40,8 @@ export async function listPermissionOverview(db: PrismaClient, actor: Actor) {
         ...p,
         grants: Object.fromEntries(
           t.permissionGrants
-            .filter((g) => g.profileId === p.profileId)
-            .map((g) => [GRANTABLE_PERMISSION_FROM_DB[g.permission], g.id]),
+            .filter((g) => g.profileId === p.profileId && grantableFromDb(g.permission))
+            .map((g) => [grantableFromDb(g.permission), g.id]),
         ) as Partial<Record<GrantablePermission, string>>,
       })),
     };

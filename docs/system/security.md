@@ -130,6 +130,13 @@ Everything else matched the PGlite results: RLS for tenants, students, parents (
 - **Detailed student data** (A137) is decided server-side from current assignments and effective enrollment state; substitutes get none.
 - Parents still never receive durations or raw join/leave times — now also covering punctuality, which is a status only.
 
+### 3.12 Finance Officer role (2026-10-19, A140)
+
+- **Teacher cannot verify payment** (service rule + no grant path: `payment.verify` is removed from the grantable list and refused by a DB CHECK).
+- Finance Officer/Accountant is a real non-teaching role. Authority comes only from an ACTIVE membership in that exact Markaz; ending it removes authority at once; cross-tenant access is impossible.
+- Least privilege is structural: the role has only `tenant:read`, is not eligible for explicit permissions, is not a Live Class participant role, and no RLS policy except the own-tenant read names it. Tests assert denial of class configuration, enrollment management, grace, waitlist/capacity overrides, sessions, attendance, mic, whiteboard, chat, corrections, recordings, roster and detailed student data.
+- The finance listings select only student name, class name/payment flag, enrollment state and access period, plus submission coverage/reference/period/status.
+
 ## 4. Recording consent & private annotation leakage
 
 - Lesson recording must have a clear consent/notice model — ~~OPEN QUESTION~~ **APPROVED 2026-10-05 (A30)**: (1) general consent during enrollment/account setup **and** (2) a clear notice when recording begins; general consent alone is not sufficient UX. This applies to any recorded audio, including Option B correction clips (A29). Retention/deletion: see §7. Still open: consent on behalf of minors (open question 17).

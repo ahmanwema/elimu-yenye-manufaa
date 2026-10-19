@@ -183,7 +183,7 @@ Implemented in `src/server/authz/live-class.ts` (pure, unit-tested as a matrix) 
 | Extend grace | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
 | Submit payment evidence | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
 | Verify / reject payment | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
-| …or with the explicit `payment.verify` grant (A136, finance officer / accountant; staff role required) | grant only | grant only | grant only | by role | ✗ | ✗ |
+| ~~…or with the explicit `payment.verify` grant (A136)~~ — **superseded by A140**: no grant exists; see §2.10 | — | — | — | — | — | — |
 | Create session (scheduled, from schedule, ad hoc) | ✓ | ✓ | ✗ | ✓ | ✗ | ✗ |
 | Start / end session | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ |
 | Cancel scheduled session | ✓ | ✗ | ✗ | ✓ | ✗ | ✗ |
@@ -204,7 +204,7 @@ Implemented in `src/server/authz/live-class.ts` (pure, unit-tested as a matrix) 
 
 ~~A51's teacher-detail resolver (`NO_CLASSES_YET`) is intentionally unchanged in this pass (open question 58).~~ **Superseded 2026-10-19 (A137):** the resolver is wired to real class data (`src/server/data/student-detail.ts`); `NO_CLASSES_YET` was removed.
 
-**Explicit permissions, 2026-10-19 (A136):** the grantable list is now six — `parent_link.create/verify/activate/revoke`, `invitation.create`, **`payment.verify`**. Like the others it is never implied by a role, is tenant-scoped, effective only for an ACTIVE Markaz Admin or Teacher there, assigned by a Markaz Admin (own Teachers) or Super Admin, never by a Teacher. Design choice: a **permission**, not a new tenant role, because a new role would ripple through invitations, roster, RLS role arrays and the typed role maps. A non-teaching finance member therefore needs a staff membership today; a dedicated Finance Officer role would be a future design if wanted.
+**[Superseded 2026-10-19 by A140 — kept for history]** **Explicit permissions, 2026-10-19 (A136):** the grantable list is now six — `parent_link.create/verify/activate/revoke`, `invitation.create`, **`payment.verify`**. Like the others it is never implied by a role, is tenant-scoped, effective only for an ACTIVE Markaz Admin or Teacher there, assigned by a Markaz Admin (own Teachers) or Super Admin, never by a Teacher. Design choice: a **permission**, not a new tenant role, because a new role would ripple through invitations, roster, RLS role arrays and the typed role maps. A non-teaching finance member therefore needs a staff membership today; a dedicated Finance Officer role would be a future design if wanted.
 
 ## 3. Parent account model — options (~~OPEN QUESTION~~ **Resolved 2026-10-05: Option 1**, A27 — see [../roadmap/open-questions.md](../roadmap/open-questions.md) item 2)
 
@@ -239,3 +239,28 @@ Authorization is enforced server-side / at the database layer (Postgres RLS) for
 A Teacher's queries are scoped to their own tenant/classes by RLS; a Markaz Admin's queries are scoped to their Markaz's teacher roster and shared settings, but explicitly **not** to each teacher's private student-correction data unless a future, separately-approved sharing mechanism exists. This directly implements A8.
 
 **2026-10-05 note:** the "roster and shared settings" scope above was written for the narrower 2026-09-30 proposal. A26 approves broader operational authority *within* the Markaz, and its upper bound (no other tenants, no global settings, no Super Admin-only operations) is now fixed. The lower bound is not "roster and shared settings" any more; it waits on the re-derived permission rows (item 13). The private-correction exclusion still holds through A17 until the owner decides otherwise. A28 adds a second requirement: a Teacher's membership in Markaz X must never widen their access in Markaz Y.
+
+### 2.10 Finance Officer / Accountant (2026-10-19, A140)
+
+**Finance Officer/Accountant is a real non-teaching Markaz role.** **Teacher cannot verify payment.**
+
+- Stored as a tenant membership `FINANCE_OFFICER` (same table and lifecycle as other roles: ACTIVE / ENDED, one row per Markaz). Never a Teacher, Markaz Admin, class teacher or Student.
+- Role-derived permissions: `tenant:read` only. No roster, no members list, no explicit permissions (grants are for MARKAZ_ADMIN/TEACHER only).
+- Invited by a Markaz Admin (own Markaz) or a Super Admin; a Teacher holding `invitation.create` cannot invite one.
+- `payment.verify` is no longer a grantable permission (the five A47/A62 permissions remain).
+
+| Action | Markaz Admin | Finance Officer | Teacher |
+|---|---|---|---|
+| Submit payment evidence | YES | YES | YES (assigned teacher of the class) |
+| Verify payment | YES | YES | NO |
+| Reject payment | YES | YES | NO |
+| Finance page (payments, enrollment access periods) | YES | YES | NO |
+| Class configuration | YES | NO | NO |
+| Enroll student | YES | NO (activation only as a side effect of verification) | assigned Teacher only |
+| Grace extension | YES | NO | assigned Teacher only |
+| Waitlist order / capacity override | YES | NO | NO |
+| Start/end session | YES | NO | assigned teaching roles |
+| Attendance adjustment, mic, whiteboard, screen share, chat | existing rules | NO | existing rules |
+| View corrections | existing rules | NO | existing rules |
+| View recordings | existing rules | NO (not separately approved) | existing rules |
+| Roster / detailed student data | existing rules | NO | existing rules |

@@ -152,14 +152,13 @@ export const sw: Dictionary = {
     revoke: "Ondoa",
     noEligible: "Hakuna wanachama wanaostahili.",
   },
-  roles: { MARKAZ_ADMIN: "Msimamizi wa Markaz", TEACHER: "Mwalimu", STUDENT: "Mwanafunzi", PARENT: "Mzazi" },
+  roles: { FINANCE_OFFICER: "Afisa Fedha / Mhasibu", MARKAZ_ADMIN: "Msimamizi wa Markaz", TEACHER: "Mwalimu", STUDENT: "Mwanafunzi", PARENT: "Mzazi" },
   permissions: {
     "parent_link.create": "Kuanzisha uhusiano wa wazazi",
     "parent_link.verify": "Kuthibitisha uhusiano wa wazazi",
     "parent_link.activate": "Kuwezesha uhusiano wa wazazi",
     "parent_link.revoke": "Kusitisha uhusiano wa wazazi",
     "invitation.create": "Kutuma mialiko",
-    "payment.verify": "Kuthibitisha malipo",
   },
   statuses: {
     PENDING: "Inasubiri",
@@ -192,6 +191,9 @@ export const sw: Dictionary = {
   },
   live: {
     classesLink: "Madarasa",
+    financeLink: "Fedha",
+    financeTitle: "Fedha — uthibitishaji wa malipo",
+    financeEnrollmentsHeading: "Usajili na vipindi vya ruhusa",
     classesTitle: "Madarasa",
     classesNote: "Madarasa ya moja kwa moja ni ya Markaz moja. Kila darasa lina Mwalimu Mkuu mmoja tu.",
     noClasses: "Bado hakuna madarasa.",

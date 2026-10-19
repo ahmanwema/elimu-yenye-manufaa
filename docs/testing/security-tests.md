@@ -145,6 +145,14 @@ Not covered locally: a real browser-recorded M4A file (no ffmpeg/sample file on 
 | Detailed student access: Primary/Co allow; unrelated, ended membership, ended assignment, other class, cross-Markaz, substitute, non-active enrollment deny | `tests/services/student-detail.test.ts` |
 | Migrations on pre-existing rows: default-only zone cleared, chosen zone kept; no default zone; paid defaults false; punctuality CHECKs; `PAYMENT_VERIFY` in `app.has_tenant_permission`; tables stay server-only | `tests/db/live-class-decisions.test.ts` |
 
+## Finance Officer role (2026-10-19, A140)
+
+| Area | File |
+|---|---|
+| Role matrix: Finance Officer column denied everywhere except payment submit/verify/reject; ended / other-Markaz / teacher / grant cannot verify; not a session participant | `tests/unit/live-class-rules.test.ts` |
+| Invitation (admin/Super Admin yes, teacher with invitation.create no), acceptance → ACTIVE FINANCE_OFFICER only; no grants for finance staff; payment.verify never grantable; verify/reject allow/deny; activation and WAITLIST side effects; ended loses authority with history kept; tenant isolation; least privilege across classes, sessions, attendance, mic, whiteboard, chat, corrections, recordings, roster, detail; i18n label | `tests/services/finance-officer.test.ts` |
+| PAYMENT_VERIFY grant refused by the DB; FINANCE_OFFICER reads only its own Markaz row via RLS, no student/Live Class data; ended → nothing | `tests/db/live-class-decisions.test.ts` |
+
 ## Method
 
 Prefer integration tests running against a real (test) Postgres instance with RLS enabled — testing RLS policies by mocking them defeats the purpose, since the policies themselves are the thing under test.

@@ -173,3 +173,7 @@ Additive: enum `Punctuality` (ON_TIME, LATE); `ClassEnrollmentStatus` + PENDING_
 Hand-written: `tenants.timezone` is set to NULL wherever no Markaz Admin ever chose it (no `TENANT_TIMEZONE_SET` audit event) — a column default is not a choice; `tenant_timezone_present` rebuilt to allow NULL; `attendance_presence_only` (attendance is PRESENT/ABSENT — the enum value LATE is legacy and refused); `attendance_punctuality_with_arrival`; `attendance_adjustment_fields` rebuilt to cover punctuality; `enrollment_queue_override_fields`. No table or column is dropped.
 
 Seat rule (A133) is enforced in the service: only ACTIVE/GRACE count toward `enrollment_capacity`.
+
+## 17. Finance Officer role (2026-10-19, migrations 20261019000400 / 20261019000500, LOCAL ONLY)
+
+`TenantRole` + **FINANCE_OFFICER** (additive enum value). Hand-written: CHECK `grant_not_payment_verify` on `tenant_permission_grants` (NOT VALID — the legacy `PAYMENT_VERIFY` value can never be granted; no row exists on DEV); `app.is_tenant_member` re-created with FINANCE_OFFICER so finance staff can read their own Markaz row. No other RLS policy names the role, so it unlocks no student, class or media data. No row is changed.

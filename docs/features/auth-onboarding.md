@@ -85,3 +85,8 @@ Flow:
 ## Tests
 
 `tests/services/invitations.test.ts`, `tests/unit/auth-safety.test.ts` (redirect safety, OTP error handling, server-action export surface).
+
+## 2026-10-19 update — Finance Officer invitations (A140)
+
+- New invitation target **FINANCE_OFFICER** (a real non-teaching Markaz role). Who may invite: a Markaz Admin in their own Markaz, or a Super Admin. A Teacher with `invitation.create` still invites only STUDENT and PARENT.
+- Acceptance creates exactly an ACTIVE `FINANCE_OFFICER` membership in the invited Markaz (no registration number, no teaching role). Ending the membership removes all finance authority immediately; payment records and their audit trail remain.

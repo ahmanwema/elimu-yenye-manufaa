@@ -5,7 +5,7 @@ import {
   canAssignPermission,
   canRevokePermission,
   GRANTABLE_PERMISSION_DB,
-  GRANTABLE_PERMISSION_FROM_DB,
+  grantableFromDb,
   GRANTABLE_PERMISSIONS,
   hasActiveRole,
   requireTenantPermission,
@@ -18,7 +18,7 @@ import { DomainError, isUniqueViolation } from "./errors";
 // Explicit permission grants (A47, A58, A62). Nobody holds any of them by default.
 // Assignment rules live in canAssignPermission():
 //   Super Admin → any grantable permission, any Markaz, eligible grantee.
-//   Markaz Admin → any grantable permission (the five + payment.verify, A136), own Markaz, to an ACTIVE Teacher, never self.
+//   Markaz Admin → any of the five, own Markaz, to an ACTIVE Teacher, never self. (payment.verify: never grantable, A140.)
 
 const grantSchema = z.object({
   tenantId: z.uuid(),
@@ -83,7 +83,10 @@ export async function listTenantPermissionGrants(db: PrismaClient, actor: Actor,
     select: { id: true, permission: true, createdAt: true, profile: { select: { id: true, displayName: true } } },
     orderBy: { createdAt: "asc" },
   });
-  return rows.map((r) => ({ ...r, permission: GRANTABLE_PERMISSION_FROM_DB[r.permission] }));
+  return rows.flatMap((r) => {
+    const permission = grantableFromDb(r.permission);
+    return permission ? [{ ...r, permission }] : [];
+  });
 }
 
 /**
@@ -105,7 +108,7 @@ export async function listTeacherDelegation(db: PrismaClient, actor: Actor, tena
     profileId: t.profile.id,
     displayName: t.profile.displayName,
     grants: Object.fromEntries(
-      grants.filter((g) => g.profileId === t.profile.id).map((g) => [GRANTABLE_PERMISSION_FROM_DB[g.permission], g.id]),
+      grants.filter((g) => g.profileId === t.profile.id && grantableFromDb(g.permission)).map((g) => [grantableFromDb(g.permission), g.id]),
     ) as Partial<Record<GrantablePermission, string>>,
   }));
 }

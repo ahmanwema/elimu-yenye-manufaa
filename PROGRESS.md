@@ -226,6 +226,14 @@ Chronological, factual log of what has actually happened. Do not record intentio
 - **Implemented:** attendance PRESENT/ABSENT separate from punctuality ON_TIME/LATE (parents see both statuses, no timestamps); no default Markaz time zone, scheduling fails closed (`timezone_required`), UI banner; only ACTIVE/GRACE hold a seat (SUSPENDED freed, renewal into a full class → WAITLIST); FIFO waitlist with audited Markaz Admin order override; per-class `payment_required` with PENDING_PAYMENT; `payment.verify` explicit permission as finance authority; A51 detailed-student resolver wired to current assignments + ACTIVE/GRACE enrollments (`NO_CLASSES_YET` removed); audited mic handoff.
 - Tests: **740 local** (35 files; +37), lint, typecheck, build pass; Prisma format/validate/generate clean; migration 3 equals a fresh offline diff; secrets scan 0 matches. Real Supabase NOT changed; updated pre-apply plan in docs/testing/dev-supabase-verification.md.
 
+## 2026-10-19 — Dedicated Finance Officer role (local, A140)
+
+- Pre-state: commit 4e1b2d8, clean tree, 740/740.
+- Owner decision A140 recorded (DECISIONS §1, supersession §1.11, tenth authorization): Finance Officer/Accountant is a real non-teaching Markaz role; Teacher cannot verify payment. Supersedes the A136 implementation that let Teachers hold `payment.verify`.
+- **Migrations (local only, additive):** `20261019000400_finance_officer_role` (TenantRole + FINANCE_OFFICER) and `20261019000500_finance_officer_role_rls` (CHECK refusing PAYMENT_VERIFY grants; `app.is_tenant_member` includes the role). 21 locally; DEV still 15.
+- **Implemented:** FINANCE_OFFICER membership (tenant.read only, not grant-eligible), invitations by Markaz Admin / Super Admin, verify/reject by Markaz Admin or Finance Officer only, `payment.verify` removed from grantable permissions, Finance page (payments + enrollment access periods only), role labels sw/en/ar.
+- Tests: **751 local** (36 files; +11), lint, typecheck, build pass; Prisma format/validate/generate clean; secrets scan 0 matches. Real Supabase NOT changed; final 6-migration pre-apply order in docs/testing/dev-supabase-verification.md.
+
 ## Status snapshot
 
 | Area | Status |
@@ -236,7 +244,7 @@ Chronological, factual log of what has actually happened. Do not record intentio
 | Database schema | 15 migrations applied to the DEVELOPMENT Supabase project (2026-10-16); exact parity with PGlite verified |
 | Auth / tenancy / roles / Parent links | Foundation implemented (no sign-in UI, no invitations, no link workflow) |
 | PWA | Basic foundation (manifest, placeholder icons, minimal SW) |
-| Tests | 740 local (2026-10-19, final corrections); 41 real-Supabase + 14-step UI E2E last run 2026-10-16 |
+| Tests | 751 local (2026-10-19, finance role); 41 real-Supabase + 14-step UI E2E last run 2026-10-16 |
 | Version control | Git initialized; first local baseline commit created 2026-10-13; no remote |
 | Auth / onboarding / i18n | Implemented locally (OTP + magic link, invite-first, sw/en/ar + RTL) |
 | Parent links | Full workflow implemented (request/create → verify → activate → revoke) with explicit permissions and audit history |

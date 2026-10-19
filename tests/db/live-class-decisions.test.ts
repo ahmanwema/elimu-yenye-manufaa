@@ -62,12 +62,27 @@ describe("schema of the decision fixes", () => {
     await insert("ABSENT", "LATE", "2026-11-02T06:20:00Z"); // ABSENT + LATE is a valid combination
   });
 
-  it("payment.verify is a grantable tenant permission, effective in RLS only for staff roles", async () => {
-    await db.query("INSERT INTO tenant_permission_grants (tenant_id, profile_id, permission, granted_by_id) VALUES ($1, $2, 'PAYMENT_VERIFY', $3), ($1, $4, 'PAYMENT_VERIFY', $3)", [T.A, U.teacherA, U.adminA, U.studentX]);
-    const has = (who: string) => asUser(db, who, async (tx) => (await tx.query<{ ok: boolean }>("SELECT app.has_tenant_permission($1, 'PAYMENT_VERIFY') AS ok", [T.A])).rows[0].ok);
-    expect(await has(U.teacherA)).toBe(true);
-    expect(await has(U.studentX)).toBe(false); // a grant to an ineligible role is useless
-    expect(await has(U.adminA)).toBe(false); // never implied by a role (the admin verifies by role in the service)
+  // Superseded (A140): "payment.verify is a grantable tenant permission". It can no longer be granted to anyone.
+  it("A140: PAYMENT_VERIFY can never be granted — not to a Teacher, not to anyone", async () => {
+    await expect(
+      db.query("INSERT INTO tenant_permission_grants (tenant_id, profile_id, permission, granted_by_id) VALUES ($1, $2, 'PAYMENT_VERIFY', $3)", [T.A, U.teacherA, U.adminA]),
+    ).rejects.toThrow(/grant_not_payment_verify/);
+  });
+
+  it("A140: FINANCE_OFFICER is a real tenant role; a finance-only member reads their own Markaz row and nothing of the student/Live Class data", async () => {
+    const id = "00000000-0000-4000-8000-00000000fff2";
+    await db.query("INSERT INTO auth.users (id) VALUES ($1)", [id]);
+    await db.query("INSERT INTO memberships (tenant_id, profile_id, role) VALUES ($1, $2, 'FINANCE_OFFICER')", [T.A, id]);
+    const rows = (sql: string) => asUser(db, id, async (tx) => (await tx.query(sql)).rows.length);
+    expect(await rows("SELECT id FROM tenants")).toBe(1); // own Markaz only
+    expect(await rows("SELECT 1 FROM corrections")).toBe(0);
+    expect(await rows("SELECT 1 FROM student_accounts")).toBe(0);
+    for (const table of ["classes", "class_enrollments", "access_payment_submissions", "attendance_records", "live_chat_messages", "recordings"]) {
+      await expect(asUser(db, id, (tx) => tx.query(`SELECT 1 FROM ${table}`)), table).rejects.toThrow(/permission denied/);
+    }
+    // Ending the membership removes even the Markaz row.
+    await db.query("UPDATE memberships SET status = 'ENDED', ended_at = now() WHERE profile_id = $1", [id]);
+    expect(await rows("SELECT id FROM tenants")).toBe(0);
   });
 
   it("the Live Class tables stay server-only after the fixes", async () => {

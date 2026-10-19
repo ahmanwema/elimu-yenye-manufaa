@@ -213,6 +213,8 @@ describe("Live Class role/action matrix (pure rules)", () => {
     parent: actorFor(U.parentActive),
     otherAdmin: actorFor(U.adminB),
     superAdmin: actorFor(U.superAdmin),
+    // A140: a non-teaching Finance Officer of Markaz A — every row below that does not name it denies it.
+    finance: { profileId: "00000000-0000-4000-8000-00000000fff1", isPlatformAdmin: false, memberships: [{ tenantId: T.A, role: "FINANCE_OFFICER" as const, status: "ACTIVE" as const }], parentLinks: [], permissionGrants: [] } as Actor,
   };
   const row = (fn: (a: Actor) => boolean) => Object.fromEntries(Object.entries(who).map(([k, a]) => [k, fn(a)]));
   const only = (...keys: string[]) => Object.fromEntries(Object.keys(who).map((k) => [k, keys.includes(k)]));
@@ -222,8 +224,8 @@ describe("Live Class role/action matrix (pure rules)", () => {
     ["capacity override", (a: Actor) => canOverrideCapacity(a, ctx), only("admin")],
     ["enrollment", (a: Actor) => canManageEnrollment(a, ctx), only("primary", "co", "admin")],
     ["grace extension", (a: Actor) => canExtendGrace(a, ctx), only("primary", "co", "admin")],
-    ["payment submission", (a: Actor) => canSubmitPayment(a, ctx), only("primary", "co", "admin")],
-    ["payment verification", (a: Actor) => canVerifyPayment(a, ctx.tenantId), only("admin")],
+    ["payment submission", (a: Actor) => canSubmitPayment(a, ctx), only("primary", "co", "admin", "finance")],
+    ["payment verification / rejection (A140)", (a: Actor) => canVerifyPayment(a, ctx.tenantId), only("admin", "finance")],
     ["session create", (a: Actor) => canCreateSession(a, ctx), only("primary", "co", "admin")],
     ["session start / end", (a: Actor) => canStartOrEndSession(a, ctx), only("primary", "co", "sub", "admin")],
     ["session cancel", (a: Actor) => canCancelSession(a, ctx), only("primary", "admin")],
@@ -241,16 +243,20 @@ describe("Live Class role/action matrix (pure rules)", () => {
     expect(row(fn)).toEqual(expected);
   });
 
-  it("A136 finance authority: payment.verify grant (staff only) or the Markaz Admin role; never a teacher by default", () => {
-    const withGrant = (a: Actor, tenantId: string): Actor => ({ ...a, permissionGrants: [...a.permissionGrants, { tenantId, permission: "payment.verify" }] });
-    expect(canVerifyPayment(who.primary, T.A)).toBe(false); // teacher by default
-    expect(canVerifyPayment(withGrant(who.primary, T.A), T.A)).toBe(true); // finance officer / accountant
-    expect(canVerifyPayment(withGrant(who.primary, T.A), T.B)).toBe(false); // tenant-scoped
-    expect(canVerifyPayment(withGrant(who.student, T.A), T.A)).toBe(false); // ineligible role: grant is useless
-    expect(canVerifyPayment(withGrant(who.superAdmin, T.A), T.A)).toBe(false); // no platform bypass
-    const departed: Actor = { ...withGrant(who.primary, T.A), memberships: who.primary.memberships.map((m) => ({ ...m, status: "ENDED" as const })) };
-    expect(canVerifyPayment(departed, T.A)).toBe(false);
-    expect(canSubmitPayment(withGrant(who.student, T.A), ctx)).toBe(false);
+  // Superseded (A140): "payment.verify grant (staff only) …" — verification is now a role, never a grant.
+  it("A140 finance authority: ACTIVE Markaz Admin or ACTIVE Finance Officer of THAT Markaz; never a teacher or a grant", () => {
+    const grant = (a: Actor): Actor => ({ ...a, permissionGrants: [...a.permissionGrants, { tenantId: T.A, permission: "invitation.create" }] });
+    expect(canVerifyPayment(who.finance, T.A)).toBe(true);
+    expect(canVerifyPayment(who.finance, T.B)).toBe(false); // tenant-scoped
+    const ended: Actor = { ...who.finance, memberships: who.finance.memberships.map((m) => ({ ...m, status: "ENDED" as const })) };
+    expect(canVerifyPayment(ended, T.A)).toBe(false);
+    for (const a of [who.primary, who.co, who.sub, grant(who.primary), who.student, who.parent, who.superAdmin]) expect(canVerifyPayment(a, T.A)).toBe(false);
+  });
+
+  it("A140 least privilege: a Finance Officer is not a teacher, class operator, admin or roster reader", () => {
+    expect(liveParticipantRole(who.finance, ctx, null)).toBeNull(); // cannot join, operate or teach a session
+    expect(canCreateClass(who.finance, T.A)).toBe(false);
+    expect(canReadClass(who.finance, ctx, null)).toBe(false);
   });
 
   it("class creation is a Markaz Admin action in their own Markaz only", () => {

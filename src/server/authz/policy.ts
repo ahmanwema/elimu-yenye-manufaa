@@ -6,7 +6,8 @@ import { z } from "zod";
 // Inputs that come from a request (tenant IDs, student IDs) are untrusted and are
 // validated here; a malformed or foreign ID is simply "not authorized".
 
-export const TENANT_ROLES = ["MARKAZ_ADMIN", "TEACHER", "STUDENT"] as const;
+/** A140: FINANCE_OFFICER is a real NON-TEACHING finance staff role (Finance Officer / Accountant). */
+export const TENANT_ROLES = ["MARKAZ_ADMIN", "TEACHER", "STUDENT", "FINANCE_OFFICER"] as const;
 export type TenantRole = (typeof TENANT_ROLES)[number];
 
 export type ActorMembership = {
@@ -60,6 +61,9 @@ const ROLE_PERMISSIONS: Record<TenantRole, readonly RolePermission[]> = {
   ],
   TEACHER: ["tenant.read", "tenant.roster.read"],
   STUDENT: ["tenant.read"],
+  // A140 least privilege: sees their Markaz, nothing else by role. Payment verification is a Live
+  // Class rule (src/server/authz/live-class.ts canVerifyPayment), not a roster/student permission.
+  FINANCE_OFFICER: ["tenant.read"],
 };
 
 // Super Admin acts at platform scope, but only for these. It does NOT request Markaz
@@ -84,8 +88,10 @@ export const GRANTABLE_PERMISSIONS = [
   "parent_link.activate",
   "parent_link.revoke",
   "invitation.create",
-  "payment.verify",
 ] as const;
+// History: "payment.verify" was grantable from A136 (2026-10-19 interim) until A140 superseded it —
+// payment verification now comes from the MARKAZ_ADMIN / FINANCE_OFFICER role and can never be
+// granted to anyone (the DB enum value PAYMENT_VERIFY is refused by a CHECK).
 export type GrantablePermission = (typeof GRANTABLE_PERMISSIONS)[number];
 
 // A46/A55–A60: every explicit permission may be held only by a MARKAZ_ADMIN or TEACHER.
@@ -96,7 +102,6 @@ export const GRANTABLE_PERMISSION_ROLES: Record<GrantablePermission, readonly Te
   "parent_link.activate": STAFF,
   "parent_link.revoke": STAFF,
   "invitation.create": STAFF,
-  "payment.verify": STAFF,
 };
 
 export type GrantablePermissionDb =
@@ -104,8 +109,7 @@ export type GrantablePermissionDb =
   | "PARENT_LINK_VERIFY"
   | "PARENT_LINK_ACTIVATE"
   | "PARENT_LINK_REVOKE"
-  | "INVITATION_CREATE"
-  | "PAYMENT_VERIFY";
+  | "INVITATION_CREATE";
 
 /** Database enum ↔ application name. */
 export const GRANTABLE_PERMISSION_DB: Record<GrantablePermission, GrantablePermissionDb> = {
@@ -114,12 +118,19 @@ export const GRANTABLE_PERMISSION_DB: Record<GrantablePermission, GrantablePermi
   "parent_link.activate": "PARENT_LINK_ACTIVATE",
   "parent_link.revoke": "PARENT_LINK_REVOKE",
   "invitation.create": "INVITATION_CREATE",
-  "payment.verify": "PAYMENT_VERIFY",
 };
 
 export const GRANTABLE_PERMISSION_FROM_DB = Object.fromEntries(
   Object.entries(GRANTABLE_PERMISSION_DB).map(([app, db]) => [db, app]),
 ) as Record<GrantablePermissionDb, GrantablePermission>;
+
+/**
+ * DB enum value → grantable permission, or null for a value that is not grantable (the legacy
+ * PAYMENT_VERIFY, A140). A null is never treated as a permission by anyone.
+ */
+export function grantableFromDb(value: string): GrantablePermission | null {
+  return (GRANTABLE_PERMISSION_FROM_DB as Record<string, GrantablePermission | undefined>)[value] ?? null;
+}
 
 export class AuthorizationError extends Error {
   constructor(message = "Not authorized") {
@@ -173,13 +184,13 @@ export function requireGrantedPermission(actor: Actor, tenantId: unknown, permis
 }
 
 /** What an invitation creates on acceptance: a tenant membership role, or a Parent account. */
-export const INVITE_TARGETS = ["MARKAZ_ADMIN", "TEACHER", "STUDENT", "PARENT"] as const;
+export const INVITE_TARGETS = ["MARKAZ_ADMIN", "TEACHER", "STUDENT", "FINANCE_OFFICER", "PARENT"] as const;
 export type InviteTarget = (typeof INVITE_TARGETS)[number];
 
 /**
  * Which targets may an actor invite into a tenant?
  * - Super Admin: any, including MARKAZ_ADMIN (platform scope).
- * - Markaz Admin (by role, A40/A61): TEACHER, STUDENT, PARENT in their own Markaz. Never
+ * - Markaz Admin (by role, A40/A61/A140): TEACHER, STUDENT, FINANCE_OFFICER, PARENT in their own Markaz. Never
  *   MARKAZ_ADMIN — that requires a Super Admin-approved request (A52).
  * - Teacher: only with explicit invitation.create in that Markaz (A59) — STUDENT, PARENT.
  * - Everyone else: nothing.
@@ -188,7 +199,7 @@ export function invitableTargets(actor: Actor, tenantId: unknown): InviteTarget[
   if (!isValidId(tenantId)) return [];
   if (actor.isPlatformAdmin) return [...INVITE_TARGETS];
   const targets = new Set<InviteTarget>();
-  if (hasActiveRole(actor, tenantId, "MARKAZ_ADMIN")) ["TEACHER", "STUDENT", "PARENT"].forEach((t) => targets.add(t as InviteTarget));
+  if (hasActiveRole(actor, tenantId, "MARKAZ_ADMIN")) ["TEACHER", "STUDENT", "FINANCE_OFFICER", "PARENT"].forEach((t) => targets.add(t as InviteTarget));
   if (hasActiveRole(actor, tenantId, "TEACHER") && hasGrantedPermission(actor, tenantId, "invitation.create")) {
     targets.add("STUDENT");
     targets.add("PARENT");

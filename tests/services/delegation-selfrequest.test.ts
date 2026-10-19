@@ -69,7 +69,7 @@ describe("permission delegation by a Markaz Admin (A62)", () => {
     }
   });
 
-  it("only the tenant-scoped grantable permissions exist (five + payment.verify since 2026-10-19) — no platform/global privilege can be named", async () => {
+  it("only the five tenant permissions exist (payment.verify was removed by A140) — no platform/global privilege can be named", async () => {
     await expect(
       grantTenantPermission(db, await actor(db, U.adminA), { tenantId: T.A, profileId: U.teacherA, permission: "platform.admin" }),
     ).rejects.toMatchObject({ code: "invalid_input" });

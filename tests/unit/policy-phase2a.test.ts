@@ -51,9 +51,10 @@ describe("role permissions added in Phase 2A", () => {
 
   it("invitable targets: Markaz Admin → teacher/student/parent in own Markaz; Super Admin → any; teacher without grant → none", () => {
     // Superseded by A59/A61 (2026-10-13): PARENT added; teachers need invitation.create.
-    expect(invitableTargets(actorFor(U.adminA), T.A)).toEqual(["TEACHER", "STUDENT", "PARENT"]);
+    // Superseded by A140 (2026-10-19): FINANCE_OFFICER added for Markaz Admins and Super Admins.
+    expect(invitableTargets(actorFor(U.adminA), T.A)).toEqual(["TEACHER", "STUDENT", "FINANCE_OFFICER", "PARENT"]);
     expect(invitableTargets(actorFor(U.adminA), T.B)).toEqual([]);
-    expect(invitableTargets(actorFor(U.superAdmin), T.B)).toEqual(["MARKAZ_ADMIN", "TEACHER", "STUDENT", "PARENT"]);
+    expect(invitableTargets(actorFor(U.superAdmin), T.B)).toEqual(["MARKAZ_ADMIN", "TEACHER", "STUDENT", "FINANCE_OFFICER", "PARENT"]);
     expect(invitableTargets(actorFor(U.teacherAB), T.A)).toEqual([]);
     expect(invitableTargets(actorFor(U.adminA), "not-a-uuid")).toEqual([]);
   });

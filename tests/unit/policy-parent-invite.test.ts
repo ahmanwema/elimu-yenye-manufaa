@@ -46,7 +46,7 @@ describe("who may assign a permission (A58)", () => {
   const base = { tenantId: T.A, granteeProfileId: U.teacherA, granteeActiveRoles: ["TEACHER"] as const };
 
   // Superseded 2026-10-13 by A62: Markaz Admins may assign ALL five (previously verify only).
-  it("Markaz Admin: any grantable permission (the five, plus payment.verify since A136), to a Teacher of own Markaz only", () => {
+  it("Markaz Admin: any of the five, to a Teacher of own Markaz only (payment.verify is not grantable since A140)", () => {
     for (const p of GRANTABLE_PERMISSIONS) {
       expect(canAssignPermission(actorFor(U.adminA), { ...base, permission: p }), p).toBe(true);
       expect(canAssignPermission(actorFor(U.adminA), { ...base, tenantId: T.B, permission: p }), p).toBe(false);

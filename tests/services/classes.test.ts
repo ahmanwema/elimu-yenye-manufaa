@@ -503,27 +503,27 @@ describe("Payment required per class (A135)", () => {
   });
 });
 
-describe("Finance authority (A136): payment.verify", () => {
+// Superseded (A140): the A136 interim "payment.verify grant" tests. Verification is now the
+// MARKAZ_ADMIN or FINANCE_OFFICER role; payment.verify can never be granted (see finance-officer.test.ts).
+describe("Finance authority (A140): Finance Officer role", () => {
   async function pending() {
     const classId = await createClass(db, await as(U.adminA), { tenantId: T.A, name: "Paid", primaryTeacherProfileId: U.teacherA, paymentRequired: true }, O);
     const r = await enrollStudent(db, await as(U.teacherA), { classId, studentProfileId: L.s2 }, O);
     return submitPaymentEvidence(db, await as(U.teacherA), { tenantId: T.A, studentProfileId: L.s2, enrollmentIds: [r.enrollmentId], coverageNote: "x", evidenceReference: "R", periodStart: "2026-11-01", periodEnd: "2026-11-30" }, O);
   }
 
-  it("a staff member holding payment.verify (Finance Officer / Accountant) verifies; without it a teacher cannot", async () => {
+  it("a Finance Officer verifies; a Teacher (even the class's Primary) cannot, and cannot be granted payment.verify", async () => {
     const id = await pending();
-    await expect(verifyPayment(db, await as(L.teacherA3), { submissionId: id }, O)).rejects.toBeInstanceOf(AuthorizationError);
-    await grantTenantPermission(db, await as(U.adminA), { tenantId: T.A, profileId: L.teacherA3, permission: "payment.verify" });
-    await verifyPayment(db, await as(L.teacherA3), { submissionId: id }, O);
+    await expect(verifyPayment(db, await as(U.teacherA), { submissionId: id }, O)).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(grantTenantPermission(db, await as(U.adminA), { tenantId: T.A, profileId: U.teacherA, permission: "payment.verify" })).rejects.toMatchObject({ code: "invalid_input" });
+    await verifyPayment(db, await as(L.financeA), { submissionId: id }, O);
     expect(await auditCount(pg, "PAYMENT_ACCESS_VERIFIED", id)).toBe(1);
   });
 
-  it("the grant is tenant-scoped, never implied by a role, and a teacher cannot assign it", async () => {
+  it("other Markaz finance staff, Markaz B admins and Super Admins cannot verify", async () => {
     const id = await pending();
-    await expect(grantTenantPermission(db, await as(U.teacherA), { tenantId: T.A, profileId: L.teacherA3, permission: "payment.verify" })).rejects.toBeInstanceOf(AuthorizationError);
-    await grantTenantPermission(db, await as(U.superAdmin), { tenantId: T.B, profileId: U.teacherAB, permission: "payment.verify" });
-    await expect(verifyPayment(db, await as(U.teacherAB), { submissionId: id }, O)).rejects.toBeInstanceOf(AuthorizationError); // granted in B only
-    await expect(verifyPayment(db, await as(U.adminB), { submissionId: id }, O)).rejects.toBeInstanceOf(AuthorizationError);
-    await expect(verifyPayment(db, await as(U.superAdmin), { submissionId: id }, O)).rejects.toBeInstanceOf(AuthorizationError);
+    for (const who of [L.financeB, U.adminB, U.superAdmin, L.financeEnded]) {
+      await expect(verifyPayment(db, await as(who), { submissionId: id }, O), who).rejects.toBeInstanceOf(AuthorizationError);
+    }
   });
 });

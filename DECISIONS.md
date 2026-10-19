@@ -9,7 +9,7 @@ Statuses used throughout the documentation:
 - **OPEN QUESTION** — unresolved, needs an owner decision before design/implementation can proceed in that area.
 - **DEFERRED** — intentionally out of scope for now; revisit later.
 
-Last updated: 2026-10-19 (final Live Class corrections — A131–A139, §1.10). Previous: 2026-10-19 (Live Class foundation — A101–A130, §1.9). Previous: 2026-10-16 (A92–A100, §1.8; DEV apply). Previous: 2026-10-16 (A92–A98, §1.8). Previous: 2026-10-15 (media policy decisions — A81–A91, §1.7). Previous: 2026-10-14 (recording & correction media — A66–A80, §1.6). Previous: 2026-10-13 (fourth update: delegation, child proposal, self-request, Supabase environment — A62–A65, §1.5).
+Last updated: 2026-10-19 (finance-role correction — A140, §1.11). Previous: 2026-10-19 (final Live Class corrections — A131–A139, §1.10). Previous: 2026-10-19 (Live Class foundation — A101–A130, §1.9). Previous: 2026-10-16 (A92–A100, §1.8; DEV apply). Previous: 2026-10-16 (A92–A98, §1.8). Previous: 2026-10-15 (media policy decisions — A81–A91, §1.7). Previous: 2026-10-14 (recording & correction media — A66–A80, §1.6). Previous: 2026-10-13 (fourth update: delegation, child proposal, self-request, Supabase environment — A62–A65, §1.5).
 
 History: 2026-09-30 initial documentation pass. 2026-10-05 owner business decisions BR-01–BR-13 reconciled (A26–A38, §1.1).
 
@@ -163,6 +163,14 @@ These come directly from the project owner's brief and are treated as fixed requ
 | A138 | **Student mic handoff:** granting Student B while Student A holds the mic automatically revokes A and grants B, keeping one-student-at-a-time; both transitions are audited. Business state only. Resolves OQ56 (mic part); supersedes the interim "refuse until revoked". | Owner decision (2026-10-19, final corrections) |
 | A139 | **Plan capacity ceilings are set by a Super Admin** (confirmed). Exact capacity numbers remain unresolved; no Starter/Standard/Pro defaults. Resolves OQ55. | Owner decision (2026-10-19, final corrections) |
 
+| A140 | **Finance Officer / Accountant is a real non-teaching Markaz role** (`FINANCE_OFFICER` tenant membership: tenant-scoped, ACTIVE/ENDED, invited by a Markaz Admin or Super Admin). **Teacher cannot verify payment.** Payment verification and rejection: ACTIVE Markaz Admin or ACTIVE Finance Officer of that Markaz only — never Primary/Co/Substitute Teacher, Student or Parent. Teachers (and Finance Officers, Markaz Admins) may submit payment evidence. `payment.verify` is no longer grantable to anyone. A Finance Officer gets only the finance data needed for verification — no class configuration, enrollment management (activation as a side effect of verification is allowed), grace, waitlist or capacity overrides, session control, attendance, mic, whiteboard, screen share, chat, corrections, recordings, roster or detailed student data. Supersedes the A136 implementation choice (explicit `payment.verify` grant to staff incl. Teachers). | Owner decision (2026-10-19, finance-role correction) |
+
+### 1.11 Supersession record (2026-10-19, finance-role correction)
+
+| Earlier entry | Earlier content (summary) | New decision | Relationship |
+|---|---|---|---|
+| A136 (implementation) | Finance authority = explicit `payment.verify` grant, holdable by a Markaz Admin or **Teacher**; a finance-only person needed a Teacher membership. | A140 | **Superseded:** dedicated `FINANCE_OFFICER` role; `payment.verify` removed from the grantable permissions; the DB enum value `PAYMENT_VERIFY` is legacy and refused by a CHECK. A136's statement "Markaz Admin or Finance Officer / Accountant verifies; a Teacher does not by default" stands, now strictly "a Teacher never verifies". |
+
 ### 1.10 Supersession record (2026-10-19, final Live Class corrections)
 
 | Earlier entry | Earlier content (summary) | New decision | Relationship |
@@ -288,6 +296,8 @@ Historical entries are kept, not deleted. This table records which earlier entri
 | A21 (Approved) | Free/paid plans, monthly subscriptions, course payments, M-Pesa, Airtel Money; tuition emphasis. | A34 | **Refined, not superseded** — A34 adds the requirement that the commercial concepts stay distinct. |
 
 ## 2. Current authorization scope (as of 2026-10-19)
+
+**Authorized (2026-10-19, tenth authorization):** LOCAL implementation of the dedicated Finance Officer role (A140), new additive migrations, tests, docs and ONE local commit. NOT authorized: applying migrations to real Supabase DEV, deploy, push, choosing an RTC vendor.
 
 **Authorized (2026-10-19, ninth authorization):** LOCAL implementation of the final Live Class decision corrections (A131–A139), new additive migrations, tests, docs and ONE local commit. NOT authorized: applying migrations to real Supabase DEV, deploy, push, choosing an RTC vendor.
 

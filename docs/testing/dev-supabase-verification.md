@@ -136,3 +136,22 @@ Migration 3 adds enum values that migration 4 does not use; `prisma migrate depl
 **Verify:** `scripts/compare-schema.mjs` → "No differences"; `npm run test:dev-supabase` 41/41; `scripts/dev-e2e.mjs` 14/14. Proposed extra real-DEV checks (not written yet; audited actions leave permanent rows): the 12 Live Class tables refuse every API role; `app.has_tenant_permission(…, 'PAYMENT_VERIFY')` true only for a staff grant holder; a new Markaz has `timezone IS NULL`.
 
 **Rollback:** as above, plus: drop the three new CHECKs and re-create the two original ones, drop the 6 new columns, drop enum `Punctuality`, `ALTER TABLE tenants ALTER COLUMN timezone SET DEFAULT 'UTC'` (re-filling NULLs with a value would invent a zone — leave NULL and set zones explicitly). Added enum values (`PENDING_PAYMENT`, `PAYMENT_VERIFY`, audit actions) cannot be removed and stay harmless if unused.
+
+## DEV pre-apply plan — FINAL migration order after the Finance Officer role (2026-10-19, NOT applied)
+
+**Supersedes the migration list and counts of the two Live Class plans above** (their gate, verification and rollback steps still apply). Nothing has been written to DEV.
+
+**Exact order** (after the 15 already applied — 6 pending):
+
+1. `20261019000000_live_class_foundation`
+2. `20261019000100_live_class_foundation_rls`
+3. `20261019000200_live_class_decisions`
+4. `20261019000300_live_class_decisions_rls`
+5. `20261019000400_finance_officer_role` — `ALTER TYPE "TenantRole" ADD VALUE 'FINANCE_OFFICER'` (additive).
+6. `20261019000500_finance_officer_role_rls` — CHECK `grant_not_payment_verify` (NOT VALID) on `tenant_permission_grants`; `app.is_tenant_member` re-created to include FINANCE_OFFICER (same signature, SECURITY DEFINER, search_path pinned; EXECUTE for `authenticated` only).
+
+**Expected schema after apply** (current DEV in brackets): tables 33 [21], columns 380 [224], constraints 173 [106], indexes 107 [61], enums 33 [20], policies 14 [14], functions 12 [11], triggers 8 [4], grant rows 66 [42]. Enum `TenantRole` = MARKAZ_ADMIN, TEACHER, STUDENT, FINANCE_OFFICER.
+
+**Destructive operations:** none (`is_tenant_member` is replaced in place with a wider role list). **Row impact:** 0 (no data statements in migrations 5–6; DEV has 0 tenants, 0 grants). The real-DEV verification should add: a FINANCE_OFFICER user reads only its own `tenants` row via PostgREST and is refused on every Live Class table; inserting a `PAYMENT_VERIFY` grant fails.
+
+**Rollback (before real data):** drop `grant_not_payment_verify`; re-create `app.is_tenant_member` with the three original roles. The `FINANCE_OFFICER` enum value cannot be removed; with no memberships using it, it is inert.

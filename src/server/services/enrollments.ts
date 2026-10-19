@@ -424,3 +424,29 @@ export async function listGraceExtensions(db: PrismaClient, actor: Actor, enroll
   if (!canExtendGrace(actor, cls)) throw new AuthorizationError();
   return db.graceExtension.findMany({ where: { enrollmentId: e.id }, orderBy: { grantedAt: "desc" } });
 }
+
+/**
+ * A140 least privilege: what the finance desk needs to record and verify payments — the student's
+ * name, the class, its payment requirement, the enrollment's access state and access period.
+ * Nothing academic (no corrections, recordings, attendance, chat or notes). Markaz Admins and
+ * Finance Officers of that Markaz only.
+ */
+export async function listFinanceEnrollments(db: PrismaClient, actor: Actor, tenantId: unknown, options: EnrollmentOptions = {}) {
+  if (!canVerifyPayment(actor, tenantId)) throw new AuthorizationError();
+  const now = options.now ?? new Date();
+  const rows = await db.classEnrollment.findMany({
+    where: { tenantId: tenantId as string, status: { not: "ENDED" } },
+    select: {
+      id: true,
+      studentProfileId: true,
+      status: true,
+      accessUntil: true,
+      graceUntil: true,
+      student: { select: { profile: { select: { displayName: true } } } },
+      class: { select: { name: true, paymentRequired: true } },
+    },
+    orderBy: [{ class: { name: "asc" } }, { enrolledAt: "asc" }],
+    take: 500,
+  });
+  return rows.map((e) => ({ ...e, effectiveStatus: effectiveEnrollmentState(e, now) }));
+}

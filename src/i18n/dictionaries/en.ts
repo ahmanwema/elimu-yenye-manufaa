@@ -151,14 +151,13 @@ export const en = {
     revoke: "Remove",
     noEligible: "No eligible members.",
   },
-  roles: { MARKAZ_ADMIN: "Markaz Administrator", TEACHER: "Teacher", STUDENT: "Student", PARENT: "Parent" },
+  roles: { FINANCE_OFFICER: "Finance Officer / Accountant", MARKAZ_ADMIN: "Markaz Administrator", TEACHER: "Teacher", STUDENT: "Student", PARENT: "Parent" },
   permissions: {
     "parent_link.create": "Start parent links",
     "parent_link.verify": "Verify parent links",
     "parent_link.activate": "Activate parent links",
     "parent_link.revoke": "Revoke parent links",
     "invitation.create": "Send invitations",
-    "payment.verify": "Verify payments",
   },
   statuses: {
     PENDING: "Pending",
@@ -191,6 +190,9 @@ export const en = {
   },
   live: {
     classesLink: "Classes",
+    financeLink: "Finance",
+    financeTitle: "Finance — payment verification",
+    financeEnrollmentsHeading: "Enrollments and access periods",
     classesTitle: "Classes",
     classesNote: "Live classes belong to one Markaz. Each class has exactly one Primary Teacher.",
     noClasses: "No classes yet.",

@@ -15,6 +15,9 @@ export const L = {
   s2: "00000000-0000-4000-8000-0000000000f4",
   s3: "00000000-0000-4000-8000-0000000000f5",
   teacherB: "00000000-0000-4000-8000-0000000000f6", // teacher in B only
+  financeA: "00000000-0000-4000-8000-0000000000f7", // FINANCE_OFFICER in A (A140), no other role
+  financeEnded: "00000000-0000-4000-8000-0000000000f8", // FINANCE_OFFICER in A, membership ENDED
+  financeB: "00000000-0000-4000-8000-0000000000f9", // FINANCE_OFFICER in B only
 } as const;
 
 /** 2026-11-02 is a Monday. 06:00 UTC = 09:00 in Africa/Nairobi (UTC+3, no DST). */
@@ -35,6 +38,13 @@ export async function seedLive(pg: PGlite) {
     [T.A, T.B, L.teacherA3, L.departedTeacher, L.s1, L.s2, L.s3, L.teacherB],
   );
   for (const id of [L.s1, L.s2, L.s3]) await pg.query("INSERT INTO student_accounts (profile_id) VALUES ($1)", [id]);
+  await pg.query(
+    `INSERT INTO memberships (tenant_id, profile_id, role, status, ended_at) VALUES
+       ($1, $3, 'FINANCE_OFFICER', 'ACTIVE', NULL),
+       ($1, $4, 'FINANCE_OFFICER', 'ENDED', now()),
+       ($2, $5, 'FINANCE_OFFICER', 'ACTIVE', NULL)`,
+    [T.A, T.B, L.financeA, L.financeEnded, L.financeB],
+  );
   await pg.query("UPDATE tenants SET timezone = 'Africa/Nairobi' WHERE id = $1", [T.A]);
 }
 

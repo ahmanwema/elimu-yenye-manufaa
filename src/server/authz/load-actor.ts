@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@/generated/prisma/client";
-import { GRANTABLE_PERMISSION_FROM_DB, type Actor } from "./policy";
+import { grantableFromDb, type Actor, type GrantablePermission } from "./policy";
 
 type ProfileReader = Pick<PrismaClient, "profile">;
 
@@ -26,9 +26,9 @@ export async function loadActor(db: ProfileReader, profileId: string): Promise<A
     isPlatformAdmin: profile.platformAdmin !== null,
     memberships: profile.memberships,
     parentLinks: profile.parentAccount?.studentLinks ?? [],
-    permissionGrants: profile.permissionGrants.map((g) => ({
-      tenantId: g.tenantId,
-      permission: GRANTABLE_PERMISSION_FROM_DB[g.permission],
-    })),
+    // A non-grantable legacy value (PAYMENT_VERIFY, refused by a DB CHECK) is dropped, never mapped.
+    permissionGrants: profile.permissionGrants
+      .map((g) => ({ tenantId: g.tenantId, permission: grantableFromDb(g.permission) }))
+      .filter((g): g is { tenantId: string; permission: GrantablePermission } => g.permission !== null),
   };
 }
