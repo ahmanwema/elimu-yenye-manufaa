@@ -6,6 +6,8 @@ This file is the entry point for any AI assistant or engineer working on this re
 
 Elimu Yenye Manufaa is a multi-teacher, multi-institution online Islamic education platform (Qur'an, Tajwid, Hifdh, Hadith, Aqidah, Fiqh, Tafsir, Arabic language). Independent teachers and Markaz (institutions) run classes; students self-register and join via invitation links. See [docs/README.md](docs/README.md) for the full documentation map.
 
+**Status as of 2026-11-02 (GitHub):** `master` (10 commits, up to 11e914f) pushed on owner request to the **public** GitHub repo https://github.com/ahmanwema/elimu-yenye-manufaa (remote `origin`). Secrets scan over full history beforehand: 0 matches. Nothing deployed; Supabase DEV unchanged.
+
 **Status as of 2026-10-19 (finance role):** dedicated non-teaching `FINANCE_OFFICER` Markaz role implemented locally (A140); Teachers can never verify payment; 6 Live Class migrations pending for DEV (21 locally).
 
 **Status as of 2026-10-19 (final corrections):** A131–A139 implemented locally (attendance vs punctuality, time zone fail-closed, seats/FIFO/paid classes, `payment.verify`, detailed-access wiring, mic handoff); 4 Live Class migrations pending for DEV (19 locally). Updated pre-apply plan in docs/testing/dev-supabase-verification.md.
@@ -35,7 +37,7 @@ Elimu Yenye Manufaa is a multi-teacher, multi-institution online Islamic educati
 7. **Prisma bypasses RLS.** Every server-side Prisma query touching tenant or personal data must go through `src/server/authz` first (see [docs/system/security.md](docs/system/security.md) §2.1). Never import `src/server/*` into client components.
 8. **Every export of a `"use server"` file is a public endpoint.** Put helpers in `src/server/*` (non-action) modules; `tests/unit/auth-safety.test.ts` pins the allowed action exports.
 9. **UI strings live in `src/i18n/dictionaries`** (en defines the shape; sw and ar must match). Never hardcode user-visible text; use logical CSS properties so Arabic RTL mirrors correctly.
-10. **Git:** initialized 2026-10-13. Do not commit, add a remote, or push without explicit owner authorization. Before any first commit, re-run the secrets scan described in PROGRESS.md.
+10. **Git:** initialized 2026-10-13; remote `origin` = https://github.com/ahmanwema/elimu-yenye-manufaa (public, added 2026-11-02). Do not commit or push without explicit owner authorization. Before every push, re-run the secrets scan described in PROGRESS.md — the repo is public.
 
 ## Documentation map (quick links)
 

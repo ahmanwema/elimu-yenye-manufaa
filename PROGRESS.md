@@ -234,6 +234,13 @@ Chronological, factual log of what has actually happened. Do not record intentio
 - **Implemented:** FINANCE_OFFICER membership (tenant.read only, not grant-eligible), invitations by Markaz Admin / Super Admin, verify/reject by Markaz Admin or Finance Officer only, `payment.verify` removed from grantable permissions, Finance page (payments + enrollment access periods only), role labels sw/en/ar.
 - Tests: **751 local** (36 files; +11), lint, typecheck, build pass; Prisma format/validate/generate clean; secrets scan 0 matches. Real Supabase NOT changed; final 6-migration pre-apply order in docs/testing/dev-supabase-verification.md.
 
+## 2026-11-02 — Pushed to GitHub (owner request)
+
+- Owner created the **public** repo `ahmanwema/elimu-yenye-manufaa` and asked for the project to be uploaded.
+- Pre-push secrets scan over the full `git log -p` history (JWTs, `sb_secret_`/`sb_publishable_` keys, credentialed Postgres URLs, service-role values, private keys, API tokens): 0 real matches, placeholders only. `.env.local` is ignored.
+- Remote `origin` added; `master` (10 commits, up to 11e914f) pushed and tracking `origin/master`.
+- NOT pushed: untracked `tests/real/live-class-dev.test.ts`. NOT done: deploy, DEV Supabase changes, production.
+
 ## Status snapshot
 
 | Area | Status |
@@ -245,7 +252,7 @@ Chronological, factual log of what has actually happened. Do not record intentio
 | Auth / tenancy / roles / Parent links | Foundation implemented (no sign-in UI, no invitations, no link workflow) |
 | PWA | Basic foundation (manifest, placeholder icons, minimal SW) |
 | Tests | 751 local (2026-10-19, finance role); 41 real-Supabase + 14-step UI E2E last run 2026-10-16 |
-| Version control | Git initialized; first local baseline commit created 2026-10-13; no remote |
+| Version control | Git initialized; first local baseline commit created 2026-10-13; pushed 2026-11-02 to public GitHub repo ahmanwema/elimu-yenye-manufaa |
 | Auth / onboarding / i18n | Implemented locally (OTP + magic link, invite-first, sw/en/ar + RTL) |
 | Parent links | Full workflow implemented (request/create → verify → activate → revoke) with explicit permissions and audit history |
 | Correction & recording media | Policy foundation implemented locally (A66–A80): consent, primary/history clips, M4A ≤ 60 s validation, approval, deletion lifecycle, audit; no RTC capture/extraction |
