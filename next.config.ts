@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
+  // Set by `next upgrade --agent=security` (16.4.0 -> 16.4.5). Keeps this app on
+  // security-only agent upgrades; feature and major upgrades stay a separate decision.
+  experimental: { agentUpgrade: "security" },
   async headers() {
     return [
       {
