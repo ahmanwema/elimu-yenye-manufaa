@@ -58,7 +58,7 @@ Status tags used throughout: `APPROVED`, `PROPOSED`, `OPEN QUESTION`, `DEFERRED`
 - [testing/security-tests.md](testing/security-tests.md)
 - [testing/rtc-pilot-plan.md](testing/rtc-pilot-plan.md) — Agora vs LiveKit + whiteboard transport pilot plan
 - [testing/rtc-pilot-results.md](testing/rtc-pilot-results.md) — desk findings, cost model, results matrix (device tests pending)
-- [testing/dev-supabase-verification.md](testing/dev-supabase-verification.md) — runbook for verifying against a local/dev Supabase (not yet executed)
+- [testing/dev-supabase-verification.md](testing/dev-supabase-verification.md) — runbook for verifying against a local/dev Supabase. Executed 2026-10-16 (41/41 real-Supabase, 14/14 E2E, exact parity); all 21 migrations are now applied and parity was re-confirmed read-only on 2026-11-04
 - [testing/responsive-ui-tests.md](testing/responsive-ui-tests.md)
 
 ## Roadmap

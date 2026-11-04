@@ -241,6 +241,65 @@ Chronological, factual log of what has actually happened. Do not record intentio
 - Remote `origin` added; `master` (10 commits, up to 11e914f) pushed and tracking `origin/master`.
 - NOT pushed: untracked `tests/real/live-class-dev.test.ts`. NOT done: deploy, DEV Supabase changes, production.
 
+## 2026-11-04 — Working copy recovered from GitHub; DEV found ALREADY at 21 migrations
+
+Context: the local working folder `C:\Projects\elimu-yenye-manufaa` was found **empty** (no `.git`). The
+GitHub repository was the only surviving copy, so it was re-cloned. Everything untracked was lost with
+the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
+`tests/real/live-class-dev.test.ts`.
+
+- **Dependencies restored** with `npm ci` (532 packages, from the committed lockfile — no upgrades).
+  Working tree stayed clean; `node_modules` and `src/generated` are git-ignored.
+- **Environment recreated** by the owner into `.env.local` (git-ignored) for the DEVELOPMENT project
+  `jahyvgzqxqldaatitfvz`, pooler host `aws-1-eu-central-1`, session pooler (port 5432). No secret was
+  printed at any point. `.env` was created as an inert fallback (all keys commented out) so the two
+  files can never disagree.
+- **Local verification, re-run in full and all green:** `npm test` **751/751 in 36 files** (783 s) —
+  exactly the 2026-10-19 baseline, confirming the clone is faithful; `npm run lint` pass;
+  `npm run typecheck` pass; `npm run build` pass; `prisma validate` pass; `prisma generate` clean.
+  Secrets scan over the working tree and the full `git log -p`: **0 real matches** (prose mentions and
+  the `sb_publishable_test` stub only).
+- **`prisma format --check` reports "unformatted files" on this machine — a false alarm.** The clone
+  was made with `core.autocrlf=true`, so every file on disk has CRLF while Prisma writes LF. Diffing a
+  formatted copy against the repo with CR stripped gives **0 content differences**. The schema was NOT
+  reformatted: doing so would produce a whole-file diff with no change in meaning.
+- **READ-ONLY DEV preflight produced an unexpected result: the six "pending" migrations are already
+  applied.** The DEVELOPMENT project holds **21 of 21** migrations, not 15:
+  - schema parity against the **full current repo**: `scripts/compare-schema.mjs` → **"No differences"**
+    — tables 33, columns 380, constraints 173, indexes 107, enums 33, policies 14, functions 12,
+    triggers 8, grants 66. These are exactly the numbers the pre-apply plan predicted;
+  - migration history intact: all 21 present **in the repo's order**, checksums matching, 0 unfinished,
+    0 rolled back. (A first check reported 21/21 checksum mismatches; that was the same CRLF artefact —
+    LF-normalised, all 21 match.)
+  - 0 auth users; every application table 0 rows; 0 storage objects; sign-ups disabled;
+    `correction-clips` private; `recordings` bucket still absent.
+  - `audit_events`: **171 rows** (was 41), dated 2026-10-13 (41), 2026-10-18 (43) and 2026-01-06→2030-01-06
+    (87, test-controlled future timestamps). The actions include the full Live Class set —
+    CLASS_CREATED, CLASS_TEACHER_ASSIGNED, ENROLLMENT_WAITLISTED, ENROLLMENT_WAITLIST_ORDER_OVERRIDE,
+    CLASS_CAPACITY_OVERRIDE, PAYMENT_ACCESS_VERIFIED, TENANT_TIMEZONE_SET, SESSION_STARTED,
+    SESSION_SAFETY_CLOSED, MIC_GRANTED, MIC_REVOKED, WHITEBOARD_GRANTED.
+- **Conclusion (inference, stated as such):** the apply and a full real-DEV verification run were
+  carried out **after 2026-11-02** on the machine that was later lost, and cleaned up properly (all app
+  tables are empty). They were never recorded here, which is why this log said 15. The exact date and
+  operator are **not known** — the evidence above is circumstantial but consistent. Nothing in this
+  pass re-ran those tests, so none of their results is restated here as freshly verified.
+- **No write of any kind was made to DEV in this pass.** `npm run db:deploy:dev` was never run: there
+  was nothing to apply. The owner's DEV APPLY authorisation therefore went unused.
+- **`tests/real/live-class-dev.test.ts` reconstructed** (669 lines, 40 tests) from the current
+  implementation, DECISIONS A101–A140, roles-permissions, the DEV verification runbook and the existing
+  `tests/real/` patterns. It is deliberately narrow: it asserts only what PGlite cannot prove — the
+  hosted enum/CHECK constraints, `app.is_tenant_member` under real JWT claims, deny-by-default on the
+  12 new tables through PostgREST, and one end-to-end slice (class → enrol → pay → verify → session →
+  join → mic → attendance). **Typecheck and lint pass; it has NEVER been executed**, because the owner
+  chose not to spend further permanent audit rows re-verifying an already-verified project. Treat it as
+  unverified until it is run once.
+- **Dependency advisories recorded, nothing upgraded** (upgrades were out of scope): `npm audit` reports
+  22 (1 critical, 4 high, 17 moderate). The critical one is Next.js 16.4.0 — unauthenticated RCE in the
+  Image Optimization API when SVG files are used. This codebase does **not** use `next/image` anywhere
+  and does not set `dangerouslyAllowSVG`, and nothing is deployed, so there is no live exposure today.
+  It must be resolved before any deployment. `next build` also halts once per run with a security
+  nudge and succeeds on retry.
+
 ## Status snapshot
 
 | Area | Status |
@@ -248,21 +307,33 @@ Chronological, factual log of what has actually happened. Do not record intentio
 | Documentation foundation | Done (this pass) |
 | Business rules BR-01–BR-13 | Recorded as approved (A26–A38), docs reconciled 2026-10-05 |
 | Technology stack | **Approved** (A39), installed locally |
-| Database schema | 15 migrations applied to the DEVELOPMENT Supabase project (2026-10-16); exact parity with PGlite verified |
+| Database schema | **All 21 migrations applied** to the DEVELOPMENT Supabase project (15 on 2026-10-16; the remaining 6 at an unrecorded date after 2026-11-02 — see the 2026-11-04 entry). Exact parity with the full repo re-verified read-only on 2026-11-04: "No differences" |
 | Auth / tenancy / roles / Parent links | Foundation implemented (no sign-in UI, no invitations, no link workflow) |
 | PWA | Basic foundation (manifest, placeholder icons, minimal SW) |
-| Tests | 751 local (2026-10-19, finance role); 41 real-Supabase + 14-step UI E2E last run 2026-10-16 |
-| Version control | Git initialized; first local baseline commit created 2026-10-13; pushed 2026-11-02 to public GitHub repo ahmanwema/elimu-yenye-manufaa |
+| Tests | 751 local, 36 files — **re-run green 2026-11-04** on the recovered clone (plus lint, typecheck, build). Real-Supabase 41/41 and 14-step UI E2E: last *recorded* run 2026-10-16 against 15 migrations; **not re-run since the remaining 6 were applied**. `tests/real/live-class-dev.test.ts` exists again but has never been executed |
+| Version control | Git initialized; first local baseline commit 2026-10-13; pushed 2026-11-02 to the public GitHub repo ahmanwema/elimu-yenye-manufaa. **2026-11-04: that remote was the only surviving copy** — the local folder was empty and the project was re-cloned from it |
 | Auth / onboarding / i18n | Implemented locally (OTP + magic link, invite-first, sw/en/ar + RTL) |
 | Parent links | Full workflow implemented (request/create → verify → activate → revoke) with explicit permissions and audit history |
 | Correction & recording media | Policy foundation implemented locally (A66–A80): consent, primary/history clips, M4A ≤ 60 s validation, approval, deletion lifecycle, audit; no RTC capture/extraction |
 | Live Class architecture | Class structure/capacity/session foundation APPROVED (A101–A130); real-time layer still proposed (vendor undecided, A35) |
-| Live Class implementation | Provider-neutral foundation implemented LOCALLY (2026-10-19); not applied to DEV; no media transport |
+| Live Class implementation | Provider-neutral foundation implemented 2026-10-19 and **applied to DEV** (schema parity exact, 2026-11-04). Still **no media transport of any kind** — no audio, video, whiteboard or screen share (A35 undecided) |
 | Any other feature | Not started |
 | Hosting/infrastructure setup | Not started (not authorized) |
 | First deployment | Not started |
 
 ## Next expected step
+
+(2026-11-04) The DEV database now matches the repo exactly, so the schema work has nowhere further to
+go without a business decision. The two things that actually unblock progress are both the owner's:
+the **RTC vendor (A35)** — without it there is no audio, video, whiteboard or screen share, and Live
+Class remains a state-and-chat page — and **concrete capacity numbers (OQ5)**, which the vendor
+configuration and cost model depend on. Secondary, and cheap once authorised: **scheduled jobs
+(OQ59)**, without which grace/suspension states and session safety-close never advance on their own.
+Before any deployment, the Next.js critical advisory must also be resolved.
+
+One verification debt is outstanding and should be paid the next time real-DEV tests are run for any
+reason: `tests/real/live-class-dev.test.ts` has never been executed, and the base real-DEV suite has
+not run since the last six migrations were applied.
 
 (2026-10-19) Owner reviews the Live Class foundation report, confirms or changes the interim interpretations (open questions 53–58), and decides whether to APPLY the two Live Class migrations to the DEV project per the pre-apply plan. RTC vendor (A35), payment terms (OQ57) and job scheduling (OQ59) remain owner decisions.
 

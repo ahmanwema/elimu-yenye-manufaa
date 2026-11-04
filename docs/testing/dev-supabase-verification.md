@@ -155,3 +155,43 @@ Migration 3 adds enum values that migration 4 does not use; `prisma migrate depl
 **Destructive operations:** none (`is_tenant_member` is replaced in place with a wider role list). **Row impact:** 0 (no data statements in migrations 5–6; DEV has 0 tenants, 0 grants). The real-DEV verification should add: a FINANCE_OFFICER user reads only its own `tenants` row via PostgREST and is refused on every Live Class table; inserting a `PAYMENT_VERIFY` grant fails.
 
 **Rollback (before real data):** drop `grant_not_payment_verify`; re-create `app.is_tenant_member` with the three original roles. The `FINANCE_OFFICER` enum value cannot be removed; with no memberships using it, it is inert.
+
+## Applied — confirmed 2026-11-04 (read-only verification; apply itself was earlier and unrecorded)
+
+**Status: the six migrations above ARE applied. The DEVELOPMENT project holds all 21.** The heading of
+the plan above ("NOT applied") was true when written and is now historical.
+
+The apply was **not** performed in the 2026-11-04 session. It had already happened, at an unrecorded
+date after 2026-11-02, on the working copy that was subsequently lost (see PROGRESS.md 2026-11-04).
+The operator and exact date are unknown; what follows is what was verified read-only on 2026-11-04.
+
+- **Migrations:** 21 of 21, in the repo's order, checksums matching the repo, 0 unfinished, 0 rolled
+  back. (Checksums must be compared against LF-normalised files: a Windows checkout with
+  `core.autocrlf=true` makes every checksum appear to mismatch.)
+- **Schema parity against the full current repo** — `scripts/compare-schema.mjs` → **"No differences"**:
+  tables 33, columns 380, constraints 173, indexes 107, enums 33, policies 14, functions 12, triggers 8,
+  grants 66. Every number matches the plan's prediction exactly.
+- **Project state:** 0 auth users; every application table 0 rows; 0 storage objects; sign-ups disabled;
+  `correction-clips` private; `recordings` bucket still absent (correctly — never authorised).
+- **`audit_events`: 171 rows** (41 from 2026-10-13, 43 from 2026-10-18, 87 with test-controlled dates up
+  to 2030-01-06). The action mix covers the full Live Class surface, so a real-DEV Live Class
+  verification run evidently took place and cleaned up after itself.
+
+**Correction to the plans above.** They state "Backfills: none". That is inaccurate:
+`20261019000300_live_class_decisions_rls` contains one deliberate backfill —
+
+```sql
+UPDATE public.tenants t SET timezone = NULL
+WHERE NOT EXISTS (SELECT 1 FROM public.audit_events e
+                  WHERE e.tenant_id = t.id AND e.action::text = 'TENANT_TIMEZONE_SET');
+```
+
+clearing the `UTC` column default wherever no Markaz Admin ever chose a zone (A131: a default is not a
+choice). The plans' separate claim of **0 rows changed** is correct, because DEV has 0 tenants.
+
+**Outstanding verification debt.** The real-DEV suites have **not** been run since the last six
+migrations were applied: the recorded 41/41 and 14/14 results are from 2026-10-16, against 15
+migrations. `tests/real/live-class-dev.test.ts` was reconstructed on 2026-11-04 (typecheck and lint
+pass) but **has never been executed**. The owner deliberately deferred re-running them rather than add
+a further ~130 permanent audit rows to re-prove an already-verified project. Run them the next time
+there is an independent reason to touch DEV.

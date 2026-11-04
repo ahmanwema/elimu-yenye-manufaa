@@ -167,8 +167,10 @@ model ParentAccount {
   @@map("parent_accounts")
 }
 
-/// Only ACTIVE grants a Parent access to child data. Who moves a link between
-/// states is an open owner decision (open question 14) — no transition logic exists yet.
+/// Only ACTIVE grants a Parent access to child data. The full transition workflow is
+/// implemented in src/server/services/parent-links.ts (request/create → verify → activate →
+/// revoke), gated by the explicit `parent_link.*` permissions and recorded in ParentLinkEvent.
+/// Open question 14 was resolved by A46–A48 and A62–A64.
 enum ParentStudentLinkStatus {
   PENDING
   VERIFIED
