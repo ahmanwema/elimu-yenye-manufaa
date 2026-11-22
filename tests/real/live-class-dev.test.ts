@@ -535,6 +535,8 @@ describe("time zone must be chosen before scheduling (A131)", () => {
 describe("live session: devices, mic handoff and attendance", () => {
   let classId = "";
   let sessionId = "";
+  let connX: string[] = [];
+  let connY = "";
 
   beforeAll(async () => {
     const adminActor = await actorOf("adminA");
@@ -552,8 +554,9 @@ describe("live session: devices, mic handoff and attendance", () => {
 
   it("the first device is PRIMARY, the second VIEW_ONLY, the third refused (A121)", async () => {
     const studentActor = await actorOf("studentX");
-    const first = (await joinSession(db, studentActor, { sessionId })) as { mode: string; participantId: string };
-    const second = (await joinSession(db, studentActor, { sessionId })) as { mode: string };
+    const first = await joinSession(db, studentActor, { sessionId });
+    const second = await joinSession(db, studentActor, { sessionId });
+    connX = [first.connectionId, second.connectionId];
     expect(first.mode).toBe("PRIMARY");
     expect(second.mode).toBe("VIEW_ONLY");
     await expect(joinSession(db, studentActor, { sessionId })).rejects.toBeInstanceOf(DomainError);
@@ -568,7 +571,7 @@ describe("live session: devices, mic handoff and attendance", () => {
   });
 
   it("granting the mic to B automatically revokes it from A (A138)", async () => {
-    await joinSession(db, await actorOf("studentY"), { sessionId });
+    connY = (await joinSession(db, await actorOf("studentY"), { sessionId })).connectionId;
     const ps = await sql.query(
       `SELECT id, profile_id FROM live_session_participants WHERE session_id = $1 AND profile_id = ANY($2)`,
       [sessionId, [ID.studentX, ID.studentY]],
@@ -601,8 +604,8 @@ describe("live session: devices, mic handoff and attendance", () => {
   });
 
   it("attendance and punctuality are stored as separate dimensions (A132)", async () => {
-    await leaveSession(db, await actorOf("studentX"), { sessionId });
-    await leaveSession(db, await actorOf("studentY"), { sessionId });
+    for (const connectionId of connX) await leaveSession(db, await actorOf("studentX"), { connectionId });
+    await leaveSession(db, await actorOf("studentY"), { connectionId: connY });
     await endSession(db, await actorOf("teacherA"), { sessionId });
 
     const { rows } = await sql.query(
