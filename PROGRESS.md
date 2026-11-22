@@ -414,6 +414,14 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
   a reset, so for now a Markaz Admin issues a fresh link — and **email addresses are not verified**, so
   the address is an identifier and not a proven contact. An SMTP provider closes both; it stays
   undecided.
+- **Committed, pushed and deployed** (`4951392..63d75b0`). Pre-push secrets scan over the full
+  `git log -p --all` history (65,931 lines): **2 matches, both prose** — a sentence in PROGRESS.md
+  describing the scan itself and a comment in `.env.example` naming the `sb_secret_` prefix. No
+  credential. Vercel rebuilt from the GitHub push automatically (41 s, Ready).
+- **Verified against the live production URL:** `/sw/sign-in` returns 200 and serves the password form
+  (`id="password-email"`, `id="password-password"`), and `/sw/join/notarealtoken` returns the single
+  Swahili refusal that covers unknown, expired, cancelled and full alike — the state of a link still
+  cannot be probed in production.
 
 ## Status snapshot
 
