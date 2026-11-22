@@ -202,7 +202,7 @@ export const en = {
     revoke: "Remove",
     noEligible: "No eligible members.",
     createHeading: "Create a Markaz",
-    createNote: "A new Markaz and its first administrator. That person signs in with this address and needs no invitation.",
+    createNote: "Opens a new Markaz. It needs a name and a code only — its administrator arrives afterwards, through a join link.",
     createName: "Markaz name",
     createSlug: "Markaz code",
     createSlugNote: "Lower case letters, digits and hyphens. Used in links and quoted by parents.",

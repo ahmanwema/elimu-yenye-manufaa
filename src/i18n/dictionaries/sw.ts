@@ -203,7 +203,7 @@ export const sw: Dictionary = {
     revoke: "Ondoa",
     noEligible: "Hakuna wanachama wanaostahili.",
     createHeading: "Fungua Markaz",
-    createNote: "Markaz mpya na msimamizi wake wa kwanza. Mtu huyo ataingia kwa barua pepe hii bila kuhitaji mwaliko.",
+    createNote: "Hufungua Markaz mpya. Inahitaji jina na msimbo tu — msimamizi wake anakuja baadaye, kupitia kiungo cha kujiunga.",
     createName: "Jina la Markaz",
     createSlug: "Msimbo wa Markaz",
     createSlugNote: "Herufi ndogo, tarakimu na vistari. Hutumika kwenye viungo na hutajwa na wazazi.",
