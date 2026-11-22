@@ -346,6 +346,34 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
   project files and config are not implicated — only this directory's `node_modules`.
 - Nothing pushed. No production, no deploy, no SMTP provider, no RTC vendor, no payment gateway.
 
+## 2026-11-22 — First deployment: pushed to GitHub, deployed to Vercel (A146, A147)
+
+- **Pushed `master` to the public GitHub repository** (`bf54912..135a937`, 6 commits) after the pre-push
+  secrets scan required by CLAUDE.md rule 10: `.env.local` confirmed ignored, only `.env.example` files
+  tracked, and **0 matches** across 64,004 lines of full `git log -p --all` history.
+- **Deployed to Vercel** — project `elimu-yenye-manufaa`, auto-connected to the GitHub repository.
+  Production URL **https://elimu-yenye-manufaa.vercel.app** (`/sw` returns 200 publicly). The
+  deployment-specific URL is protected by Vercel and returns 302; the clean production alias is the one
+  to use. Six production environment variables set from `.env.local`; `SITE_URL` points at the
+  production URL. `npm run build` passed locally first, with all three new `join` routes present.
+- **This is the first deployment of the project**, and it supersedes the standing "deployment not
+  authorized" scope (A146). It does **not** promote Supabase: the deployed app still uses the
+  DEVELOPMENT project, A65 still stands, and sign-ups stay disabled.
+- **Verified live, end to end:** an admin-minted magic link signed in successfully against the
+  production URL. Note that this works **without** touching Supabase's redirect allow-list, because
+  `/auth/confirm` verifies the token hash server-side rather than relying on a Supabase redirect.
+  Emailed codes (the sign-in form, invitations, joining) would still need the allow-list updated — and
+  SMTP — before they work for anyone outside the project team.
+- **`scripts/dev-signin-link.mjs` added** (A147): mints a magic link for any account that already
+  exists, and works out the person's destination from their ACTIVE roles. It never creates an account.
+- **One investigation note:** a first live test landed on `/sw/account` instead of `/sw/platform`. This
+  was **not** an application fault — Git Bash's MSYS path conversion rewrote the `/sw/platform`
+  argument into a Windows path, which `safeRedirectPath` correctly rejected in favour of the default.
+  Re-run with `MSYS_NO_PATHCONV=1`, the destination is honoured.
+- **Still blocked for real students:** both the join link and an invitation require a code sent to the
+  student's own address, and the built-in mailer reaches only project team addresses. Deploying did not
+  change this, and could not have.
+
 ## Status snapshot
 
 | Area | Status |
@@ -365,8 +393,8 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
 | Live Class implementation | Provider-neutral foundation implemented 2026-10-19 and **applied to DEV** (schema parity exact, 2026-11-04). Still **no media transport of any kind** — no audio, video, whiteboard or screen share (A35 undecided) |
 | Self-service onboarding | Stages 1–2 implemented and applied to DEV (A141–A145): a Super Admin creates a Markaz with its first Markaz Admin; students join by a shareable link, supply their details, and land in the existing payment flow. Stage 4 (open, uninvited teacher self-registration) **not started and undecided**. Blocked for real students until an SMTP provider is chosen: Supabase's built-in mailer only delivers to project team addresses |
 | Any other feature | Not started |
-| Hosting/infrastructure setup | Not started (not authorized) |
-| First deployment | Not started |
+| Hosting/infrastructure setup | **Vercel project `elimu-yenye-manufaa`, connected to the GitHub repo** (2026-11-22, A146). No custom domain. Still pointing at the DEVELOPMENT Supabase project |
+| First deployment | **Done 2026-11-22** — https://elimu-yenye-manufaa.vercel.app, public, verified live. NOT production: A65 still stands and sign-ups stay disabled |
 
 ## Next expected step
 
