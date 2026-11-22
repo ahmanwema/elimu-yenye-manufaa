@@ -132,7 +132,7 @@ export const sw: Dictionary = {
     joinLinkClass: "Darasa (si lazima)",
     joinLinkNoClass: "Markaz pekee - bila darasa",
     joinLinkDays: "Kinadumu (siku)",
-    joinLinkMaxUses: "Idadi ya juu ya wanafunzi (si lazima)",
+    joinLinkMaxUses: "Watu wangapi wanaweza kukitumia (si lazima)",
     joinLinkCreate: "Tengeneza kiungo",
     joinLinkCreated: "Nakili kiungo hiki sasa. Kinaonyeshwa mara moja tu.",
     joinLinkRevoke: "Futa",

@@ -132,7 +132,7 @@ export const ar: Dictionary = {
     joinLinkClass: "الحلقة (اختياري)",
     joinLinkNoClass: "المركز فقط - بلا حلقة",
     joinLinkDays: "صالح لمدة (أيام)",
-    joinLinkMaxUses: "أقصى عدد للطلاب (اختياري)",
+    joinLinkMaxUses: "كم شخصًا يمكنه استخدامه (اختياري)",
     joinLinkCreate: "إنشاء رابط",
     joinLinkCreated: "انسخ هذا الرابط الآن. يُعرض مرة واحدة فقط.",
     joinLinkRevoke: "إلغاء",

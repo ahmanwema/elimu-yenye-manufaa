@@ -131,7 +131,7 @@ export const en = {
     joinLinkClass: "Class (optional)",
     joinLinkNoClass: "Markaz only - no class",
     joinLinkDays: "Valid for (days)",
-    joinLinkMaxUses: "Maximum students (optional)",
+    joinLinkMaxUses: "How many people may use it (optional)",
     joinLinkCreate: "Create link",
     joinLinkCreated: "Copy this link now. It is shown only once.",
     joinLinkRevoke: "Cancel",
