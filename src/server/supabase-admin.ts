@@ -27,6 +27,28 @@ export async function ensureAuthUserForInvitation(email: string): Promise<void> 
 }
 
 /**
+ * Creates an account WITH a password, for someone registering through a join link.
+ *
+ * Returns `"exists"` rather than touching an account that is already there. That refusal is the
+ * point: a join link is a bearer credential, so whoever holds it must never be able to set or
+ * reset the password of an address they do not control. Someone who already has an account
+ * signs in first and then redeems the link, which only adds the membership.
+ *
+ * The email is marked confirmed because nothing is sent to it — the link, not the inbox, is what
+ * authorized this registration. The address is therefore UNVERIFIED in substance: see A148.
+ */
+export async function createAuthUserWithPassword(
+  email: string,
+  password: string,
+): Promise<{ state: "created"; userId: string } | { state: "exists" }> {
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+  if (!error && data.user) return { state: "created", userId: data.user.id };
+  if (error && (error.status === 422 || /already/i.test(error.message))) return { state: "exists" };
+  throw new Error("Auth: could not create the account");
+}
+
+/**
  * Same as `ensureAuthUserForInvitation`, but returns the account's id — which is also the
  * `profiles.id`, because the auth.users trigger bootstraps the profile row.
  *

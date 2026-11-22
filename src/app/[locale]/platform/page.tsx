@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ActionForm } from "@/components/action-form";
+import { JoinLinkCreateForm } from "@/components/join-link-create-form";
 import { format } from "@/i18n/dictionaries";
 import { getDictionary, getLocale } from "@/i18n/server";
 import { declineOptionCAction, disableOptionCAction, enableOptionCAction } from "@/server/actions/media";
@@ -66,15 +67,7 @@ async function PlatformBody() {
             <input type="text" name="slug" required minLength={3} maxLength={60} pattern="[a-z0-9]+(-[a-z0-9]+)*" />
           </label>
           <span className="muted">{dict.platform.createSlugNote}</span>
-          <label>
-            {dict.platform.createAdminEmail}
-            <input type="email" name="adminEmail" required maxLength={320} />
-          </label>
-          <label className="row">
-            <input type="checkbox" name="alsoTeacher" />
-            {dict.platform.createAlsoTeacher}
-          </label>
-          <span className="muted">{dict.platform.createAlsoTeacherNote}</span>
+          <span className="muted">{dict.platform.createAdminNote}</span>
         </ActionForm>
         <h3>{dict.platform.tenantsHeading}</h3>
         {tenants.length === 0 ? (
@@ -82,9 +75,29 @@ async function PlatformBody() {
         ) : (
           <ul className="list">
             {tenants.map((t) => (
-              <li key={t.id} className="row">
-                <span>{t.name}</span>
-                <span className="muted">{t.slug}</span>
+              <li key={t.id}>
+                <div className="row">
+                  <span>{t.name}</span>
+                  <span className="muted">{t.slug}</span>
+                </div>
+                <JoinLinkCreateForm
+                  locale={locale}
+                  tenantId={t.id}
+                  roles={[{ value: "MARKAZ_ADMIN", label: dict.roles.MARKAZ_ADMIN }]}
+                  classes={[]}
+                  strings={{
+                    label: dict.markaz.joinLinkLabel,
+                    roleLabel: dict.markaz.joinLinkRole,
+                    classLabel: dict.markaz.joinLinkClass,
+                    noClass: dict.markaz.joinLinkNoClass,
+                    days: dict.markaz.joinLinkDays,
+                    maxUses: dict.markaz.joinLinkMaxUses,
+                    create: dict.platform.createAdminLink,
+                    created: dict.markaz.joinLinkCreated,
+                    loading: dict.common.loading,
+                    results: dict.results,
+                  }}
+                />
               </li>
             ))}
           </ul>

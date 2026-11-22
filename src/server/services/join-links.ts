@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { loadActor } from "@/server/authz/load-actor";
-import { AuthorizationError, canManageJoinLinks, type Actor } from "@/server/authz/policy";
+import { AuthorizationError, canManageJoinLinks, joinLinkRoles, type Actor, type TenantRole } from "@/server/authz/policy";
 import { recordAudit } from "./audit";
 import { enrollStudent } from "./enrollments";
 import { DomainError } from "./errors";
@@ -32,7 +32,9 @@ const DAY_MS = 86_400_000;
 
 const createSchema = z.object({
   tenantId: z.uuid(),
-  /** Optional. When set, redeeming also enrols the student in this class. */
+  /** The role the person receives. Only a Super Admin may ask for MARKAZ_ADMIN (A52). */
+  role: z.enum(["MARKAZ_ADMIN", "TEACHER", "STUDENT", "FINANCE_OFFICER"]),
+  /** Optional, STUDENT links only. When set, redeeming also enrols them in this class. */
   classId: z.preprocess((v) => (v === "" || v == null ? undefined : v), z.uuid().optional()),
   label: z.string().trim().min(1).max(120),
   expiresInDays: z.coerce.number().int().min(1).max(MAX_TTL_DAYS),
@@ -42,16 +44,28 @@ const createSchema = z.object({
   ),
 });
 
-/** What a joining student types. The email is handled by the action layer, which needs it to
- *  prepare the account before this runs. */
+/**
+ * What anyone joining types. The email and password are handled by the action layer, which has
+ * to create the auth account before this runs.
+ *
+ * Gender and date of birth are STUDENT-only: the other roles have no student account to put
+ * them on. The date of birth drives the recording-consent rules (A66+) and is recorded as
+ * self-entered; a Markaz Admin still has to VERIFY it (A82) before it is trusted.
+ */
 export const redeemDetailsSchema = z.object({
   displayName: z.string().trim().min(2).max(120),
   phone: z.string().trim().min(7).max(32),
-  gender: z.enum(["MALE", "FEMALE"]),
-  /** Drives the recording-consent rules (A66+). Entered by the student; a Markaz Admin still
-   *  has to VERIFY it (A82) before it is trusted, exactly as a self-entered date is today. */
-  dateOfBirth: z.coerce.date(),
+  gender: z.enum(["MALE", "FEMALE"]).optional(),
+  dateOfBirth: z.preprocess((v) => (v === "" || v == null ? undefined : v), z.coerce.date().optional()),
 });
+
+/**
+ * Minimum password length. Supabase's own default is 6; eight is the shortest this project is
+ * willing to accept, because a join link is a bearer credential and the password is the only
+ * thing standing between a forwarded link and a working account afterwards.
+ */
+export const MIN_PASSWORD_LENGTH = 8;
+export const passwordSchema = z.string().min(MIN_PASSWORD_LENGTH).max(200);
 
 export const joinTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 
@@ -59,8 +73,12 @@ export const joinTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 export async function createJoinLink(db: PrismaClient, actor: Actor, input: unknown, now = new Date()) {
   const parsed = createSchema.safeParse(input);
   if (!parsed.success) throw new DomainError("invalid_input");
-  const { tenantId, classId, label, expiresInDays, maxUses } = parsed.data;
+  const { tenantId, role, classId, label, expiresInDays, maxUses } = parsed.data;
   if (!canManageJoinLinks(actor, tenantId)) throw new AuthorizationError();
+  // A52: only a Super Admin may hand out MARKAZ_ADMIN, by link or any other route.
+  if (!joinLinkRoles(actor, tenantId).includes(role)) throw new AuthorizationError();
+  // A class only makes sense for a student (also a CHECK constraint).
+  if (classId && role !== "STUDENT") throw new DomainError("invalid_input");
 
   if (classId) {
     // A link may only point at a class of its own Markaz (also a database trigger).
@@ -73,6 +91,7 @@ export async function createJoinLink(db: PrismaClient, actor: Actor, input: unkn
   const link = await db.joinLink.create({
     data: {
       tenantId,
+      role,
       classId: classId ?? null,
       tokenHash,
       label,
@@ -81,7 +100,7 @@ export async function createJoinLink(db: PrismaClient, actor: Actor, input: unkn
       createdById: actor.profileId,
       createdAt: now,
     },
-    select: { id: true, label: true, expiresAt: true, maxUses: true },
+    select: { id: true, label: true, role: true, expiresAt: true, maxUses: true },
   });
   await recordAudit(db, {
     actorId: actor.profileId,
@@ -89,7 +108,7 @@ export async function createJoinLink(db: PrismaClient, actor: Actor, input: unkn
     action: "JOIN_LINK_CREATED",
     targetType: "JOIN_LINK",
     targetId: link.id,
-    metadata: { classId: classId ?? null, maxUses: maxUses ?? null },
+    metadata: { role, classId: classId ?? null, maxUses: maxUses ?? null },
     now,
   });
   return { ...link, token };
@@ -104,6 +123,7 @@ export async function listJoinLinks(db: PrismaClient, actor: Actor, tenantId: un
     select: {
       id: true,
       label: true,
+      role: true,
       status: true,
       expiresAt: true,
       maxUses: true,
@@ -140,7 +160,7 @@ export async function revokeJoinLink(db: PrismaClient, actor: Actor, joinLinkId:
 
 export type JoinLinkPreview =
   | { state: "invalid" }
-  | { state: "valid"; tenantName: string; className: string | null };
+  | { state: "valid"; tenantName: string; role: TenantRole; className: string | null };
 
 /**
  * What an unauthenticated visitor is shown before typing anything: the Markaz name and, if the
@@ -156,6 +176,7 @@ export async function previewJoinLink(db: PrismaClient, token: unknown, now = ne
     where: { tokenHash: hashInvitationToken(parsed.data) },
     select: {
       status: true,
+      role: true,
       expiresAt: true,
       maxUses: true,
       useCount: true,
@@ -164,7 +185,7 @@ export async function previewJoinLink(db: PrismaClient, token: unknown, now = ne
     },
   });
   if (!link || !usable(link, now)) return { state: "invalid" };
-  return { state: "valid", tenantName: link.tenant.name, className: link.class?.name ?? null };
+  return { state: "valid", tenantName: link.tenant.name, role: link.role, className: link.class?.name ?? null };
 }
 
 function usable(
@@ -197,14 +218,17 @@ export async function redeemJoinLink(
   const details = redeemDetailsSchema.safeParse(input.details);
   if (!token.success || !details.success) throw new DomainError("invalid_input");
   if (!z.uuid().safeParse(input.profileId).success) throw new DomainError("invalid_input");
-  if (details.data.dateOfBirth > now) throw new DomainError("invalid_input");
+  if (details.data.dateOfBirth && details.data.dateOfBirth > now) throw new DomainError("invalid_input");
 
   const link = await db.joinLink.findUnique({
     where: { tokenHash: hashInvitationToken(token.data) },
-    select: { id: true, tenantId: true, classId: true, status: true, expiresAt: true, maxUses: true, useCount: true, createdById: true },
+    select: { id: true, tenantId: true, role: true, classId: true, status: true, expiresAt: true, maxUses: true, useCount: true, createdById: true },
   });
   // Unknown, revoked, expired and exhausted are all reported the same way.
   if (!link || !usable(link, now)) throw new DomainError("expired");
+  // A student is the only role with a student account, so only a student supplies these.
+  const isStudent = link.role === "STUDENT";
+  if (isStudent && (!details.data.gender || !details.data.dateOfBirth)) throw new DomainError("invalid_input");
 
   await db.$transaction(async (tx) => {
     const profile = await tx.profile.findUnique({ where: { id: input.profileId }, select: { id: true } });
@@ -235,26 +259,28 @@ export async function redeemJoinLink(
       where: { id: input.profileId },
       data: { displayName: details.data.displayName, phone: details.data.phone },
     });
-    await tx.studentAccount.upsert({
-      where: { profileId: input.profileId },
-      create: {
-        profileId: input.profileId,
-        gender: details.data.gender,
-        dateOfBirth: details.data.dateOfBirth,
-        dateOfBirthEnteredById: input.profileId,
-        dateOfBirthEnteredAt: now,
-      },
-      // A82: re-entering a date clears any verification. Joining never grants a verified date.
-      update: {
-        gender: details.data.gender,
-        dateOfBirth: details.data.dateOfBirth,
-        dateOfBirthEnteredById: input.profileId,
-        dateOfBirthEnteredAt: now,
-        dateOfBirthVerifiedById: null,
-        dateOfBirthVerifiedAt: null,
-      },
-    });
-    await activateMembership(tx, link.tenantId, input.profileId, "STUDENT");
+    if (isStudent) {
+      await tx.studentAccount.upsert({
+        where: { profileId: input.profileId },
+        create: {
+          profileId: input.profileId,
+          gender: details.data.gender,
+          dateOfBirth: details.data.dateOfBirth,
+          dateOfBirthEnteredById: input.profileId,
+          dateOfBirthEnteredAt: now,
+        },
+        // A82: re-entering a date clears any verification. Joining never grants a verified one.
+        update: {
+          gender: details.data.gender,
+          dateOfBirth: details.data.dateOfBirth,
+          dateOfBirthEnteredById: input.profileId,
+          dateOfBirthEnteredAt: now,
+          dateOfBirthVerifiedById: null,
+          dateOfBirthVerifiedAt: null,
+        },
+      });
+    }
+    await activateMembership(tx, link.tenantId, input.profileId, link.role);
 
     if (!already) {
       await tx.joinLinkUse.create({
@@ -266,6 +292,7 @@ export async function redeemJoinLink(
         action: "JOIN_LINK_REDEEMED",
         targetType: "JOIN_LINK",
         targetId: link.id,
+        metadata: { role: link.role },
         now,
       });
     }
@@ -282,5 +309,5 @@ export async function redeemJoinLink(
     }
   }
 
-  return { tenantId: link.tenantId, classId: link.classId };
+  return { tenantId: link.tenantId, role: link.role, classId: link.classId };
 }

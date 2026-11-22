@@ -4,6 +4,7 @@ import { JoinForm } from "@/components/join-form";
 import { isSupabaseConfigured } from "@/env";
 import { format } from "@/i18n/dictionaries";
 import { getDictionary, getLocale } from "@/i18n/server";
+import { getAuthIdentity } from "@/server/auth";
 import { getDb } from "@/server/db";
 import { previewJoinLink } from "@/server/services/join-links";
 
@@ -36,17 +37,23 @@ async function JoinBody({ params }: { params: PageProps<"/[locale]/join/[token]"
   const preview = await previewJoinLink(getDb(), token);
   if (preview.state !== "valid") return <p>{dict.join.invalid}</p>;
 
+  const isStudent = preview.role === "STUDENT";
+  const identity = await getAuthIdentity();
+  const role = dict.roles[preview.role];
+
   return (
     <>
       <p>
         {preview.className
-          ? format(dict.join.introClass, { markaz: preview.tenantName, class: preview.className })
-          : format(dict.join.intro, { markaz: preview.tenantName })}
+          ? format(dict.join.introClass, { markaz: preview.tenantName, role, class: preview.className })
+          : format(dict.join.intro, { markaz: preview.tenantName, role })}
       </p>
-      <p className="muted">{dict.join.paymentNote}</p>
+      {isStudent ? <p className="muted">{dict.join.paymentNote}</p> : null}
       <JoinForm
         locale={locale}
         token={token}
+        isStudent={isStudent}
+        signedInEmail={identity?.email ?? null}
         strings={{
           nameLabel: dict.join.nameLabel,
           phoneLabel: dict.join.phoneLabel,
@@ -57,19 +64,22 @@ async function JoinBody({ params }: { params: PageProps<"/[locale]/join/[token]"
           dobHint: dict.join.dobHint,
           emailLabel: dict.join.emailLabel,
           emailHint: dict.join.emailHint,
-          send: dict.join.send,
-          sentBody: dict.join.sentBody,
-          codeLabel: dict.join.codeLabel,
-          codeHint: dict.join.codeHint,
-          verify: dict.join.verify,
+          passwordLabel: dict.join.passwordLabel,
+          passwordHint: dict.join.passwordHint,
+          passwordConfirmLabel: dict.join.passwordConfirmLabel,
+          submit: dict.join.submit,
+          submitSignedIn: dict.join.submitSignedIn,
+          signedInAs: dict.join.signedInAs,
+          haveAccount: dict.join.haveAccount,
           loading: dict.join.loading,
           errors: {
             invalid: dict.join.invalid,
             expired: dict.join.invalid,
-            rate_limited: dict.auth.errors.rate_limited,
-            unavailable: dict.auth.errors.unavailable,
             invalid_input: dict.results.invalid_input,
-            invalid_code: dict.auth.errors.invalid_code,
+            weak_password: dict.join.errorWeakPassword,
+            password_mismatch: dict.join.errorPasswordMismatch,
+            email_taken: dict.join.errorEmailTaken,
+            unavailable: dict.auth.errors.unavailable,
           },
         }}
       />

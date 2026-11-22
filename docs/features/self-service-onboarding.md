@@ -1,9 +1,25 @@
-# Self-service onboarding — implementation plan (PROPOSED)
+# Self-service onboarding — implementation plan
 
-**Status: PROPOSED. Nothing here is approved.** Written 2026-11-22 at the project owner's request
-("Home Madrasa": a teacher opens a Markaz, students join through a link shared on WhatsApp, pay,
-and an admin activates them for a period). No code has been written. See [DECISIONS.md](../../DECISIONS.md) §2
-for the authorization this plan still needs.
+**Status: Stages 1–2 APPROVED AND IMPLEMENTED (A141–A145, A148–A151); applied to DEV 2026-11-22.
+Stages 3–4 remain PROPOSED.** Written 2026-11-22 at the project owner's request ("Home Madrasa": a
+teacher opens a Markaz, students join through a link shared on WhatsApp, pay, and an admin activates
+them for a period). See [DECISIONS.md](../../DECISIONS.md) §2 for the authorization, and the
+2026-11-22 entries in [PROGRESS.md](../../PROGRESS.md) for what was actually built.
+
+**Two owner decisions changed this plan after it was written, and the sections below still describe the
+original shape:**
+
+1. **The link carries a role** (A148), not students only. A Super Admin issues a `MARKAZ_ADMIN` link to
+   whoever will run a new Markaz; that Markaz Admin issues `TEACHER`, `FINANCE_OFFICER` and `STUDENT`
+   links but **never** another `MARKAZ_ADMIN` (A52). A class may be named only on a student link.
+2. **Registration sets the person's own password and signs them in immediately** (A149), which
+   **supersedes the "passwords are not primary" part of A45**. There is no emailed code anywhere in the
+   flow, because there is no mailer. Email + password is now the primary sign-in; the emailed-code route
+   is kept beside it. Consequently a Markaz may be created with **no administrator at all** — the first
+   one arrives through a link.
+
+Accepted gaps (A151): no "forgot password", and email addresses are not verified. Both wait on an SMTP
+provider, which is still undecided.
 
 ## 1. What the owner asked for
 

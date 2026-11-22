@@ -277,6 +277,24 @@ export function canManageJoinLinks(actor: Actor, tenantId: unknown): boolean {
   return actor.isPlatformAdmin || hasActiveRole(actor, tenantId, "MARKAZ_ADMIN");
 }
 
+/**
+ * Which roles may the actor hand out through a join link in this Markaz? (2026-11-22)
+ *
+ * - Super Admin: any, including MARKAZ_ADMIN — this is how a newly created Markaz gets its first
+ *   administrator, and it keeps A52 intact: granting MARKAZ_ADMIN stays a platform-scope act.
+ * - Markaz Admin: TEACHER, STUDENT and FINANCE_OFFICER in their own Markaz. Never MARKAZ_ADMIN,
+ *   so a link can never be used to sidestep the Super-Admin-approved appointment route (A52).
+ * - Everyone else: nothing.
+ */
+export function joinLinkRoles(actor: Actor, tenantId: unknown): TenantRole[] {
+  if (!isValidId(tenantId)) return [];
+  if (actor.isPlatformAdmin) return [...TENANT_ROLES];
+  if (hasActiveRole(actor, tenantId, "MARKAZ_ADMIN")) {
+    return TENANT_ROLES.filter((r) => r !== "MARKAZ_ADMIN");
+  }
+  return [];
+}
+
 // ---------------------------------------------------------------------------------
 // 3. Parent access (A41, A48). Only ACTIVE grants anything.
 // ---------------------------------------------------------------------------------

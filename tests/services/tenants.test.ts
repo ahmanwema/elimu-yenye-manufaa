@@ -91,6 +91,13 @@ describe("createTenant", () => {
     expect(events[0].metadata).toMatchObject({ slug: "home-madrasa", firstAdminId: admin });
   });
 
+  it("creates a Markaz with NO administrator, for the link-based flow", async () => {
+    const tenant = await createTenant(db, await as(U.superAdmin), { name: "Home Madrasa", slug: "home-madrasa" }, NOW);
+    expect(await db.membership.count({ where: { tenantId: tenant.id } })).toBe(0);
+    const events = await db.auditEvent.findMany({ where: { action: "TENANT_CREATED" } });
+    expect(events[0].metadata).toMatchObject({ slug: "home-madrasa", firstAdminId: null });
+  });
+
   it("refuses a duplicate code and leaves nothing behind", async () => {
     const first = await freshProfile();
     const second = await freshProfile();

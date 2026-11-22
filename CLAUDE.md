@@ -6,6 +6,24 @@ This file is the entry point for any AI assistant or engineer working on this re
 
 Elimu Yenye Manufaa is a multi-teacher, multi-institution online Islamic education platform (Qur'an, Tajwid, Hifdh, Hadith, Aqidah, Fiqh, Tafsir, Arabic language). Independent teachers and Markaz (institutions) run classes; students self-register and join via invitation links. See [docs/README.md](docs/README.md) for the full documentation map.
 
+**Status as of 2026-11-22 (PASSWORD AUTH; DEV at 25):** anyone holding a join link now **registers with
+their own password** and is signed in immediately — the link is the authorization and nothing is emailed,
+at registration or at any later sign-in (A148–A151). This **supersedes the "passwords are not the primary
+login method" part of A45** and removes the SMTP blocker from onboarding: a Super Admin creates a Markaz
+(name + code only, no administrator needed), then issues a **role-carrying link** — `MARKAZ_ADMIN`,
+`TEACHER`, `FINANCE_OFFICER` or `STUDENT`. A Markaz Admin may issue every role **except `MARKAZ_ADMIN`**
+(`joinLinkRoles()` in `src/server/authz/policy.ts`), so A52 still holds. The sign-in page shows email +
+password first and keeps the emailed-code route below it. Migration 25 (`join_link_roles`, ADDITIVE)
+**applied to DEV**; `compare-schema.mjs` reports **"No differences"** at 25 migrations (35 tables /
+401 columns / 190 constraints / 113 indexes / 35 enums / 14 policies / 13 functions / 8 triggers /
+70 grants). **824/824 tests in 39 files**, lint and typecheck green. Three properties to preserve when
+touching this code: a link **never** sets a password on an address that already has an account
+(`createAuthUserWithPassword` returns `"exists"`; the person signs in first and the link then adds only
+the membership); sign-in failures always read identically, so accounts cannot be enumerated; the use
+ceiling is claimed in one atomic `UPDATE ... RETURNING`. **Known gaps (A151):** no "forgot password" and
+**email addresses are unverified** — both wait on an SMTP provider, still undecided, as is the RTC
+vendor (A35).
+
 **Status as of 2026-11-22 (DEPLOYED):** the project is **live for the first time** at
 **https://elimu-yenye-manufaa.vercel.app** (Vercel project `elimu-yenye-manufaa`, connected to the public
 GitHub repo; `master` pushed after a full-history secrets scan, 0 matches). This supersedes the old

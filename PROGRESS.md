@@ -374,6 +374,47 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
   student's own address, and the built-in mailer reaches only project team addresses. Deploying did not
   change this, and could not have.
 
+## 2026-11-22 — Password self-registration through role-carrying join links (A148–A151); DEV at 25
+
+- **The mailer wall was removed rather than worked around.** Every onboarding route built so far needed
+  a code delivered to the person's own inbox, and the built-in Supabase mailer reaches only project team
+  addresses — so no student and no new Markaz Admin could get in at all (A147). The owner chose
+  **password authentication** over an SMTP provider: the join link itself is the authorization, and the
+  person sets their own password while using it. Nothing is emailed, at registration or at any later
+  sign-in.
+- **A join link now carries a role** (A148). `join_links.role` with a `TenantRole` default of `STUDENT`,
+  plus `join_link_class_only_for_students` (a class may be named only on a student link). Who may issue
+  which role is an authorization rule, not a column: `joinLinkRoles()` in `src/server/authz/policy.ts`
+  returns every role to a Super Admin and every role **except `MARKAZ_ADMIN`** to an ACTIVE Markaz
+  Admin, so A52 still holds. The form offers exactly those roles and the server re-checks on submit.
+- **Registration is one step** (A149): name, phone, email, password (students additionally gender and
+  date of birth) → account created → signed in immediately → redirected to their own area. Minimum
+  password length **8**, above Supabase's own floor of 6, because the link is bearer-grade and the
+  password is all that protects the account afterwards. `src/app/[locale]/sign-in/page.tsx` now shows
+  email + password first and keeps the emailed-code form below it, as the owner asked.
+- **A Markaz can now be created with no administrator at all**, so the normal path is: Super Admin
+  creates the Markaz (name + code only), then issues a `MARKAZ_ADMIN` link and sends it. `createTenant`
+  takes `adminProfileId` as optional and writes `firstAdminId: null` into the audit event in that case.
+- **Three security properties, each pinned by a test:**
+  - `createAuthUserWithPassword` returns `{ state: "exists" }` and sets **nothing** when the address
+    already has an account — a bearer link must never seize an address its holder does not control
+    (A150). That person signs in first instead, and the link then adds only the membership.
+  - `signInWithPassword` always reports `invalid_credentials`, whether the address is unknown or the
+    password is wrong, so sign-in cannot be used to enumerate accounts. A 429 maps to `rate_limited`.
+  - The use ceiling is still claimed in one atomic `UPDATE ... RETURNING` inside the transaction, so two
+    simultaneous redemptions of a last remaining use cannot both succeed.
+- **Migration 25 (`20261122000300_join_link_roles`) applied to the DEVELOPMENT Supabase project.**
+  ADDITIVE only: one column with a default and one CHECK. `scripts/compare-schema.mjs` then reports
+  **"No differences"** against the full repo at 25 migrations — 35 tables / **401 columns** /
+  **190 constraints** / 113 indexes / 35 enums / 14 policies / 13 functions / 8 triggers / 70 grants.
+- **Verification: 824/824 tests in 39 files**, lint clean, typecheck clean, `npm run build` clean with
+  every `/join/[token]` route present. (Still run with the sibling worktree's vitest binary — the
+  open issue from the previous entry is unchanged and not root-caused.)
+- **Two gaps recorded rather than hidden** (A151): there is **no "forgot password"** — no mail can carry
+  a reset, so for now a Markaz Admin issues a fresh link — and **email addresses are not verified**, so
+  the address is an identifier and not a proven contact. An SMTP provider closes both; it stays
+  undecided.
+
 ## Status snapshot
 
 | Area | Status |
@@ -381,17 +422,17 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
 | Documentation foundation | Done (this pass) |
 | Business rules BR-01–BR-13 | Recorded as approved (A26–A38), docs reconciled 2026-10-05 |
 | Technology stack | **Approved** (A39), installed locally |
-| Database schema | **All 24 migrations applied** to the DEVELOPMENT Supabase project (15 on 2026-10-16; six more at an unrecorded date after 2026-11-02 — see the 2026-11-04 entry; the last three on 2026-11-22). Exact parity with the full repo verified after that apply: "No differences" (35 tables / 400 columns) |
+| Database schema | **All 25 migrations applied** to the DEVELOPMENT Supabase project (15 on 2026-10-16; six more at an unrecorded date after 2026-11-02 — see the 2026-11-04 entry; the last four on 2026-11-22). Exact parity with the full repo verified after that apply: "No differences" (35 tables / 401 columns) |
 | Auth / tenancy / roles / Parent links | Foundation implemented (no sign-in UI, no invitations, no link workflow) |
 | PWA | Basic foundation (manifest, placeholder icons, minimal SW) |
-| Tests | **818 local in 39 files, green 2026-11-22** (plus lint and typecheck; run with a sibling worktree's vitest binary — see that entry's open issue). Real-Supabase 41/41 and the 14-step UI E2E: last *recorded* run 2026-10-16 against 15 migrations, **not re-run since**; `tests/real/live-class-dev.test.ts` has still never been executed |
+| Tests | **824 local in 39 files, green 2026-11-22** (plus lint and typecheck; run with a sibling worktree's vitest binary — see that entry's open issue). Real-Supabase 41/41 and the 14-step UI E2E: last *recorded* run 2026-10-16 against 15 migrations, **not re-run since**; `tests/real/live-class-dev.test.ts` has still never been executed |
 | Version control | Git initialized; first local baseline commit 2026-10-13; pushed 2026-11-02 to the public GitHub repo ahmanwema/elimu-yenye-manufaa. **2026-11-04: that remote was the only surviving copy** — the local folder was empty and the project was re-cloned from it |
-| Auth / onboarding / i18n | Implemented locally (OTP + magic link, invite-first, sw/en/ar + RTL) |
+| Auth / onboarding / i18n | Implemented locally (**email + password primary** since 2026-11-22, A149; OTP + magic link kept as a second route; invite-first; sw/en/ar + RTL) |
 | Parent links | Full workflow implemented (request/create → verify → activate → revoke) with explicit permissions and audit history |
 | Correction & recording media | Policy foundation implemented locally (A66–A80): consent, primary/history clips, M4A ≤ 60 s validation, approval, deletion lifecycle, audit; no RTC capture/extraction |
 | Live Class architecture | Class structure/capacity/session foundation APPROVED (A101–A130); real-time layer still proposed (vendor undecided, A35) |
 | Live Class implementation | Provider-neutral foundation implemented 2026-10-19 and **applied to DEV** (schema parity exact, 2026-11-04). Still **no media transport of any kind** — no audio, video, whiteboard or screen share (A35 undecided) |
-| Self-service onboarding | Stages 1–2 implemented and applied to DEV (A141–A145): a Super Admin creates a Markaz with its first Markaz Admin; students join by a shareable link, supply their details, and land in the existing payment flow. Stage 4 (open, uninvited teacher self-registration) **not started and undecided**. Blocked for real students until an SMTP provider is chosen: Supabase's built-in mailer only delivers to project team addresses |
+| Self-service onboarding | Stages 1–2 implemented and applied to DEV (A141–A145, A148–A151): a Super Admin creates a Markaz, then issues a **role-carrying join link** (Markaz Admin, Teacher, Finance Officer or Student). The holder registers in one step with **their own password** and is signed in immediately — no mail is involved, at registration or afterwards. Students land in the existing payment flow. Stage 4 (open, uninvited teacher self-registration) **not started and undecided**. Open gaps: no "forgot password", and email addresses are unverified (A151) |
 | Any other feature | Not started |
 | Hosting/infrastructure setup | **Vercel project `elimu-yenye-manufaa`, connected to the GitHub repo** (2026-11-22, A146). No custom domain. Still pointing at the DEVELOPMENT Supabase project |
 | First deployment | **Done 2026-11-22** — https://elimu-yenye-manufaa.vercel.app, public, verified live. NOT production: A65 still stands and sign-ups stay disabled |

@@ -1,12 +1,28 @@
 # Feature: Sign-in & Invite-first Onboarding
 
-Status: **APPROVED** direction (A45) — **IMPLEMENTED locally 2026-10-13** (Phase 2A). Not yet run against a real Supabase project.
+Status: **APPROVED** direction (A45, amended by A149) — **IMPLEMENTED locally 2026-10-13** (Phase 2A); running against the development Supabase project since 2026-11-22.
+
+> **Amended 2026-11-22 (A149):** **email + password is now the primary way in**, which supersedes
+> A45's "passwords are not the primary login method". The reason is practical: there is no SMTP
+> provider, so the built-in mailer reaches only project team addresses and every emailed code below is
+> undeliverable to a real student. The emailed-code route described here is **kept**, not removed, and
+> works as written once SMTP exists. A password is set once, during registration through a join link —
+> see [self-service-onboarding.md](self-service-onboarding.md) and A148–A151. A45's other clauses are
+> unchanged: roles are never self-assigned, privileged accounts begin from an authorized link or
+> invitation, and there is no social or phone/SMS sign-in.
 
 ## Purpose
 
-Let people sign in without a password, and let accounts come into existence only through an authorized invitation, so nobody can give themselves a role.
+Let accounts come into existence only through an authorized invitation or join link, so nobody can give themselves a role.
 
-## Sign-in (existing accounts)
+## Sign-in with a password (primary since 2026-11-22, A149)
+
+1. `/{locale}/sign-in` shows email + password first, above the code form.
+2. The server calls Supabase `signInWithPassword`. A failure **always** reports `invalid_credentials`, whether the address is unknown or the password is wrong, so the form cannot reveal who has an account. A 429 maps to `rate_limited`.
+3. The password itself was set by the person during registration through a join link; nothing here can create an account.
+4. **There is no self-service password reset**, because no mail can carry one (A151). A Markaz Admin issues a fresh join link instead.
+
+## Sign-in with an emailed code (second route; needs SMTP to reach anyone outside the project team)
 
 1. `/{locale}/sign-in` — the user enters an email address.
 2. The server calls Supabase `signInWithOtp` with **`shouldCreateUser: false`**. Unknown addresses are reported exactly like known ones ("if an account exists, we sent a code"), so the form cannot reveal who has an account. Only rate limiting is surfaced.

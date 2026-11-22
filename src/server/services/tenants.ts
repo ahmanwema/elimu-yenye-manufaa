@@ -38,8 +38,16 @@ export const tenantAdminEmailSchema = z.string().trim().toLowerCase().pipe(z.ema
 const createSchema = z.object({
   name: z.string().trim().min(1).max(200),
   slug: slugSchema,
-  /** The profile that becomes the first Markaz Admin. Its auth account must already exist. */
-  adminProfileId: z.uuid(),
+  /**
+   * The profile that becomes the first Markaz Admin, whose auth account must already exist.
+   *
+   * OPTIONAL since 2026-11-22. The owner's flow is to create the Markaz and then send a
+   * MARKAZ_ADMIN join link to whoever will run it, so they register themselves with a password
+   * of their own. A Markaz may therefore exist briefly with no administrator; only a Super
+   * Admin can create one, and only a Super Admin can issue that link, so nothing is reachable
+   * in the meantime.
+   */
+  adminProfileId: z.preprocess((v) => (v === "" || v == null ? undefined : v), z.uuid().optional()),
   /**
    * Also give that person an ACTIVE TEACHER membership.
    *
@@ -63,8 +71,10 @@ export async function createTenant(db: PrismaClient, actor: Actor, input: unknow
   const { name, slug, adminProfileId, alsoTeacher } = parsed.data;
   if (!canCreateTenant(actor)) throw new AuthorizationError();
 
-  const admin = await db.profile.findUnique({ where: { id: adminProfileId }, select: { id: true } });
-  if (!admin) throw new DomainError("not_found");
+  if (adminProfileId) {
+    const admin = await db.profile.findUnique({ where: { id: adminProfileId }, select: { id: true } });
+    if (!admin) throw new DomainError("not_found");
+  }
 
   try {
     return await db.$transaction(async (tx) => {
@@ -72,11 +82,13 @@ export async function createTenant(db: PrismaClient, actor: Actor, input: unknow
         data: { name, slug, createdAt: now, updatedAt: now },
         select: { id: true, name: true, slug: true },
       });
-      const roles = alsoTeacher ? (["MARKAZ_ADMIN", "TEACHER"] as const) : (["MARKAZ_ADMIN"] as const);
-      for (const role of roles) {
-        await tx.membership.create({
-          data: { tenantId: tenant.id, profileId: adminProfileId, role, status: "ACTIVE", createdAt: now },
-        });
+      if (adminProfileId) {
+        const roles = alsoTeacher ? (["MARKAZ_ADMIN", "TEACHER"] as const) : (["MARKAZ_ADMIN"] as const);
+        for (const role of roles) {
+          await tx.membership.create({
+            data: { tenantId: tenant.id, profileId: adminProfileId, role, status: "ACTIVE", createdAt: now },
+          });
+        }
       }
       await recordAudit(tx, {
         actorId: actor.profileId,
@@ -84,7 +96,7 @@ export async function createTenant(db: PrismaClient, actor: Actor, input: unknow
         action: "TENANT_CREATED",
         targetType: "TENANT",
         targetId: tenant.id,
-        metadata: { slug: tenant.slug, firstAdminId: adminProfileId, alsoTeacher },
+        metadata: { slug: tenant.slug, firstAdminId: adminProfileId ?? null, alsoTeacher },
         now,
       });
       return tenant;

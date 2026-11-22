@@ -43,6 +43,7 @@ import {
   canApproveMediaDeletion,
   canApproveRecording,
   canManageJoinLinks,
+  joinLinkRoles,
   canRequestMediaDeletion,
   GRANTABLE_PERMISSIONS,
   hasActiveRole,
@@ -121,6 +122,7 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
   ]);
   const m = dict.media;
   const canJoinLinks = canManageJoinLinks(actor, tenantId);
+  const linkRoles = joinLinkRoles(actor, tenantId);
   const [roster, invitations, links, candidates, requests, verifiers, joinLinks, joinClasses] = await Promise.all([
     can.roster || can.create ? listStudentRoster(db, actor, tenantId).catch(() => null) : null,
     targets.length > 0 ? listPendingInvitations(db, actor, tenantId) : null,
@@ -391,9 +393,11 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
           <JoinLinkCreateForm
             locale={locale}
             tenantId={tenant.id}
+            roles={linkRoles.map((r) => ({ value: r, label: dict.roles[r] }))}
             classes={(joinClasses ?? []).map((c) => ({ id: c.id, name: c.name }))}
             strings={{
               label: dict.markaz.joinLinkLabel,
+              roleLabel: dict.markaz.joinLinkRole,
               classLabel: dict.markaz.joinLinkClass,
               noClass: dict.markaz.joinLinkNoClass,
               days: dict.markaz.joinLinkDays,
@@ -411,6 +415,7 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
               {joinLinks.map((link) => (
                 <li key={link.id} className="row">
                   <span>{link.label}</span>
+                  <span className="muted">{dict.roles[link.role]}</span>
                   {link.class ? <span className="muted">{link.class.name}</span> : null}
                   <span className="muted">
                     {link.maxUses === null

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { PGlite } from "@electric-sql/pglite";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { PrismaClient } from "@/generated/prisma/client";
-import { AuthorizationError, canManageJoinLinks } from "@/server/authz/policy";
+import { AuthorizationError, canManageJoinLinks, joinLinkRoles } from "@/server/authz/policy";
 import { DomainError } from "@/server/services/errors";
 import { createJoinLink, listJoinLinks, previewJoinLink, redeemJoinLink, revokeJoinLink } from "@/server/services/join-links";
 import { actor, createTestPrisma, spyDb } from "../db/prisma";
@@ -49,7 +49,7 @@ async function link(overrides: Record<string, unknown> = {}) {
   return createJoinLink(
     db,
     await as(U.adminA),
-    { tenantId: T.A, label: "WhatsApp group", expiresInDays: 30, ...overrides },
+    { tenantId: T.A, role: "STUDENT", label: "WhatsApp group", expiresInDays: 30, ...overrides },
     NOW,
   );
 }
@@ -82,7 +82,7 @@ describe("createJoinLink", () => {
     const caller = await as(profileId);
     const spy = spyDb(db);
     await expect(
-      createJoinLink(spy.db, caller, { tenantId: T.A, label: "Nope", expiresInDays: 30 }, NOW),
+      createJoinLink(spy.db, caller, { tenantId: T.A, role: "STUDENT", label: "Nope", expiresInDays: 30 }, NOW),
     ).rejects.toThrow(AuthorizationError);
     expect(spy.calls).toEqual([]);
   });
@@ -96,6 +96,34 @@ describe("createJoinLink", () => {
       permissionGrants: [{ tenantId: T.A, permission: "invitation.create" as const }],
     };
     expect(canManageJoinLinks(teacher, T.A)).toBe(false);
+  });
+
+  it("a Markaz Admin can hand out TEACHER, STUDENT and FINANCE_OFFICER, never MARKAZ_ADMIN (A52)", async () => {
+    const roles = joinLinkRoles(await as(U.adminA), T.A).sort();
+    expect(roles).toEqual(["FINANCE_OFFICER", "STUDENT", "TEACHER"]);
+    await expect(link({ role: "MARKAZ_ADMIN" })).rejects.toThrow(AuthorizationError);
+  });
+
+  it("a Super Admin can hand out MARKAZ_ADMIN — that is how a new Markaz gets its first one", async () => {
+    const created = await createJoinLink(
+      db,
+      await as(U.superAdmin),
+      { tenantId: T.A, role: "MARKAZ_ADMIN", label: "First admin", expiresInDays: 7, maxUses: 1 },
+      NOW,
+    );
+    expect(created.role).toBe("MARKAZ_ADMIN");
+  });
+
+  it("refuses a class on a link that is not for a student", async () => {
+    const classId = await makeClass({ tenantId: T.A });
+    await expect(
+      createJoinLink(
+        db,
+        await as(U.superAdmin),
+        { tenantId: T.A, role: "TEACHER", classId, label: "Teacher", expiresInDays: 7 },
+        NOW,
+      ),
+    ).rejects.toThrow(DomainError);
   });
 
   it("refuses a class belonging to another Markaz", async () => {
@@ -119,6 +147,7 @@ describe("previewJoinLink", () => {
     expect(await previewJoinLink(db, created.token, NOW)).toEqual({
       state: "valid",
       tenantName: "Markaz A",
+      role: "STUDENT",
       className: null,
     });
   });
@@ -189,6 +218,37 @@ describe("redeemJoinLink", () => {
 
     const enrollment = await db.classEnrollment.findFirst({ where: { classId, studentProfileId: joiner } });
     expect(enrollment?.status).toBe("PENDING_PAYMENT");
+  });
+
+  it("a TEACHER link makes a teacher, with no student account and no student fields required", async () => {
+    const created = await createJoinLink(
+      db,
+      await as(U.adminA),
+      { tenantId: T.A, role: "TEACHER", label: "Teachers", expiresInDays: 7 },
+      NOW,
+    );
+    const joiner = await newcomer();
+    await redeemJoinLink(
+      db,
+      { token: created.token, profileId: joiner, details: { displayName: "Ustadh Ali", phone: "+255700000009" } },
+      NOW,
+    );
+    const membership = await db.membership.findFirst({ where: { tenantId: T.A, profileId: joiner } });
+    expect(membership).toMatchObject({ role: "TEACHER", status: "ACTIVE" });
+    expect(await db.studentAccount.findUnique({ where: { profileId: joiner } })).toBeNull();
+  });
+
+  it("a STUDENT link still requires gender and date of birth", async () => {
+    const created = await link();
+    const joiner = await newcomer();
+    await expect(
+      redeemJoinLink(
+        db,
+        { token: created.token, profileId: joiner, details: { displayName: "Amina", phone: "+255700000010" } },
+        NOW,
+      ),
+    ).rejects.toThrow(DomainError);
+    expect(await db.membership.count({ where: { profileId: joiner } })).toBe(0);
   });
 
   it("is idempotent for the same person and consumes only one use", async () => {

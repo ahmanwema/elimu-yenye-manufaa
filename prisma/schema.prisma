@@ -1333,6 +1333,9 @@ model JoinLink {
   classId     String?        @map("class_id") @db.Uuid
   /// Only the hash is stored. The raw token is shown once, to its creator.
   tokenHash   String         @unique @map("token_hash")
+  /// The role the person receives on redemption. Only a Super Admin may issue MARKAZ_ADMIN
+  /// (A52); a Markaz Admin issues TEACHER, STUDENT and FINANCE_OFFICER in their own Markaz.
+  role        TenantRole     @default(STUDENT)
   label       String
   status      JoinLinkStatus @default(ACTIVE)
   expiresAt   DateTime       @map("expires_at") @db.Timestamptz(6)

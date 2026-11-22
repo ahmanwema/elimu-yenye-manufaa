@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { PasswordSignInForm } from "@/components/password-sign-in-form";
 import { SignInForm } from "@/components/sign-in-form";
 import { isSupabaseConfigured } from "@/env";
 import { safeRedirectPath } from "@/lib/safe-redirect";
@@ -41,6 +42,30 @@ async function SignInBody({ searchParams }: { searchParams: PageProps<"/[locale]
           {dict.auth.errors[linkError]}
         </p>
       ) : null}
+      {params.joined ? (
+        <p role="status" className="message">
+          {dict.auth.joinedNotice}
+        </p>
+      ) : null}
+
+      <h2>{dict.auth.passwordHeading}</h2>
+      <PasswordSignInForm
+        locale={locale}
+        next={next}
+        strings={{
+          emailLabel: dict.auth.emailLabel,
+          passwordLabel: dict.auth.passwordLabel,
+          submit: dict.auth.passwordSubmit,
+          loading: dict.common.loading,
+          errors: {
+            invalid_credentials: dict.auth.errors.invalid_credentials,
+            rate_limited: dict.auth.errors.rate_limited,
+            unavailable: dict.auth.errors.unavailable,
+          },
+        }}
+      />
+
+      <h2>{dict.auth.orCodeHeading}</h2>
       <SignInForm locale={locale} next={next} strings={{ ...dict.auth, loading: dict.common.loading }} />
     </>
   );

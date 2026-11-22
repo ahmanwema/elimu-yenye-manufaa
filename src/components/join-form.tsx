@@ -1,11 +1,10 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import type { Locale } from "@/i18n/config";
-import { format } from "@/i18n/dictionaries";
-import { finishJoinAction, startJoinAction, type JoinState } from "@/server/actions/join-links";
+import { joinAsSignedInAction, registerWithJoinLinkAction, type JoinState } from "@/server/actions/join-links";
 
-type Strings = {
+export type JoinStrings = {
   nameLabel: string;
   phoneLabel: string;
   genderLabel: string;
@@ -15,99 +14,117 @@ type Strings = {
   dobHint: string;
   emailLabel: string;
   emailHint: string;
-  send: string;
-  sentBody: string;
-  codeLabel: string;
-  codeHint: string;
-  verify: string;
+  passwordLabel: string;
+  passwordHint: string;
+  passwordConfirmLabel: string;
+  submit: string;
+  submitSignedIn: string;
+  signedInAs: string;
+  haveAccount: string;
   loading: string;
-  errors: Record<"invalid" | "expired" | "rate_limited" | "unavailable" | "invalid_input" | "invalid_code", string>;
+  errors: Record<NonNullable<JoinState["error"]>, string>;
 };
 
-type Details = { displayName: string; phone: string; gender: string; dateOfBirth: string };
-
-const EMPTY: Details = { displayName: "", phone: "", gender: "", dateOfBirth: "" };
-
 /**
- * Joining a Markaz through a shared link, in two steps: the student's details and email, then
- * the code emailed to that address. The details are kept in the form across both steps so the
- * server can write them only once the address has actually been proved.
+ * Registering through a shared link. One step: details, email and a password of their own.
+ *
+ * There is no emailed code, because nothing is emailed — the link is what authorizes this
+ * (owner decision 2026-11-22). The password matters more than it looks: it is the only way the
+ * person gets back in afterwards, since no mail can reach them.
+ *
+ * Someone already signed in sees a confirm form instead: their account is never touched and no
+ * password is set, only the membership is added.
  */
-export function JoinForm({ locale, token, strings }: { locale: Locale; token: string; strings: Strings }) {
-  const [details, setDetails] = useState<Details>(EMPTY);
-  const [startState, startFormAction, starting] = useActionState(startJoinAction, { step: "details" } as JoinState);
-  const [finishState, finishFormAction, finishing] = useActionState(finishJoinAction, { step: "details" } as JoinState);
+export function JoinForm({
+  locale,
+  token,
+  isStudent,
+  signedInEmail,
+  strings,
+}: {
+  locale: Locale;
+  token: string;
+  isStudent: boolean;
+  signedInEmail: string | null;
+  strings: JoinStrings;
+}) {
+  const action = signedInEmail ? joinAsSignedInAction : registerWithJoinLinkAction;
+  const [state, formAction, pending] = useActionState(action, {} as JoinState);
+  const error = state.error ? strings.errors[state.error] : null;
 
-  // Step 2 only once a code has actually been sent, and not after the server sent us back
-  // (an expired link, say) — in that case the details form is shown again with the error.
-  const codeStep = startState.step === "code" && !(finishState.step === "details" && finishState.error);
-  const error = finishState.error ?? startState.error;
-  const set = (key: keyof Details) => (event: { target: { value: string } }) =>
-    setDetails((d) => ({ ...d, [key]: event.target.value }));
+  const studentFields = isStudent ? (
+    <>
+      <fieldset>
+        <legend>{strings.genderLabel}</legend>
+        <label>
+          <input type="radio" name="gender" value="MALE" required />
+          {strings.genderMale}
+        </label>
+        <label>
+          <input type="radio" name="gender" value="FEMALE" required />
+          {strings.genderFemale}
+        </label>
+      </fieldset>
+      <label htmlFor="dateOfBirth">{strings.dobLabel}</label>
+      <input id="dateOfBirth" name="dateOfBirth" type="date" required dir="ltr" />
+      <p className="muted">{strings.dobHint}</p>
+    </>
+  ) : null;
 
-  if (!codeStep) {
+  if (signedInEmail) {
     return (
-        <form action={startFormAction} className="form">
-          <input type="hidden" name="locale" value={locale} />
-          <input type="hidden" name="token" value={token} />
-          <label htmlFor="displayName">{strings.nameLabel}</label>
-          <input id="displayName" name="displayName" required minLength={2} maxLength={120} value={details.displayName} onChange={set("displayName")} />
-
-          <label htmlFor="phone">{strings.phoneLabel}</label>
-          <input id="phone" name="phone" type="tel" required minLength={7} maxLength={32} dir="ltr" value={details.phone} onChange={set("phone")} />
-
-          <fieldset>
-            <legend>{strings.genderLabel}</legend>
-            <label>
-              <input type="radio" name="gender" value="MALE" required checked={details.gender === "MALE"} onChange={set("gender")} />
-              {strings.genderMale}
-            </label>
-            <label>
-              <input type="radio" name="gender" value="FEMALE" required checked={details.gender === "FEMALE"} onChange={set("gender")} />
-              {strings.genderFemale}
-            </label>
-          </fieldset>
-
-          <label htmlFor="dateOfBirth">{strings.dobLabel}</label>
-          <input id="dateOfBirth" name="dateOfBirth" type="date" required dir="ltr" value={details.dateOfBirth} onChange={set("dateOfBirth")} />
-          <p className="muted">{strings.dobHint}</p>
-
-          <label htmlFor="email">{strings.emailLabel}</label>
-          <input id="email" name="email" type="email" required maxLength={320} autoComplete="email" dir="ltr" />
-          <p className="muted">{strings.emailHint}</p>
-
-          <button type="submit" className="button button-primary" disabled={starting} aria-busy={starting}>
-            {starting ? strings.loading : strings.send}
-          </button>
-          <p role="alert" className="message message-error">
-            {error ? strings.errors[error] : null}
-          </p>
-        </form>
+      <form action={formAction} className="form">
+        <input type="hidden" name="locale" value={locale} />
+        <input type="hidden" name="token" value={token} />
+        <p>
+          {strings.signedInAs} <strong dir="ltr">{signedInEmail}</strong>
+        </p>
+        <label htmlFor="displayName">{strings.nameLabel}</label>
+        <input id="displayName" name="displayName" required minLength={2} maxLength={120} />
+        <label htmlFor="phone">{strings.phoneLabel}</label>
+        <input id="phone" name="phone" type="tel" required minLength={7} maxLength={32} dir="ltr" />
+        {studentFields}
+        <button type="submit" className="button button-primary" disabled={pending} aria-busy={pending}>
+          {pending ? strings.loading : strings.submitSignedIn}
+        </button>
+        <p role="alert" className="message message-error">
+          {error}
+        </p>
+      </form>
     );
   }
 
-  const email = startState.step === "code" ? startState.email : "";
   return (
-    <form action={finishFormAction} className="form">
-      <p>{format(strings.sentBody, { email })}</p>
+    <form action={formAction} className="form">
       <input type="hidden" name="locale" value={locale} />
       <input type="hidden" name="token" value={token} />
-      <input type="hidden" name="email" value={email} />
-      <input type="hidden" name="displayName" value={details.displayName} />
-      <input type="hidden" name="phone" value={details.phone} />
-      <input type="hidden" name="gender" value={details.gender} />
-      <input type="hidden" name="dateOfBirth" value={details.dateOfBirth} />
 
-      <label htmlFor="code">{strings.codeLabel}</label>
-      <input id="code" name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6,10}" required dir="ltr" />
-      <p className="muted">{strings.codeHint}</p>
+      <label htmlFor="displayName">{strings.nameLabel}</label>
+      <input id="displayName" name="displayName" required minLength={2} maxLength={120} autoComplete="name" />
 
-      <button type="submit" className="button button-primary" disabled={finishing} aria-busy={finishing}>
-        {finishing ? strings.loading : strings.verify}
+      <label htmlFor="phone">{strings.phoneLabel}</label>
+      <input id="phone" name="phone" type="tel" required minLength={7} maxLength={32} dir="ltr" autoComplete="tel" />
+
+      {studentFields}
+
+      <label htmlFor="email">{strings.emailLabel}</label>
+      <input id="email" name="email" type="email" required maxLength={320} dir="ltr" autoComplete="email" />
+      <p className="muted">{strings.emailHint}</p>
+
+      <label htmlFor="password">{strings.passwordLabel}</label>
+      <input id="password" name="password" type="password" required minLength={8} maxLength={200} autoComplete="new-password" />
+      <p className="muted">{strings.passwordHint}</p>
+
+      <label htmlFor="passwordConfirm">{strings.passwordConfirmLabel}</label>
+      <input id="passwordConfirm" name="passwordConfirm" type="password" required minLength={8} maxLength={200} autoComplete="new-password" />
+
+      <button type="submit" className="button button-primary" disabled={pending} aria-busy={pending}>
+        {pending ? strings.loading : strings.submit}
       </button>
       <p role="alert" className="message message-error">
-        {error ? strings.errors[error] : null}
+        {error}
       </p>
+      <p className="muted">{strings.haveAccount}</p>
     </form>
   );
 }
