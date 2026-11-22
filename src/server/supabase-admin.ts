@@ -25,3 +25,33 @@ export async function ensureAuthUserForInvitation(email: string): Promise<void> 
   if (error.status === 422 || /already/i.test(error.message)) return;
   throw new Error("Auth: could not prepare invited account");
 }
+
+/**
+ * Same as `ensureAuthUserForInvitation`, but returns the account's id — which is also the
+ * `profiles.id`, because the auth.users trigger bootstraps the profile row.
+ *
+ * Used by the two onboarding paths that must then write rows FOR that person: creating a Markaz
+ * with its first Markaz Admin, and redeeming a shareable join link. Like the invitation path it
+ * is called only after the request has been authorized (a Super Admin's action) or the token has
+ * been validated server-side, and it never confirms the email: signing in with the emailed code
+ * is what proves ownership. Idempotent — an existing account is returned untouched.
+ */
+export async function ensureAuthUserForEmail(email: string): Promise<string> {
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.auth.admin.createUser({ email, email_confirm: false });
+  if (!error && data.user) return data.user.id;
+  if (error && error.status !== 422 && !/already/i.test(error.message)) {
+    throw new Error("Auth: could not prepare account");
+  }
+  // Already registered: find the existing account. listUsers is the only lookup the admin API
+  // offers; it is paged, so walk until the address turns up or the pages run out.
+  const wanted = email.trim().toLowerCase();
+  for (let page = 1; page <= 20; page++) {
+    const { data: list, error: listError } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (listError) throw new Error("Auth: could not prepare account");
+    const found = list.users.find((u) => u.email?.toLowerCase() === wanted);
+    if (found) return found.id;
+    if (list.users.length < 1000) break;
+  }
+  throw new Error("Auth: could not prepare account");
+}

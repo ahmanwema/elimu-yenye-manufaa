@@ -4,9 +4,11 @@ import { Suspense } from "react";
 import { ActionForm } from "@/components/action-form";
 import { CorrectionList } from "@/components/correction-list";
 import { InviteCreateForm } from "@/components/invite-create-form";
+import { JoinLinkCreateForm } from "@/components/join-link-create-form";
 import { format } from "@/i18n/dictionaries";
 import { getDictionary, getLocale } from "@/i18n/server";
 import { revokeInvite } from "@/server/actions/invitations";
+import { revokeJoinLinkAction } from "@/server/actions/join-links";
 import {
   approveMediaDeletionAction,
   approveRecordingAction,
@@ -34,10 +36,13 @@ import {
 } from "@/server/actions/workspace";
 import { getCurrentActor } from "@/server/auth";
 import { canVerifyPayment } from "@/server/authz/live-class";
+import { listJoinLinks } from "@/server/services/join-links";
+import { listClasses } from "@/server/services/classes";
 import {
   AuthorizationError,
   canApproveMediaDeletion,
   canApproveRecording,
+  canManageJoinLinks,
   canRequestMediaDeletion,
   GRANTABLE_PERMISSIONS,
   hasActiveRole,
@@ -115,13 +120,16 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
     can.teach || can.administer ? getOptionCForMarkaz(db, actor, tenantId) : null,
   ]);
   const m = dict.media;
-  const [roster, invitations, links, candidates, requests, verifiers] = await Promise.all([
+  const canJoinLinks = canManageJoinLinks(actor, tenantId);
+  const [roster, invitations, links, candidates, requests, verifiers, joinLinks, joinClasses] = await Promise.all([
     can.roster || can.create ? listStudentRoster(db, actor, tenantId).catch(() => null) : null,
     targets.length > 0 ? listPendingInvitations(db, actor, tenantId) : null,
     canLinks ? listTenantParentLinks(db, actor, tenantId) : null,
     can.appoint ? listAppointmentCandidates(db, actor, tenantId) : null,
     can.appoint ? listTenantAppointmentRequests(db, actor, tenantId) : null,
     can.delegate ? listTeacherDelegation(db, actor, tenantId) : null,
+    canJoinLinks ? listJoinLinks(db, actor, tenantId) : null,
+    canJoinLinks ? listClasses(db, actor, tenantId).catch(() => []) : null,
   ]);
   const dateFmt = new Intl.DateTimeFormat(locale, { dateStyle: "medium" });
   const name = (n: string | null | undefined) => n ?? dict.markaz.unnamed;
@@ -369,6 +377,54 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
                     </ActionForm>
                   ) : null}
                   {r.deletionRequests.length > 0 && !r.deletedAt ? <span className="muted">{m.deletionPending}</span> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
+      {joinLinks ? (
+        <section className="card" aria-labelledby="join-links">
+          <h2 id="join-links">{dict.markaz.joinLinksHeading}</h2>
+          <p className="muted">{dict.markaz.joinLinksNote}</p>
+          <JoinLinkCreateForm
+            locale={locale}
+            tenantId={tenant.id}
+            classes={(joinClasses ?? []).map((c) => ({ id: c.id, name: c.name }))}
+            strings={{
+              label: dict.markaz.joinLinkLabel,
+              classLabel: dict.markaz.joinLinkClass,
+              noClass: dict.markaz.joinLinkNoClass,
+              days: dict.markaz.joinLinkDays,
+              maxUses: dict.markaz.joinLinkMaxUses,
+              create: dict.markaz.joinLinkCreate,
+              created: dict.markaz.joinLinkCreated,
+              loading: dict.common.loading,
+              results: dict.results,
+            }}
+          />
+          {joinLinks.length === 0 ? (
+            <p className="muted">{dict.markaz.noJoinLinks}</p>
+          ) : (
+            <ul className="list">
+              {joinLinks.map((link) => (
+                <li key={link.id} className="row">
+                  <span>{link.label}</span>
+                  {link.class ? <span className="muted">{link.class.name}</span> : null}
+                  <span className="muted">
+                    {link.maxUses === null
+                      ? format(dict.markaz.joinLinkUsesNoMax, { used: link.useCount })
+                      : format(dict.markaz.joinLinkUses, { used: link.useCount, max: link.maxUses })}
+                  </span>
+                  <span className="muted">{format(dict.markaz.joinLinkExpires, { date: dateFmt.format(link.expiresAt) })}</span>
+                  {link.status === "REVOKED" ? (
+                    <span className="muted">{dict.markaz.joinLinkRevoked}</span>
+                  ) : (
+                    <ActionForm action={revokeJoinLinkAction} submitLabel={dict.markaz.joinLinkRevoke} pendingLabel={dict.common.loading} messages={dict.results} variant="secondary" inline>
+                      <input type="hidden" name="joinLinkId" value={link.id} />
+                    </ActionForm>
+                  )}
                 </li>
               ))}
             </ul>

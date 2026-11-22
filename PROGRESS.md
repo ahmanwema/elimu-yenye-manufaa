@@ -300,6 +300,52 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
   It must be resolved before any deployment. `next build` also halts once per run with a security
   nudge and succeeds on retry.
 
+## 2026-11-22 — Self-service onboarding Stages 1 & 2 (A141–A145); Next.js upgrade merged; DEV at 24
+
+- **The gap that was found first:** the application had **no path at all to create a Markaz** — no service,
+  no action, no UI. Combined with invite-first onboarding (A45) and disabled sign-ups (A65), a new Markaz
+  could never be opened through the product: there was nobody to issue its first invitation. The owner's
+  request ("a teacher opens Home Madrasa and students join by a WhatsApp link") was blocked on this, not on
+  the payment flow — which turned out to be **already built** (`PENDING_PAYMENT`, `submitPaymentEvidence`,
+  `verifyPayment` writing `accessUntil` from the verified period, grace, A107/A140).
+- Plan written first and kept: [docs/features/self-service-onboarding.md](docs/features/self-service-onboarding.md).
+- **Stage 1 implemented** — `src/server/services/tenants.ts` (`createTenant`, `listTenants`),
+  `canCreateTenant` (Super Admin only, A141), `createTenantAction`, and a form on `/{locale}/platform`.
+  Creation makes the tenant, the first ACTIVE `MARKAZ_ADMIN` membership and that person's auth account in
+  one authorized operation, with a `TENANT_CREATED` audit event; `alsoTeacher` is opt-in (A145).
+  Authorization is checked **before** Supabase is asked to prepare any account.
+- **Stage 2 implemented** — shareable join links (A142): `join_links` + `join_link_uses` (server-only,
+  deny-by-default RLS like the Live Class tables), `createJoinLink` / `listJoinLinks` / `revokeJoinLink` /
+  `previewJoinLink` / `redeemJoinLink`, the public `/{locale}/join/{token}` page, and the Markaz Admin UI.
+  Only the token hash is stored; the raw token is shown once. A use is claimed in ONE atomic statement
+  inside the redemption transaction, so concurrent redemptions cannot exceed `max_uses` and a failure gives
+  the seat back. Unknown, cancelled, expired and exhausted links are refused identically. Enrolment runs as
+  the link's **creator**, so a link stops enrolling if its issuer loses the admin role (fails closed).
+- **Schema additions (A143):** `profiles.phone`, `student_accounts.gender` with a new `Gender` enum —
+  neither existed. The date of birth collected at join is self-entered and deliberately **not** verified
+  (A82 verification still required).
+- **Three ADDITIVE migrations** (22–24), split so the new `AuditAction`/`AuditTargetType` values are added
+  before they are used, as the FINANCE_OFFICER role did.
+- **Applied to the DEVELOPMENT Supabase project** (owner-authorised this session): `prisma migrate deploy`
+  applied exactly the three pending migrations. `scripts/compare-schema.mjs` then reported **"No
+  differences"** — 35 tables / 400 columns / 189 constraints / 113 indexes / 35 enums / 14 policies /
+  13 functions / 8 triggers / 70 grants. DEV now holds **24** migrations.
+- **`security/nextjs-upgrade` merged into `master`** (fast-forward, owner-authorised): Next.js 16.4.0 →
+  16.4.6. This was necessary as well as hygienic — on 16.4.0 the CLI security nudge had begun killing the
+  dev server *after its first request*, not just at startup. On 16.4.6 the server survives repeated
+  requests and the nudge is gone.
+- **Verification: 818/818 tests in 39 files** (was 751 in 36), lint and typecheck clean. 65 new tests cover
+  tenant creation and its denials, join-link issue/preview/redeem, idempotency per person, the concurrency
+  ceiling (5 racers, 3 succeed), cross-tenant refusal, and deny-by-default RLS on both new tables.
+- **Open issue, not root-caused:** in this checkout `vitest` fails even for a test file with no imports
+  ("Cannot read properties of undefined (reading 'config')"), while a sibling git worktree with
+  byte-identical `vitest`/`@vitest/mocker` packages and identical versions across all 394 installed
+  packages runs the same files green. Four clean reinstalls (including `npm cache verify` and a full
+  `node_modules` removal) did not fix it, and upgrading to 16.4.6 did not either; running the worktree's
+  `vitest.mjs` against this directory passes. The suite above was therefore run with that binary. The
+  project files and config are not implicated — only this directory's `node_modules`.
+- Nothing pushed. No production, no deploy, no SMTP provider, no RTC vendor, no payment gateway.
+
 ## Status snapshot
 
 | Area | Status |
@@ -307,16 +353,17 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
 | Documentation foundation | Done (this pass) |
 | Business rules BR-01–BR-13 | Recorded as approved (A26–A38), docs reconciled 2026-10-05 |
 | Technology stack | **Approved** (A39), installed locally |
-| Database schema | **All 21 migrations applied** to the DEVELOPMENT Supabase project (15 on 2026-10-16; the remaining 6 at an unrecorded date after 2026-11-02 — see the 2026-11-04 entry). Exact parity with the full repo re-verified read-only on 2026-11-04: "No differences" |
+| Database schema | **All 24 migrations applied** to the DEVELOPMENT Supabase project (15 on 2026-10-16; six more at an unrecorded date after 2026-11-02 — see the 2026-11-04 entry; the last three on 2026-11-22). Exact parity with the full repo verified after that apply: "No differences" (35 tables / 400 columns) |
 | Auth / tenancy / roles / Parent links | Foundation implemented (no sign-in UI, no invitations, no link workflow) |
 | PWA | Basic foundation (manifest, placeholder icons, minimal SW) |
-| Tests | 751 local, 36 files — **re-run green 2026-11-04** on the recovered clone (plus lint, typecheck, build). Real-Supabase 41/41 and 14-step UI E2E: last *recorded* run 2026-10-16 against 15 migrations; **not re-run since the remaining 6 were applied**. `tests/real/live-class-dev.test.ts` exists again but has never been executed |
+| Tests | **818 local in 39 files, green 2026-11-22** (plus lint and typecheck; run with a sibling worktree's vitest binary — see that entry's open issue). Real-Supabase 41/41 and the 14-step UI E2E: last *recorded* run 2026-10-16 against 15 migrations, **not re-run since**; `tests/real/live-class-dev.test.ts` has still never been executed |
 | Version control | Git initialized; first local baseline commit 2026-10-13; pushed 2026-11-02 to the public GitHub repo ahmanwema/elimu-yenye-manufaa. **2026-11-04: that remote was the only surviving copy** — the local folder was empty and the project was re-cloned from it |
 | Auth / onboarding / i18n | Implemented locally (OTP + magic link, invite-first, sw/en/ar + RTL) |
 | Parent links | Full workflow implemented (request/create → verify → activate → revoke) with explicit permissions and audit history |
 | Correction & recording media | Policy foundation implemented locally (A66–A80): consent, primary/history clips, M4A ≤ 60 s validation, approval, deletion lifecycle, audit; no RTC capture/extraction |
 | Live Class architecture | Class structure/capacity/session foundation APPROVED (A101–A130); real-time layer still proposed (vendor undecided, A35) |
 | Live Class implementation | Provider-neutral foundation implemented 2026-10-19 and **applied to DEV** (schema parity exact, 2026-11-04). Still **no media transport of any kind** — no audio, video, whiteboard or screen share (A35 undecided) |
+| Self-service onboarding | Stages 1–2 implemented and applied to DEV (A141–A145): a Super Admin creates a Markaz with its first Markaz Admin; students join by a shareable link, supply their details, and land in the existing payment flow. Stage 4 (open, uninvited teacher self-registration) **not started and undecided**. Blocked for real students until an SMTP provider is chosen: Supabase's built-in mailer only delivers to project team addresses |
 | Any other feature | Not started |
 | Hosting/infrastructure setup | Not started (not authorized) |
 | First deployment | Not started |

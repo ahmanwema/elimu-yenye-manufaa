@@ -141,6 +141,12 @@ describe("server action surface", () => {
       "stopSessionRecordingAction",
       "correctRecordingParticipantsAction",
     ],
+    // Self-service onboarding (2026-11-22). createTenantAction DOES cause an account to be
+    // created, so it must stay Super-Admin-only and must authorize before it reaches Supabase.
+    "tenants.ts": ["createTenantAction"],
+    // Join links (2026-11-22). startJoinAction and finishJoinAction are reachable with NO
+    // account at all, so each validates the token server-side before creating anything.
+    "join-links.ts": ["createJoinLinkAction", "revokeJoinLinkAction", "startJoinAction", "finishJoinAction"],
   };
 
   it.each(readdirSync(dir).filter((f) => readFileSync(join(dir, f), "utf8").startsWith('"use server"')))(

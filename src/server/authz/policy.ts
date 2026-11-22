@@ -249,6 +249,34 @@ export function canAssignPermission(
   );
 }
 
+/**
+ * May the actor create a Markaz? (owner decision 2026-11-22: SUPER ADMIN ONLY.)
+ *
+ * Until this decision there was no path at all: the application could not create a tenant, so
+ * every Markaz had to be inserted by hand. Super-Admin-only is deliberately the narrowest rule
+ * that opens one — it keeps tenant creation an authorized act while the open, self-service
+ * variant (any teacher creates their own Markaz, A2) stays a separate, undecided question.
+ *
+ * No tenant role can ever grant this: a Markaz Admin administers their own Markaz and does not
+ * bring new ones into existence.
+ */
+export function canCreateTenant(actor: Actor): boolean {
+  return actor.isPlatformAdmin;
+}
+
+/**
+ * May the actor create, list and revoke shareable join links for a Markaz? (2026-11-22)
+ *
+ * An ACTIVE Markaz Admin of that Markaz, or a Super Admin. Deliberately NOT a Teacher, and not
+ * reachable through any explicit grant: redeeming a join link creates accounts and memberships,
+ * so issuing one is an administrative act, not a teaching one. `invitation.create` (A59) lets a
+ * teacher invite one named person by email; it does not let them open a door to everybody.
+ */
+export function canManageJoinLinks(actor: Actor, tenantId: unknown): boolean {
+  if (!isValidId(tenantId)) return false;
+  return actor.isPlatformAdmin || hasActiveRole(actor, tenantId, "MARKAZ_ADMIN");
+}
+
 // ---------------------------------------------------------------------------------
 // 3. Parent access (A41, A48). Only ACTIVE grants anything.
 // ---------------------------------------------------------------------------------

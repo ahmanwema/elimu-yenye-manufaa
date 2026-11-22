@@ -14,6 +14,8 @@ import { listOptionCForPlatform } from "@/server/services/option-c";
 import { listPermissionOverview } from "@/server/services/platform";
 import { setCapacityLimitsAction } from "@/server/actions/live-class";
 import { listTenantCapacityLimits } from "@/server/services/classes";
+import { createTenantAction } from "@/server/actions/tenants";
+import { listTenants } from "@/server/services/tenants";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getDictionary()).platform.title, robots: { index: false } };
@@ -40,16 +42,55 @@ async function PlatformBody() {
   if (!current.actor.isPlatformAdmin) return <p role="alert">{dict.platform.notAllowed}</p>;
 
   const db = getDb();
-  const [requests, overview, optionC, limits] = await Promise.all([
+  const [requests, overview, optionC, limits, tenants] = await Promise.all([
     listPendingAppointmentRequests(db, current.actor),
     listPermissionOverview(db, current.actor),
     listOptionCForPlatform(db, current.actor),
     listTenantCapacityLimits(db, current.actor),
+    listTenants(db, current.actor),
   ]);
   const name = (n: string | null) => n ?? dict.markaz.unnamed;
 
   return (
     <>
+      <section className="card" aria-labelledby="create-markaz">
+        <h2 id="create-markaz">{dict.platform.createHeading}</h2>
+        <p className="muted">{dict.platform.createNote}</p>
+        <ActionForm action={createTenantAction} submitLabel={dict.platform.create} pendingLabel={dict.common.loading} messages={dict.results}>
+          <label>
+            {dict.platform.createName}
+            <input type="text" name="name" required maxLength={200} />
+          </label>
+          <label>
+            {dict.platform.createSlug}
+            <input type="text" name="slug" required minLength={3} maxLength={60} pattern="[a-z0-9]+(-[a-z0-9]+)*" />
+          </label>
+          <span className="muted">{dict.platform.createSlugNote}</span>
+          <label>
+            {dict.platform.createAdminEmail}
+            <input type="email" name="adminEmail" required maxLength={320} />
+          </label>
+          <label className="row">
+            <input type="checkbox" name="alsoTeacher" />
+            {dict.platform.createAlsoTeacher}
+          </label>
+          <span className="muted">{dict.platform.createAlsoTeacherNote}</span>
+        </ActionForm>
+        <h3>{dict.platform.tenantsHeading}</h3>
+        {tenants.length === 0 ? (
+          <p className="muted">{dict.platform.noTenants}</p>
+        ) : (
+          <ul className="list">
+            {tenants.map((t) => (
+              <li key={t.id} className="row">
+                <span>{t.name}</span>
+                <span className="muted">{t.slug}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="card" aria-labelledby="option-c">
         <h2 id="option-c">{dict.platform.optionCHeading}</h2>
         <p className="muted">{dict.media.optionCNote}</p>
