@@ -38,7 +38,7 @@ export const sw: Dictionary = {
     orCodeHeading: "Au pata msimbo kwa barua pepe",
     joinedNotice: "Akaunti yako iko tayari. Ingia kwa barua pepe na nenosiri lako.",
     signInTitle: "Ingia",
-    signInIntro: "Weka anwani yako ya barua pepe. Tutakutumia msimbo wa kuingia na kiungo. Huhitaji nenosiri.",
+    signInIntro: "Ingia kwa anwani yako ya barua pepe na nenosiri. Kama huna nenosiri, omba msimbo kwa barua pepe.",
     emailLabel: "Anwani ya barua pepe",
     sendCode: "Nitumie msimbo wa kuingia",
     sentTitle: "Angalia barua pepe yako",
@@ -47,7 +47,7 @@ export const sw: Dictionary = {
     codeHint: "Weka msimbo uliopo kwenye barua pepe, au fungua kiungo kwenye kivinjari hiki hiki.",
     verify: "Ingia",
     useDifferentEmail: "Tumia barua pepe nyingine",
-    noAccountHint: "Huna akaunti bado? Akaunti hufunguliwa kupitia mwaliko.",
+    noAccountHint: "Huna akaunti bado? Omba kiungo cha kujiunga kutoka Markaz yako — utaweka nenosiri lako hapo.",
     signedInAs: "Umeingia kama {email}",
     errors: {
     invalid_credentials: "Barua pepe na nenosiri hivi havilingani na akaunti yoyote.",

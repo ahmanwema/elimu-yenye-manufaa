@@ -37,7 +37,7 @@ export const en = {
     orCodeHeading: "Or get a code by email",
     joinedNotice: "Your account is ready. Sign in with your email and password.",
     signInTitle: "Sign in",
-    signInIntro: "Enter your email address. We will send you a sign-in code and a link. No password is needed.",
+    signInIntro: "Sign in with your email address and password. If you have no password, ask for a code by email instead.",
     emailLabel: "Email address",
     sendCode: "Send me a sign-in code",
     sentTitle: "Check your email",
@@ -46,7 +46,7 @@ export const en = {
     codeHint: "Enter the code from the email, or open the link in the same browser.",
     verify: "Sign in",
     useDifferentEmail: "Use a different email",
-    noAccountHint: "No account yet? Accounts are created from an invitation.",
+    noAccountHint: "No account yet? Ask your Markaz for a join link — you create your password on it.",
     signedInAs: "Signed in as {email}",
     errors: {
     invalid_credentials: "That email and password do not match an account.",
