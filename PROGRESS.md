@@ -670,3 +670,20 @@ Earlier (2026-10-16 and before, kept for history): Owner confirms the interpreta
   (design-system.md §2, ui-plan.md, DECISIONS A158). CSS only; not committed yet.
 - `docs/features/live-class-media-plan.md` (PROPOSED): phases M0–M5 for LiveKit audio and the Supabase
   Realtime whiteboard, acceptance criteria, cost, open questions. No install, migration or code.
+
+## 2026-11-26 — Live Class media M0 (LiveKit setup), local only
+
+- Owner created the LiveKit Cloud project and filled `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`
+  in `.env.local` (placeholders added to `.env.example`). A read-only `ListRooms` call accepted the keys
+  (HTTP 200, 0 rooms); the values were never printed.
+- Installed pinned `livekit-client` 2.22.4 and `livekit-server-sdk` 2.19.1.
+- `src/env.ts`: `getLiveKitEnv()` / `isLiveKitConfigured()` (lazy, the secret is never echoed).
+- `src/server/rtc/rtc.ts` (vendor-neutral contract: room per session, identity per device connection,
+  `audioGrantFor(capabilities)` fails closed), `livekit.ts` (server-only adapter: mic is the only
+  publishable source, no data publishing, "not found" treated as a no-op), `fake.ts` (tests).
+- `tests/unit/auth-safety.test.ts`: the A35 "no vendor SDK" guard becomes the A154 boundary — LiveKit only,
+  the server SDK imported in exactly `src/server/rtc/livekit.ts`, the browser SDK only in client
+  components, still no Agora, pilot code or Realtime channel.
+- Tests: `tests/unit/rtc.test.ts` (14), unit suite 304/304; `tests/real/livekit-dev.test.ts` 4/4 against
+  LiveKit Cloud (random non-existent room; nothing created). Lint and typecheck green.
+- Not done (not authorized): M1–M6, commit, push. Owner still to add the three LiveKit variables in Vercel.

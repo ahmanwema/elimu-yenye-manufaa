@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { safeRedirectPath } from "@/lib/safe-redirect";
 import { classifyOtpError, otpCodeSchema } from "@/server/otp";
@@ -50,7 +50,7 @@ describe("OTP handling", () => {
 
 describe("server action surface", () => {
   // Every export of a "use server" file is a public endpoint. Only intended actions may be
-  // exported — in particular nothing that can create an account for an arbitrary email.
+  // exported â€” in particular nothing that can create an account for an arbitrary email.
   const dir = join(process.cwd(), "src", "server", "actions");
   const allowed: Record<string, string[]> = {
     "auth.ts": ["requestSignInCode", "verifySignInCode", "signOut", "signInWithPassword"],
@@ -159,18 +159,26 @@ describe("server action surface", () => {
     },
   );
 
-  it("RTC boundary (A35): no vendor SDK, no pilot code, no public Realtime channel in the application", () => {
+  it("RTC boundary (A154): LiveKit only, only behind src/server/rtc; no Agora, no pilot code, no public Realtime channel", () => {
     const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as { dependencies: Record<string, string>; devDependencies: Record<string, string> };
     const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
-    expect(deps.filter((d) => /livekit|agora/i.test(d))).toEqual([]);
+    expect(deps.filter((d) => /agora/i.test(d))).toEqual([]);
+    expect(deps.filter((d) => /livekit/i.test(d)).sort()).toEqual(["livekit-client", "livekit-server-sdk"]);
     const walk = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? (e.name === "generated" ? [] : walk(join(dir, e.name))) : /\.(ts|tsx)$/.test(e.name) ? [join(dir, e.name)] : []));
+    const serverSdkImporters: string[] = [];
     for (const file of walk(join(process.cwd(), "src"))) {
       const source = readFileSync(file, "utf8");
-      expect(source, file).not.toMatch(/from ["'][^"']*(livekit|agora)[^"']*["']/i);
+      expect(source, file).not.toMatch(/from ["'][^"']*agora[^"']*["']/i);
       expect(source, file).not.toMatch(/from ["'][^"']*pilot\//);
-      expect(source, file).not.toMatch(/\.channel\(/); // no Supabase Realtime broadcast (the pilot's public whiteboard channel)
+      expect(source, file).not.toMatch(/\.channel\(/); // no Supabase Realtime broadcast until the private whiteboard channel (plan M3)
+      if (/from ["']livekit-server-sdk["']/.test(source)) serverSdkImporters.push(relative(process.cwd(), file).replaceAll("\\", "/"));
+      // The browser SDK may only appear in client components ("use client").
+      if (/from ["']livekit-client["']/.test(source)) expect(source, file).toMatch(/^["']use client["']/);
     }
+    // The secret-holding SDK lives in exactly one server-only adapter.
+    expect(serverSdkImporters).toEqual(["src/server/rtc/livekit.ts"]);
+    expect(readFileSync(join(process.cwd(), "src", "server", "rtc", "livekit.ts"), "utf8")).toMatch(/^import "server-only";/);
   });
 
   it("OTP never creates accounts; only the invitation flow creates one, via the admin API", () => {

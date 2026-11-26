@@ -63,3 +63,31 @@ export function getStorageEnv() {
 export function isSupabaseConfigured(): boolean {
   return publicSchema.safeParse(readPublic()).success;
 }
+
+// LiveKit (live class audio, A154). Server-only: the API secret signs room tokens and admin calls
+// and must never reach a client bundle. The URL is handed to the browser together with a token.
+const liveKitSchema = z.object({
+  LIVEKIT_URL: z.string().trim().regex(/^wss?:\/\/[^\s/]+\/?$/, "must be a ws(s):// URL"),
+  LIVEKIT_API_KEY: z.string().trim().min(1),
+  LIVEKIT_API_SECRET: z.string().trim().min(32, "is too short"),
+});
+
+export type LiveKitEnv = z.infer<typeof liveKitSchema>;
+
+export function getLiveKitEnv(): LiveKitEnv {
+  const env = parse(
+    liveKitSchema,
+    { LIVEKIT_URL: process.env.LIVEKIT_URL, LIVEKIT_API_KEY: process.env.LIVEKIT_API_KEY, LIVEKIT_API_SECRET: process.env.LIVEKIT_API_SECRET },
+    "LiveKit (server)",
+  );
+  return { ...env, LIVEKIT_URL: env.LIVEKIT_URL.replace(/\/+$/, "") };
+}
+
+export function isLiveKitConfigured(): boolean {
+  try {
+    getLiveKitEnv();
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -75,8 +75,8 @@ changing any of those rules: the database stays the authority, the vendors only 
 - **Persistence:** the teacher's client sends finished strokes in batches (every ~2 s and on stroke end)
   to `appendWhiteboardStrokes`, which checks the connection is PRIMARY and may write, then inserts into
   the new server-only table `live_whiteboard_strokes` (tenant-scoped, composite FK to the session,
-  unique `(session_id, seq)`). Board history ends with the session; whether it is kept afterwards
-  (e.g. as lesson notes) is an owner question (§6).
+  unique `(session_id, seq)`), each stroke with its timestamp and page number. What happens to the
+  board after the session is §6 Q1.
 - **Input:** Pointer Events (mouse, touch, pen with pressure), so an XPPen tablet should work without
   special code — to be confirmed when the hardware arrives.
 
@@ -93,12 +93,13 @@ changing any of those rules: the database stays the authority, the vendors only 
 
 | Phase | Scope | Needs |
 |---|---|---|
-| **M0 — Setup** | LiveKit Cloud project (Build plan, free). Env vars `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` in `.env.local` and Vercel (never committed). Install `livekit-client` and `livekit-server-sdk` (pinned, the pilot used 2.22.4 / 2.19.1). `src/server/rtc/` adapter + fake. | Owner: create the LiveKit project and add the keys; authorize the install. |
+| **M0 — Setup** ✅ done locally 2026-11-26 | LiveKit Cloud project (Build plan, free). Env vars `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` in `.env.local` and Vercel (never committed). Install `livekit-client` and `livekit-server-sdk` (pinned, the pilot used 2.22.4 / 2.19.1). `src/server/rtc/` adapter + fake. | Owner: create the LiveKit project and add the keys; authorize the install. |
 | **M1 — Audio** | Token action, teacher speaks, students hear; mic grant / revoke / handoff enforced in LiveKit; removal and end close the room; audio controls on the live page. | — |
 | **M2 — Presence** | `/api/livekit/webhook` (proxy matcher excludes `api/`), signature check, closes connections; reconnect handling. | Owner: add the webhook URL in LiveKit Cloud. |
 | **M3 — Whiteboard** | Migration 26 (ADDITIVE): `live_whiteboard_strokes` + `live_whiteboard_access()` + `realtime.messages` policies. Canvas component, stroke protocol, ordering, persistence, re-sync, clear/undo by the teacher, student write grant. | Owner: authorize the migration and its DEV apply. |
 | **M4 — Classroom layout** | Teacher view: board takes the screen, compact toolbar, participant drawer. Student view: board + hand / mic button. Phone: fullscreen board, bottom controls. i18n sw/en/ar, RTL (the board itself is never mirrored). | — |
 | **M5 — Verification** | Unit tests (token grants per role/device, stroke ordering, gap detection, webhook idempotency); real-DEV tests for the Realtime policies; manual two-device test (PC teacher + phone student) on Wi-Fi **and 4G**. | Owner: one phone for the manual test. |
+| **M6 — Board replay with audio** | Teacher-voice egress to Supabase Storage, replay player that redraws strokes in time with the audio (§6 Q1). | Owner: Q1a, Q1b; Option C enabled for the Markaz. |
 
 Each phase ends with `npm run check`, build, a PROGRESS.md entry, and a commit/push only when authorized.
 
@@ -128,10 +129,25 @@ message quotas. Recording egress is not part of this phase.
 
 ## 6. Out of scope here / owner questions
 
-- **Out of scope:** recording (LiveKit egress for Option C), screen share (A119), correction clips from
-  live audio (A53 rolling buffer), video, a production scheduler for `closeStaleSessions`.
-- **Q1.** Keep the board after the session (as notes students can revisit) or discard it?
-- **Q2.** Should a student with whiteboard permission write on the same board as the teacher, or on a
-  separate layer the teacher can clear on its own? (Proposal: same board, own colour, teacher can undo.)
+- **Out of scope of M0–M5:** recording (LiveKit egress, see M6), screen share (A119), correction clips
+  from live audio (A53 rolling buffer), video, a production scheduler for `closeStaleSessions`.
+- **Q1 — answered in principle (owner, 2026-11-26): the board is kept, and the student finds it WITH
+  SOUND** — the board redraws in time while the teacher's voice plays (like a video, but built from the
+  stored strokes plus an audio file, so it stays small on a phone). Consequences, to confirm before
+  that phase starts:
+  - It is a session recording, so under existing decisions it needs **Option C** for the Markaz (A123)
+    and the consent rules (A125/A126). This does not change them.
+  - **Proposal Q1a:** record **only the teacher's voice** by default (LiveKit track egress of the
+    teaching participant). Student voices — and with them most consent questions about minors — stay
+    out; a student speaking with the mic is not in the replay. Recording everyone is the alternative.
+  - **Proposal Q1b:** viewers follow the chat readers (A120): enrolled students with access, teachers,
+    Markaz Admin; parents do not see it.
+  - Cost: LiveKit audio egress $0.005/min after 60 free minutes a month (≈ $0.30 per 60-minute class),
+    plus Supabase Storage for the audio file (≈ 30 MB per hour at 64 kbit/s).
+  - Delivered as its own phase **M6 — Board replay with audio**, after M3, because it needs egress to
+    Supabase Storage (S3 API) and a replay player. M3 already stores stroke timestamps so nothing is lost
+    for sessions taught before M6.
+- **Q2 — answered (owner, 2026-11-26):** a student with whiteboard permission writes on the **same
+  board** as the teacher (own colour; the teacher can undo or clear it).
 - **Q3.** LiveKit region: LiveKit Cloud picks the nearest edge automatically; confirm no data-residency
   requirement for audio (it is not stored in this phase).
