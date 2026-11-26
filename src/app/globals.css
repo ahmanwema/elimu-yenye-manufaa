@@ -728,3 +728,135 @@ input[type="radio"] {
 .table tbody tr:hover {
   background: rgb(255 255 255 / 0.03);
 }
+
+/* ======================================================================================
+ * Auth pages (ui-plan §4, F2): welcome panel + form card. Card only on phones.
+ * ==================================================================================== */
+.auth-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 28rem);
+  gap: var(--space-5);
+  align-items: center;
+  min-block-size: calc(100dvh - var(--topbar-height) - 2 * var(--space-5));
+}
+.auth-panel {
+  position: relative;
+  overflow: hidden;
+  padding: var(--space-5) var(--space-4);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 30% 20%, rgb(245 146 42 / 0.12), transparent 55%),
+    radial-gradient(circle at 80% 90%, rgb(169 193 245 / 0.1), transparent 50%),
+    var(--surface-raised);
+  border: 1px solid var(--border);
+}
+.auth-verse {
+  margin: 0;
+  font-family: var(--font-arabic);
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  line-height: 2;
+  color: var(--accent-primary);
+}
+.auth-verse-ref {
+  margin-block: 0 var(--space-4);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+.auth-panel-title {
+  font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+  line-height: 1.15;
+  margin-block-end: var(--space-2);
+}
+.check-list {
+  list-style: none;
+  padding: 0;
+  margin-block: var(--space-4) 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.check-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 500;
+}
+.check-list li::before {
+  content: "✓";
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.4rem;
+  block-size: 1.4rem;
+  border: 1.5px solid var(--accent-primary);
+  border-radius: var(--radius-sm);
+  color: var(--accent-primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.auth-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-4);
+}
+.auth-card h1 {
+  font-size: clamp(1.5rem, 3vw, 1.9rem);
+}
+.auth-card .form {
+  max-inline-size: none;
+}
+.auth-card .form .button {
+  inline-size: 100%;
+  margin-block-start: var(--space-2);
+}
+.auth-alt {
+  margin-block-start: var(--space-3);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--border);
+}
+.auth-alt summary {
+  cursor: pointer;
+  color: var(--accent-primary);
+  font-weight: 600;
+  min-block-size: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+.auth-alt[open] summary {
+  margin-block-end: var(--space-2);
+}
+
+.password-field {
+  position: relative;
+}
+.password-field input {
+  padding-inline-end: 3rem;
+}
+.password-toggle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  inline-size: 2.75rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.password-toggle:hover {
+  color: var(--text-primary);
+}
+
+@media (max-width: 899px) {
+  .auth-split {
+    grid-template-columns: 1fr;
+    min-block-size: 0;
+  }
+  .auth-panel {
+    display: none;
+  }
+  .auth-card {
+    padding: var(--space-4) var(--space-3);
+  }
+}

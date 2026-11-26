@@ -33,7 +33,17 @@ export const sw: Dictionary = {
     submit: "Tuma",
     none: "Hakuna kitu bado.",
   },
+  authPanel: {
+    title: "Jifunze kwa uhakika",
+    body: "Qur'an, Tajwid, Hifdh na elimu za dini, zikifundishwa moja kwa moja na mwalimu wako.",
+    point1: "Madarasa ya moja kwa moja na mwalimu wako",
+    point2: "Marekebisho ya kisomo unayoweza kusikiliza tena",
+    point3: "Mahudhurio na maendeleo kwa wazazi",
+    verseRef: "Surat Al-‘Alaq, aya ya 1",
+  },
   auth: {
+    showPassword: "Onyesha nenosiri",
+    hidePassword: "Ficha nenosiri",
     passwordHeading: "Ingia kwa nenosiri",
     passwordLabel: "Nenosiri",
     passwordSubmit: "Ingia",

@@ -33,7 +33,17 @@ export const ar: Dictionary = {
     submit: "إرسال",
     none: "لا يوجد شيء بعد.",
   },
+  authPanel: {
+    title: "تعلَّم بثقة",
+    body: "القرآن والتجويد والحفظ والعلوم الشرعية، يدرّسها معلّمك مباشرة.",
+    point1: "دروس مباشرة مع معلّمك",
+    point2: "تصحيحات للتلاوة يمكنك الاستماع إليها مجددًا",
+    point3: "الحضور والتقدّم لأولياء الأمور",
+    verseRef: "سورة العلق، الآية ١",
+  },
   auth: {
+    showPassword: "إظهار كلمة المرور",
+    hidePassword: "إخفاء كلمة المرور",
     passwordHeading: "ادخل بكلمة المرور",
     passwordLabel: "كلمة المرور",
     passwordSubmit: "دخول",

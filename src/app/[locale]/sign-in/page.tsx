@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { PasswordSignInForm } from "@/components/password-sign-in-form";
+import { AuthLayout } from "@/components/auth-layout";
 import { SignInForm } from "@/components/sign-in-form";
 import { isSupabaseConfigured } from "@/env";
 import { safeRedirectPath } from "@/lib/safe-redirect";
@@ -13,15 +14,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function SignInPage({ searchParams }: PageProps<"/[locale]/sign-in">) {
   const dict = await getDictionary();
   return (
-    <>
-      <h1>{dict.auth.signInTitle}</h1>
-      <p className="muted">{dict.auth.signInIntro}</p>
-      <section className="card">
-        <Suspense fallback={<p aria-busy="true">{dict.common.loading}</p>}>
-          <SignInBody searchParams={searchParams} />
-        </Suspense>
-      </section>
-    </>
+    <AuthLayout panel={dict.authPanel} title={dict.auth.signInTitle} intro={<p className="muted">{dict.auth.signInIntro}</p>}>
+      <Suspense fallback={<p aria-busy="true">{dict.common.loading}</p>}>
+        <SignInBody searchParams={searchParams} />
+      </Suspense>
+    </AuthLayout>
   );
 }
 
@@ -48,7 +45,7 @@ async function SignInBody({ searchParams }: { searchParams: PageProps<"/[locale]
         </p>
       ) : null}
 
-      <h2>{dict.auth.passwordHeading}</h2>
+      <h2 className="visually-hidden">{dict.auth.passwordHeading}</h2>
       <PasswordSignInForm
         locale={locale}
         next={next}
@@ -56,6 +53,8 @@ async function SignInBody({ searchParams }: { searchParams: PageProps<"/[locale]
           emailLabel: dict.auth.emailLabel,
           passwordLabel: dict.auth.passwordLabel,
           submit: dict.auth.passwordSubmit,
+          showPassword: dict.auth.showPassword,
+          hidePassword: dict.auth.hidePassword,
           loading: dict.common.loading,
           errors: {
             invalid_credentials: dict.auth.errors.invalid_credentials,
@@ -65,8 +64,11 @@ async function SignInBody({ searchParams }: { searchParams: PageProps<"/[locale]
         }}
       />
 
-      <h2>{dict.auth.orCodeHeading}</h2>
-      <SignInForm locale={locale} next={next} strings={{ ...dict.auth, loading: dict.common.loading }} />
+      {/* The emailed-code route stays available (A149), folded below the primary password form. */}
+      <details className="auth-alt">
+        <summary>{dict.auth.orCodeHeading}</summary>
+        <SignInForm locale={locale} next={next} strings={{ ...dict.auth, loading: dict.common.loading }} />
+      </details>
     </>
   );
 }

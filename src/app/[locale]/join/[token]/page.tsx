@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { AuthLayout } from "@/components/auth-layout";
 import { JoinForm } from "@/components/join-form";
 import { isSupabaseConfigured } from "@/env";
 import { format } from "@/i18n/dictionaries";
@@ -15,14 +16,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function JoinPage({ params }: PageProps<"/[locale]/join/[token]">) {
   const dict = await getDictionary();
   return (
-    <>
-      <h1>{dict.join.title}</h1>
-      <section className="card">
-        <Suspense fallback={<p aria-busy="true">{dict.common.loading}</p>}>
-          <JoinBody params={params} />
-        </Suspense>
-      </section>
-    </>
+    <AuthLayout panel={dict.authPanel} title={dict.join.title}>
+      <Suspense fallback={<p aria-busy="true">{dict.common.loading}</p>}>
+        <JoinBody params={params} />
+      </Suspense>
+    </AuthLayout>
   );
 }
 
@@ -67,6 +65,8 @@ async function JoinBody({ params }: { params: PageProps<"/[locale]/join/[token]"
           passwordLabel: dict.join.passwordLabel,
           passwordHint: dict.join.passwordHint,
           passwordConfirmLabel: dict.join.passwordConfirmLabel,
+          showPassword: dict.auth.showPassword,
+          hidePassword: dict.auth.hidePassword,
           submit: dict.join.submit,
           submitSignedIn: dict.join.submitSignedIn,
           signedInAs: dict.join.signedInAs,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { PasswordInput } from "@/components/password-input";
 import type { Locale } from "@/i18n/config";
 import { signInWithPassword, type PasswordSignInState } from "@/server/actions/auth";
 
@@ -8,6 +9,8 @@ type Strings = {
   emailLabel: string;
   passwordLabel: string;
   submit: string;
+  showPassword: string;
+  hidePassword: string;
   loading: string;
   errors: Record<NonNullable<PasswordSignInState["error"]>, string>;
 };
@@ -28,7 +31,14 @@ export function PasswordSignInForm({ locale, next, strings }: { locale: Locale; 
       <label htmlFor="password-email">{strings.emailLabel}</label>
       <input id="password-email" name="email" type="email" autoComplete="email" inputMode="email" required dir="ltr" />
       <label htmlFor="password-password">{strings.passwordLabel}</label>
-      <input id="password-password" name="password" type="password" autoComplete="current-password" required dir="ltr" />
+      <PasswordInput
+        id="password-password"
+        name="password"
+        autoComplete="current-password"
+        required
+        showLabel={strings.showPassword}
+        hideLabel={strings.hidePassword}
+      />
       <button type="submit" className="button button-primary" disabled={pending} aria-busy={pending}>
         {pending ? strings.loading : strings.submit}
       </button>

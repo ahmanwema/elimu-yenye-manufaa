@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { PasswordInput } from "@/components/password-input";
 import type { Locale } from "@/i18n/config";
 import { joinAsSignedInAction, registerWithJoinLinkAction, type JoinState } from "@/server/actions/join-links";
 
@@ -17,6 +18,8 @@ export type JoinStrings = {
   passwordLabel: string;
   passwordHint: string;
   passwordConfirmLabel: string;
+  showPassword: string;
+  hidePassword: string;
   submit: string;
   submitSignedIn: string;
   signedInAs: string;
@@ -112,11 +115,11 @@ export function JoinForm({
       <p className="muted">{strings.emailHint}</p>
 
       <label htmlFor="password">{strings.passwordLabel}</label>
-      <input id="password" name="password" type="password" required minLength={8} maxLength={200} autoComplete="new-password" />
+      <PasswordInput id="password" name="password" required minLength={8} maxLength={200} autoComplete="new-password" showLabel={strings.showPassword} hideLabel={strings.hidePassword} />
       <p className="muted">{strings.passwordHint}</p>
 
       <label htmlFor="passwordConfirm">{strings.passwordConfirmLabel}</label>
-      <input id="passwordConfirm" name="passwordConfirm" type="password" required minLength={8} maxLength={200} autoComplete="new-password" />
+      <PasswordInput id="passwordConfirm" name="passwordConfirm" required minLength={8} maxLength={200} autoComplete="new-password" showLabel={strings.showPassword} hideLabel={strings.hidePassword} />
 
       <button type="submit" className="button button-primary" disabled={pending} aria-busy={pending}>
         {pending ? strings.loading : strings.submit}

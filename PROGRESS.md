@@ -446,6 +446,21 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
   `.env.local` on this machine, so Supabase is "not configured" locally and the signed-in navigation
   could only be checked through the unit tests, not in a browser.
   Nothing committed, pushed or deployed.
+- **Committed** as `e1e87b6` (local only, owner-authorised; repo-local git identity set to the same
+  author as earlier commits).
+
+## 2026-11-26 — UI redesign F2: sign-in, join and invitation pages
+
+- New `AuthLayout` (`src/components/auth-layout.tsx`): welcome panel (Al-‘Alaq 96:1 in Noto Naskh
+  Arabic with full tashkīl, a title, three points) beside the form card; card only below 900 px.
+- Sign-in: email + password first; the emailed-code route kept (A149) but folded into a
+  `<details>` below it. New `PasswordInput` with a show/hide toggle (sign-in and join forms); it only
+  switches the input type locally. Form ids unchanged (`password-email`, `password-password`).
+- Join and invitation pages use the same layout; their logic is untouched. New `authPanel` strings
+  and `auth.showPassword` / `auth.hidePassword` in sw/en/ar.
+- **Verification:** 841/841 tests in 40 files, lint, typecheck and `npm run build` clean; with
+  `.env.local` now present, `next start` serves `/sw/sign-in`, `/ar/sign-in`, `/sw/join/…` and
+  `/en/invite/…` with the new layout (200). Not committed yet.
 
 ## Status snapshot
 

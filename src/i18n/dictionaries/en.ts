@@ -32,7 +32,17 @@ export const en = {
     submit: "Submit",
     none: "Nothing here yet.",
   },
+  authPanel: {
+    title: "Learn with confidence",
+    body: "Qur'an, Tajwid, Hifdh and the Islamic sciences, taught live by your own teacher.",
+    point1: "Live classes with your teacher",
+    point2: "Recitation corrections you can listen to again",
+    point3: "Attendance and progress for parents",
+    verseRef: "Surah Al-‘Alaq, 96:1",
+  },
   auth: {
+    showPassword: "Show password",
+    hidePassword: "Hide password",
     passwordHeading: "Sign in with a password",
     passwordLabel: "Password",
     passwordSubmit: "Sign in",

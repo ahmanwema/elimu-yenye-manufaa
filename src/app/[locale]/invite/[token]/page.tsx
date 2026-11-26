@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ActionForm } from "@/components/action-form";
+import { AuthLayout } from "@/components/auth-layout";
 import { InviteSignIn } from "@/components/invite-sign-in";
 import { isSupabaseConfigured } from "@/env";
 import { format } from "@/i18n/dictionaries";
@@ -18,14 +19,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function InvitePage({ params }: PageProps<"/[locale]/invite/[token]">) {
   const dict = await getDictionary();
   return (
-    <>
-      <h1>{dict.invite.title}</h1>
-      <section className="card">
-        <Suspense fallback={<p aria-busy="true">{dict.common.loading}</p>}>
-          <InviteBody params={params} />
-        </Suspense>
-      </section>
-    </>
+    <AuthLayout panel={dict.authPanel} title={dict.invite.title}>
+      <Suspense fallback={<p aria-busy="true">{dict.common.loading}</p>}>
+        <InviteBody params={params} />
+      </Suspense>
+    </AuthLayout>
   );
 }
 
