@@ -14,6 +14,8 @@ export const en = {
     platform: "Platform admin",
     language: "Language",
     skipToContent: "Skip to main content",
+    main: "Main navigation",
+    items: { home: "Home", markaz: "Markaz", classes: "Classes", payments: "Payments", platform: "Platform", account: "Account" },
   },
   languages: { sw: "Kiswahili", en: "English", ar: "العربية" },
   home: {

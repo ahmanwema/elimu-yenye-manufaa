@@ -89,7 +89,7 @@ describe("dictionaries", () => {
     const en = Object.fromEntries(flatten(DICTIONARIES.en));
     const same = (l: "sw" | "ar") => flatten(DICTIONARIES[l]).filter(([k, v]) => v === en[k]).map(([k]) => k);
     // Only proper names / language names may be identical.
-    const allowed = ["meta.title", "home.title", "languages.sw", "languages.en", "languages.ar", "markaz.title"];
+    const allowed = ["meta.title", "home.title", "languages.sw", "languages.en", "languages.ar", "markaz.title", "nav.items.markaz"];
     expect(same("sw").filter((k) => !allowed.includes(k))).toEqual([]);
     expect(same("ar").filter((k) => !allowed.includes(k))).toEqual([]);
   });

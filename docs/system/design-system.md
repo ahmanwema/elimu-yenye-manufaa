@@ -1,6 +1,6 @@
 # Design System
 
-Status: **PROPOSED** direction; final palette/typography subject to approval (per brief Part 10). Codefinity screenshots referenced in the brief were **not found** in this repository (`references/ui/` does not exist) — this document is written from the brief's own written requirements, as instructed for that fallback case.
+Status: direction, palette and typefaces **APPROVED 2026-11-26** (A152); see §2 and [ui-plan.md](ui-plan.md). (Earlier: PROPOSED, per brief Part 10.) Codefinity screenshots referenced in the brief were **not found** in this repository (`references/ui/` does not exist) — this document is written from the brief's own written requirements, as instructed for that fallback case.
 
 ## 1. Design principles (original identity, inspired-by not copied-from)
 
@@ -9,13 +9,26 @@ Status: **PROPOSED** direction; final palette/typography subject to approval (pe
 - **Arabic-first typographic respect**: Arabic text is never an afterthought skin on a Latin layout — RTL and tashkīl rendering are first-class, not a mirrored CSS hack applied late.
 - **Teacher tools prioritize the whiteboard**: on desktop, the teacher's chrome recedes so the writing surface gets maximum space (per brief 10.1).
 
-## 2. Placeholder design tokens (PROPOSED, not final)
+## 2. Design tokens (APPROVED 2026-11-26, A152)
 
-These are structural placeholders to let component specs reference consistent names — exact hex/type values are subject to approval and intentionally not over-specified here.
+Implemented as CSS custom properties in `src/app/globals.css`. Dark-only for now (a light theme is a later decision). Layout and phases: [ui-plan.md](ui-plan.md).
 
-- Color roles needed: `surface-bg`, `surface-raised`, `text-primary`, `text-secondary`, `accent-primary` (brand), `accent-success` (progress/completion), `accent-warning` (raised-hand/attention), `accent-danger` (errors, revoked permission), each with light and dark values.
-- Typography roles: `font-latin` (Swahili/English body), `font-arabic` (Qur'anic/Arabic text — must support tashkīl correctly, e.g. an Amiri/Noto Naskh Arabic-class typeface, final choice pending approval), `font-mono` (code/reference only if ever needed).
-- Spacing/radius scale: a standard 4/8px-based scale, final values pending a visual design pass.
+| Token | Value | Role |
+|---|---|---|
+| `--surface-bg` | `#0E1521` | Page background |
+| `--surface-raised` | `#18212F` | Cards, panels, top bar |
+| `--surface-sunken` | `#121A27` | Inputs, inset areas |
+| `--surface-rail` | `#26304A` | Side rail |
+| `--border` | `#34425C` | Card and table borders |
+| `--text-primary` / `--text-secondary` | `#F1F4F8` / `#A6B0C0` | Text |
+| `--accent-primary` | `#F5922A` | Brand; primary actions, active tab, links |
+| `--accent-success` | `#3CC48A` | Progress, completion, paid, present |
+| `--accent-warning` | `#F2C94C` | Attention, raised hand, late, grace |
+| `--accent-danger` | `#E5676B` | Errors, revoked permission, absent |
+| `--accent-info` | `#A9C1F5` | Subject badges |
+
+- Typography: `--font-latin` **Inter** (Swahili/English body), `--font-heading` **Lexend** (headings), `--font-arabic` **Noto Naskh Arabic** (Arabic UI and Qur'anic text — tashkīl still to be checked with real Qur'anic samples). Self-hosted through `next/font`.
+- Spacing `--space-1`…`--space-6` (0.25 → 4 rem); radii `--radius-sm` 0.5 rem, `--radius` 0.75 rem, `--radius-lg` 1 rem, pills 999 px.
 
 ## 3. RTL and Arabic typography requirements
 
@@ -45,4 +58,4 @@ Full desktop/tablet/mobile wireframes for the Live Class lesson page are describ
 
 ## 6. What is explicitly NOT done here
 
-No color hex values, no font files, no logo, and no Codefinity asset are included or referenced beyond written description — consistent with the "do not copy Codefinity branding/graphics" instruction.
+No logo, illustration, copy or exact colour value of Codefinity is included, and its screenshots are kept off this public repository — consistent with the "do not copy Codefinity branding/graphics" instruction. Our own colour values (§2) were added 2026-11-26.

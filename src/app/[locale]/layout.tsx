@@ -1,10 +1,25 @@
 import type { Metadata, Viewport } from "next";
-import { Suspense } from "react";
+import { Inter, Lexend, Noto_Naskh_Arabic } from "next/font/google";
+import { Suspense, cache } from "react";
+import { AppNav } from "@/components/app-nav";
+import { Icon } from "@/components/icons";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { LOCALES, localeDirection } from "@/i18n/config";
 import { getDictionary, getLocale } from "@/i18n/server";
+import { bottomNav } from "@/lib/navigation";
+import { getCurrentActor } from "@/server/auth";
+import { buildNav } from "@/server/navigation";
 import "../globals.css";
+
+// Typefaces (A152), self-hosted by next/font at build time. Exposed as CSS variables that
+// globals.css composes into --font-latin / --font-heading / --font-arabic.
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const lexend = Lexend({ subsets: ["latin"], variable: "--font-lexend", display: "swap" });
+const naskh = Noto_Naskh_Arabic({ subsets: ["arabic"], variable: "--font-naskh", display: "swap" });
+
+// One actor lookup per request for the whole shell (top bar + navigation).
+const getShellActor = cache(getCurrentActor);
 
 export function generateStaticParams() {
   return LOCALES.map((locale) => ({ locale }));
@@ -25,7 +40,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#10151b",
+  themeColor: "#0E1521",
 };
 
 // Root layout. lang/dir come from the [locale] segment: Kiswahili and English are LTR,
@@ -35,19 +50,20 @@ export default async function LocaleLayout({ children }: LayoutProps<"/[locale]"
   const dict = await getDictionary();
 
   return (
-    <html lang={locale} dir={localeDirection(locale)}>
+    <html
+      lang={locale}
+      dir={localeDirection(locale)}
+      className={`${inter.variable} ${lexend.variable} ${naskh.variable}`}
+    >
       <body>
         <a className="skip-link" href="#main">
           {dict.nav.skipToContent}
         </a>
-        <header className="site-header">
+        <header className="topbar">
           <a className="brand" href={`/${locale}`}>
-            {dict.meta.title}
+            <span className="brand-mark" aria-hidden="true" />
+            <span>{dict.meta.title}</span>
           </a>
-          <nav aria-label={dict.nav.home} className="site-nav">
-            <a href={`/${locale}`}>{dict.nav.home}</a>
-            <a href={`/${locale}/account`}>{dict.nav.account}</a>
-          </nav>
           {/* The switcher reads the current path (request data on dynamic routes), so it
               streams in; the fallback links to each language's home page. */}
           <Suspense
@@ -67,12 +83,50 @@ export default async function LocaleLayout({ children }: LayoutProps<"/[locale]"
           >
             <LanguageSwitcher current={locale} label={dict.nav.language} names={dict.languages} />
           </Suspense>
+          <Suspense fallback={null}>
+            <TopbarAccount />
+          </Suspense>
         </header>
-        <main id="main" className="shell">
-          {children}
-        </main>
+        <div className="app-body">
+          <Suspense fallback={null}>
+            <ShellNav />
+          </Suspense>
+          <main id="main" className="shell">
+            {children}
+          </main>
+        </div>
         <ServiceWorkerRegistration />
       </body>
     </html>
   );
+}
+
+/** Signed out: a "Sign in" button. Signed in: an avatar link to the account page. */
+async function TopbarAccount() {
+  const locale = await getLocale();
+  const dict = await getDictionary();
+  const current = await getShellActor();
+  if (current.state === "signed-in") {
+    return (
+      <a className="avatar-link" href={`/${locale}/account`} aria-label={dict.nav.account}>
+        <Icon name="account" />
+      </a>
+    );
+  }
+  if (current.state === "not-configured") return null;
+  return (
+    <a className="button button-primary button-sm" href={`/${locale}/sign-in`}>
+      {dict.nav.signIn}
+    </a>
+  );
+}
+
+/** Role-aware rail (desktop) and bottom bar (phone); nothing for signed-out visitors. */
+async function ShellNav() {
+  const locale = await getLocale();
+  const dict = await getDictionary();
+  const current = await getShellActor();
+  const items = buildNav(current.state === "signed-in" ? current.actor : null, locale);
+  if (items.length === 0) return null;
+  return <AppNav items={items} bottomItems={bottomNav(items)} labels={dict.nav.items} ariaLabel={dict.nav.main} />;
 }

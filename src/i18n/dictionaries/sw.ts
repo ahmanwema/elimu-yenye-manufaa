@@ -15,6 +15,8 @@ export const sw: Dictionary = {
     platform: "Usimamizi wa jukwaa",
     language: "Lugha",
     skipToContent: "Ruka hadi maudhui",
+    main: "Urambazaji mkuu",
+    items: { home: "Mwanzo", markaz: "Markaz", classes: "Madarasa", payments: "Malipo", platform: "Jukwaa", account: "Akaunti" },
   },
   languages: { sw: "Kiswahili", en: "English", ar: "العربية" },
   home: {

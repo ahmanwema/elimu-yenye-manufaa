@@ -423,6 +423,30 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
   Swahili refusal that covers unknown, expired, cancelled and full alike — the state of a link still
   cannot be probed in production.
 
+## 2026-11-26 — UI redesign F0 + F1: tokens, app shell, role-aware navigation (A152, A153)
+
+- **Plan saved** as [docs/system/ui-plan.md](docs/system/ui-plan.md): the owner chose the layout
+  system and colour family of a dark learning platform (screenshots kept on the owner's machine,
+  not in this public repo), with our own values, wordmark and text. Phases F0–F7 by role.
+- **F0:** tokens approved and written into design-system.md §2 and `src/app/globals.css` (dark navy
+  `#0E1521`, orange `#F5922A`, dark-only for now); Inter / Lexend / Noto Naskh Arabic via `next/font`
+  (no new package); manifest and theme colour updated.
+- **F1:** new shell in `src/app/[locale]/layout.tsx` — sticky top bar (wordmark, language switcher,
+  Sign in button or account avatar), icon rail on desktop, bottom bar on phones (< 900 px).
+  Navigation is built server-side from the Actor (`src/server/navigation.ts`), active state on the
+  client (`src/lib/navigation.ts`, `src/components/app-nav.tsx`); it is never authorization (A153).
+  Component classes restyled in place (cards, pill badges, buttons, tables, forms) and new ones added
+  (tabs with counts, chips, progress, KPI tiles, empty state, card grid), so every existing page
+  picks up the new look without a rewrite. New nav strings in sw/en/ar; `tests/unit/navigation.test.ts`.
+- **Verification:** Node.js LTS (v26.13.1) installed with winget on owner approval, `npm ci` from the
+  lockfile. **841/841 tests in 40 files** (one i18n allow-list addition: "Markaz" is the same word in
+  sw and en), lint and typecheck clean, `npm run build` clean (fonts fetched at build time).
+  `next start` serves `/sw` and `/ar/sign-in` with the new shell, `dir="rtl"` for Arabic. The earlier
+  "vitest fails in this checkout" issue did not reproduce on this fresh install. There is no
+  `.env.local` on this machine, so Supabase is "not configured" locally and the signed-in navigation
+  could only be checked through the unit tests, not in a browser.
+  Nothing committed, pushed or deployed.
+
 ## Status snapshot
 
 | Area | Status |

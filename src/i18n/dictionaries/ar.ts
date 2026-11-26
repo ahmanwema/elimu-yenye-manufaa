@@ -15,6 +15,8 @@ export const ar: Dictionary = {
     platform: "إدارة المنصة",
     language: "اللغة",
     skipToContent: "انتقل إلى المحتوى الرئيسي",
+    main: "التنقل الرئيسي",
+    items: { home: "الرئيسية", markaz: "المركز", classes: "الفصول", payments: "المدفوعات", platform: "المنصة", account: "حسابي" },
   },
   languages: { sw: "Kiswahili", en: "English", ar: "العربية" },
   home: {
