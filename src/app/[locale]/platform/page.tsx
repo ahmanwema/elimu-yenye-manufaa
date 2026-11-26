@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ActionForm } from "@/components/action-form";
 import { JoinLinkCreateForm } from "@/components/join-link-create-form";
+import { SectionTabs } from "@/components/section-tabs";
 import { format } from "@/i18n/dictionaries";
 import { getDictionary, getLocale } from "@/i18n/server";
 import { declineOptionCAction, disableOptionCAction, enableOptionCAction } from "@/server/actions/media";
@@ -51,9 +52,26 @@ async function PlatformBody() {
     listTenants(db, current.actor),
   ]);
   const name = (n: string | null) => n ?? dict.markaz.unnamed;
+  const pd = dict.platformDashboard;
 
   return (
     <>
+      <div className="stat-grid">
+        <a className="stat stat-link" href="#markaz-list">
+          <span className="stat-value">{tenants.length}</span>
+          <span className="stat-label">{pd.kpiMarkaz}</span>
+        </a>
+        <a className="stat stat-link" href="#requests">
+          <span className="stat-value">{requests.length}</span>
+          <span className="stat-label">{pd.kpiRequests}</span>
+        </a>
+        <a className="stat stat-link" href="#option-c">
+          <span className="stat-value">{optionC.filter((o) => o.status === "PENDING").length}</span>
+          <span className="stat-label">{pd.kpiOptionC}</span>
+        </a>
+      </div>
+      <SectionTabs label={dict.common.onThisPage} />
+
       <section className="card" aria-labelledby="create-markaz">
         <h2 id="create-markaz">{dict.platform.createHeading}</h2>
         <p className="muted">{dict.platform.createNote}</p>
@@ -69,38 +87,61 @@ async function PlatformBody() {
           <span className="muted">{dict.platform.createSlugNote}</span>
           <span className="muted">{dict.platform.createAdminNote}</span>
         </ActionForm>
-        <h3>{dict.platform.tenantsHeading}</h3>
+      </section>
+
+      <section aria-labelledby="markaz-list">
+        <h2 id="markaz-list" className="section-title">
+          {dict.platform.tenantsHeading}
+        </h2>
         {tenants.length === 0 ? (
-          <p className="muted">{dict.platform.noTenants}</p>
+          <p className="empty-state">{dict.platform.noTenants}</p>
         ) : (
-          <ul className="list">
-            {tenants.map((t) => (
-              <li key={t.id}>
-                <div className="row">
-                  <span>{t.name}</span>
-                  <span className="muted">{t.slug}</span>
-                </div>
-                <JoinLinkCreateForm
-                  locale={locale}
-                  tenantId={t.id}
-                  roles={[{ value: "MARKAZ_ADMIN", label: dict.roles.MARKAZ_ADMIN }]}
-                  classes={[]}
-                  strings={{
-                    label: dict.markaz.joinLinkLabel,
-                    roleLabel: dict.markaz.joinLinkRole,
-                    classLabel: dict.markaz.joinLinkClass,
-                    noClass: dict.markaz.joinLinkNoClass,
-                    days: dict.markaz.joinLinkDays,
-                    maxUses: dict.markaz.joinLinkMaxUses,
-                    create: dict.platform.createAdminLink,
-                    created: dict.markaz.joinLinkCreated,
-                    loading: dict.common.loading,
-                    results: dict.results,
-                  }}
-                />
-              </li>
-            ))}
-          </ul>
+          <div className="card table-card">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th scope="col">{pd.colName}</th>
+                  <th scope="col">{pd.colCode}</th>
+                  <th scope="col">{pd.colAdminLink}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tenants.map((t) => (
+                  <tr key={t.id}>
+                    <td>
+                      <strong>{t.name}</strong>
+                    </td>
+                    <td>
+                      <code dir="ltr">{t.slug}</code>
+                    </td>
+                    <td>
+                      <details className="inline-details">
+                        <summary>{pd.newLink}</summary>
+                        <JoinLinkCreateForm
+                          locale={locale}
+                          tenantId={t.id}
+                          roles={[{ value: "MARKAZ_ADMIN", label: dict.roles.MARKAZ_ADMIN }]}
+                          classes={[]}
+                          strings={{
+                            label: dict.markaz.joinLinkLabel,
+                            roleLabel: dict.markaz.joinLinkRole,
+                            classLabel: dict.markaz.joinLinkClass,
+                            noClass: dict.markaz.joinLinkNoClass,
+                            days: dict.markaz.joinLinkDays,
+                            maxUses: dict.markaz.joinLinkMaxUses,
+                            create: dict.platform.createAdminLink,
+                            created: dict.markaz.joinLinkCreated,
+                            loading: dict.common.loading,
+                            results: dict.results,
+                          }}
+                        />
+                      </details>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

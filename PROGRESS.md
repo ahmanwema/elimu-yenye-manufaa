@@ -532,7 +532,28 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
   rejected `Date.now()` in render.
 - **Verification:** **863/863 tests in 43 files**, lint, typecheck and build clean; `next start`
   serves the Markaz and finance routes in sw/ar, including `?status=` values (200). Signed-in views
-  not yet seen in a browser. Not committed.
+  not yet seen in a browser.
+- **Committed `10d6d30` and pushed** (`a4542e0..10d6d30`, owner-authorised; credential scan of the new
+  commit: 0 matches). Vercel redeployed.
+
+## 2026-11-26 — UI redesign F6: parent home and Super Admin platform page
+
+- **Parent home** (`src/app/[locale]/_home/parent-home.tsx`): "My children" — one card per child with
+  an ACTIVE link (Markaz badge, attended X of Y, number of corrections, the last five attendance
+  entries as date + class + Present/Absent · On time/Late badges, and a link to that child's section
+  of the account page). Pending link requests are counted in a callout; with no child yet, an empty
+  state links to the account page to request one. Data from `listMyParentLinks`,
+  `listChildAttendance` and `listStudentCorrections`, each of which re-checks the link (A41, A127):
+  dates only, never times or durations.
+- **Home composition:** quick links (admin, finance, Super Admin), then teaching, own learning and
+  children, each later block divided. A parent with no other role gets no quick-link card for the
+  account page alone.
+- **Platform page:** KPI tiles (Markaz, appointment requests, Option C requests — each jumps to its
+  section), sticky section tabs, and the Markaz list as a table (name, code, and the Markaz
+  Administrator link form folded into a `<details>`). All forms and actions unchanged.
+- **Verification:** **863/863 tests in 43 files**, lint, typecheck and build clean; `next start`
+  serves `/sw`, `/ar/platform` and `/en/account` (200). Signed-in views not yet seen in a browser.
+  Not committed.
 
 ## Status snapshot
 

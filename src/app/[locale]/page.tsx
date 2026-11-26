@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { ParentHome } from "./_home/parent-home";
 import { TeacherHome } from "./_home/teacher-home";
 import { Icon } from "@/components/icons";
 import { MediaPlayButton } from "@/components/media-play-button";
@@ -92,38 +93,45 @@ async function loadStudentData(actor: Actor, now: Date) {
 async function Dashboard({ locale, dict, actor }: { locale: Locale; dict: Dictionary; actor: Actor }) {
   const d = dict.dashboard;
   const db = getDb();
-  const profile = await db.profile.findUnique({ where: { id: actor.profileId }, select: { displayName: true, studentAccount: { select: { profileId: true } } } });
+  const profile = await db.profile.findUnique({
+    where: { id: actor.profileId },
+    select: { displayName: true, studentAccount: { select: { profileId: true } }, parentAccount: { select: { profileId: true } } },
+  });
   const isStudent = profile?.studentAccount != null && actor.memberships.some((m) => m.status === "ACTIVE" && m.role === "STUDENT");
   const isTeacher = actor.memberships.some((m) => m.status === "ACTIVE" && m.role === "TEACHER");
+  const isParent = profile?.parentAccount != null;
   const greeting = profile?.displayName ? format(d.greeting, { name: profile.displayName }) : d.greetingNoName;
+  const links = buildNav(actor, locale).filter((i) => i.key !== "home");
+  // Quick links for roles without a section of their own (admin, finance, Super Admin) —
+  // not for a parent whose only other destination is the account page.
+  const showQuickLinks = !isTeacher && !isStudent && (!isParent || links.length > 1);
 
-  if (!isStudent && !isTeacher) {
-    const links = buildNav(actor, locale).filter((i) => i.key !== "home");
-    return (
-      <>
-        <h1>{greeting}</h1>
-        <p className="muted">{d.quickLinksNote}</p>
-        <h2 className="section-title">{d.quickLinksHeading}</h2>
-        <div className="card-grid">
-          {links.map((item) => (
-            <a key={item.key} href={item.href} className="card card-interactive quick-link">
-              <Icon name={item.key} size={28} />
-              <span>{dict.nav.items[item.key]}</span>
-            </a>
-          ))}
-        </div>
-      </>
-    );
-  }
-
-  // A teacher sees their teaching first; one who is also a student elsewhere sees their own
-  // learning below it.
+  // Order: teaching, own learning, children. Each later block gets a divider.
   return (
     <>
       <h1>{greeting}</h1>
+      {showQuickLinks ? (
+        <>
+          <p className="muted">{d.quickLinksNote}</p>
+          <h2 className="section-title">{d.quickLinksHeading}</h2>
+          <div className="card-grid">
+            {links.map((item) => (
+              <a key={item.key} href={item.href} className="card card-interactive quick-link">
+                <Icon name={item.key} size={28} />
+                <span>{dict.nav.items[item.key]}</span>
+              </a>
+            ))}
+          </div>
+        </>
+      ) : null}
       {isTeacher ? <TeacherHome locale={locale} dict={dict} actor={actor} /> : null}
       {isTeacher && isStudent ? <h2 className="section-title section-divider">{dict.teacherDashboard.studentSectionHeading}</h2> : null}
       {isStudent ? <StudentHome locale={locale} dict={dict} actor={actor} /> : null}
+      {isParent ? (
+        <div className={isTeacher || isStudent || showQuickLinks ? "section-divider" : undefined}>
+          <ParentHome locale={locale} dict={dict} actor={actor} />
+        </div>
+      ) : null}
     </>
   );
 }

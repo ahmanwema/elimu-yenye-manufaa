@@ -1177,3 +1177,44 @@ code {
 .table td {
   vertical-align: top;
 }
+
+/* ======================================================================================
+ * Super Admin and Parent (ui-plan §4, F6).
+ * ==================================================================================== */
+.inline-details summary {
+  cursor: pointer;
+  color: var(--accent-primary);
+  font-weight: 600;
+  min-block-size: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+}
+.inline-details[open] {
+  min-inline-size: 18rem;
+}
+.child-card {
+  display: flex;
+  flex-direction: column;
+}
+.child-card .card-actions {
+  margin-block-start: auto;
+  padding-block-start: var(--space-3);
+}
+.mini-heading {
+  margin-block: var(--space-3) var(--space-2);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.attendance-mini {
+  display: grid;
+  gap: var(--space-1);
+}
+.attendance-mini li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+}
