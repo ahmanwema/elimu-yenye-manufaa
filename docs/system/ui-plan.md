@@ -10,7 +10,7 @@ token values.
 The owner asked for the UI to follow the layout system and colour family of a modern dark
 coding-education platform (reference screenshots kept **on the owner's machine only**, not in this
 public repository). We adopt its *structure* — narrow icon rail, top bar with search and language,
-card grids with small pill badges, tabs with counts, sortable tables, orange primary actions, a
+card grids with small pill badges, tabs with counts, sortable tables, gold primary actions (orange until A158), a
 bottom navigation bar on phones — with **our own token values, wordmark and text**. No logo,
 illustration, copy or exact colour value of that platform is used (design-system.md §1, §6).
 
@@ -28,9 +28,9 @@ its own decision.
 | `surface-rail` | `#26304A` | Side rail |
 | `border` | `#34425C` | Card and table borders |
 | `text-primary` / `text-secondary` | `#F1F4F8` / `#A6B0C0` | Text |
-| `accent-primary` | `#F5922A` | Primary buttons, active tab, links |
-| `accent-success` | `#3CC48A` | Paid, present, completed |
-| `accent-warning` | `#F2C94C` | Late, grace period |
+| `accent-primary` | `#FBBC31` | Primary buttons, active tab, links (logo gold, A158) |
+| `accent-success` | `#02ADA4` | Paid, present, completed (logo teal) |
+| `accent-warning` | `#F5922A` | Late, grace period |
 | `accent-danger` | `#E5676B` | Absent, rejected, errors |
 | `accent-info` | `#A9C1F5` | Subject badges (light pill, dark text) |
 
@@ -58,7 +58,7 @@ with real Qur'anic samples before F3.
 Plain CSS classes in `src/app/globals.css` (no UI library), so every existing page picks up the new
 look without a rewrite:
 
-`.button` (`-primary` orange pill, `-secondary` outline pill), `.card` (bordered, rounded),
+`.button` (`-primary` gold pill, `-secondary` outline pill), `.card` (bordered, rounded),
 `.card-grid`, `.badge` (pill; `-info`, `-success`, `-warning`, `-danger`, `-accent`), `.chip`
 (status with dot), `.tabs` (with `.tab-count`), `.table` (header row, row dividers), `.progress`,
 `.stat` (KPI tile), `.empty-state`, `.section-title`, form fields with focus ring. Icons are inline

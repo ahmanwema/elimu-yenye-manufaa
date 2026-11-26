@@ -11,7 +11,7 @@ Status: direction, palette and typefaces **APPROVED 2026-11-26** (A152); see §2
 
 ## 2. Design tokens (APPROVED 2026-11-26, A152)
 
-Implemented as CSS custom properties in `src/app/globals.css`. Dark by default; a **light theme** (A156) follows the system preference or the top-bar toggle, with these overrides: surfaces `#F4F6FA` / `#FFFFFF` / `#EEF1F6`, rail `#E3E8F2`, border `#D5DCE8`, text `#13203A` / `#55627A`, accent `#B35A0C` (white text on it), success `#2FAE74`, warning `#E0B23A`, danger `#D9575C`, table headings `#3C5A9A`. Layout and phases: [ui-plan.md](ui-plan.md).
+Implemented as CSS custom properties in `src/app/globals.css`. Dark by default; a **light theme** (A156) follows the system preference or the top-bar toggle, with these overrides: surfaces `#F4F6FA` / `#FFFFFF` / `#EEF1F6`, rail `#E3E8F2`, border `#D5DCE8`, text `#13203A` / `#55627A`, accent `#8A5A00` (white text on it), success `#0E9A92`, warning `#E98A2A`, danger `#D9575C`, table headings `#3C5A9A`. Layout and phases: [ui-plan.md](ui-plan.md).
 
 | Token | Value | Role |
 |---|---|---|
@@ -21,9 +21,9 @@ Implemented as CSS custom properties in `src/app/globals.css`. Dark by default; 
 | `--surface-rail` | `#26304A` | Side rail |
 | `--border` | `#34425C` | Card and table borders |
 | `--text-primary` / `--text-secondary` | `#F1F4F8` / `#A6B0C0` | Text |
-| `--accent-primary` | `#F5922A` | Brand; primary actions, active tab, links |
-| `--accent-success` | `#3CC48A` | Progress, completion, paid, present |
-| `--accent-warning` | `#F2C94C` | Attention, raised hand, late, grace |
+| `--accent-primary` | `#FBBC31` | Brand gold from the logo (A158); primary actions, active tab, links |
+| `--accent-success` | `#02ADA4` | Logo teal; progress, completion, paid, present |
+| `--accent-warning` | `#F5922A` | Attention, raised hand, late, grace |
 | `--accent-danger` | `#E5676B` | Errors, revoked permission, absent |
 | `--accent-info` | `#A9C1F5` | Subject badges |
 

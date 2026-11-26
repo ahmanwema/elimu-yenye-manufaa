@@ -159,3 +159,7 @@ free class:  (enroll) ──seat──▶ ACTIVE / ──full──▶ WAITLISTE
 paid class:  (enroll) ──▶ PENDING_PAYMENT ──verified──▶ ACTIVE (seat) / WAITLISTED (full)
 ACTIVE ──▶ GRACE (7 d) ──▶ SUSPENDED (seat freed) ──verified──▶ ACTIVE (seat) / WAITLISTED (full)
 ```
+
+## Media phase plan (2026-11-26, PROPOSED)
+
+LiveKit audio + Supabase Realtime whiteboard (A154): [live-class-media-plan.md](live-class-media-plan.md). Not authorized yet.

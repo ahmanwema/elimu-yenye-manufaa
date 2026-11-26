@@ -662,3 +662,11 @@ not run since the last six migrations were applied.
 (2026-10-19) Owner reviews the Live Class foundation report, confirms or changes the interim interpretations (open questions 53–58), and decides whether to APPLY the two Live Class migrations to the DEV project per the pre-apply plan. RTC vendor (A35), payment terms (OQ57) and job scheduling (OQ59) remain owner decisions.
 
 Earlier (2026-10-16 and before, kept for history): Owner confirms the interpretations listed in the latest report (child proposal by Markaz Admins needs both explicit grants; registration-number format) and chooses the next feature scope. Production readiness is NOT approved; the Supabase project stays development-only.
+
+## 2026-11-26 — Accent retuned to the logo gold (A158); Live Class media plan written
+
+- `globals.css`: dark accent `#FBBC31` (hover `#FFCB5C`), success logo teal `#02ADA4`, warning the former
+  orange `#F5922A`; light theme accent `#8A5A00`, success `#0E9A92`, warning `#E98A2A`. Docs updated
+  (design-system.md §2, ui-plan.md, DECISIONS A158). CSS only; not committed yet.
+- `docs/features/live-class-media-plan.md` (PROPOSED): phases M0–M5 for LiveKit audio and the Supabase
+  Realtime whiteboard, acceptance criteria, cost, open questions. No install, migration or code.
