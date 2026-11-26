@@ -1081,3 +1081,99 @@ section[aria-labelledby] {
 .page-title {
   margin-block-start: var(--space-2);
 }
+
+/* ======================================================================================
+ * Markaz Admin / Finance (ui-plan §4, F5).
+ * ==================================================================================== */
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-4);
+}
+.page-head h1 {
+  margin-block-end: var(--space-1);
+}
+.page-head p {
+  margin: 0;
+}
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+a.stat-link {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+a.stat-link:hover {
+  border-color: var(--accent-primary);
+}
+.switcher {
+  position: relative;
+  display: inline-block;
+  margin-block-end: var(--space-3);
+}
+.switcher summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: 2.75rem;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  cursor: pointer;
+  list-style: none;
+}
+.switcher summary::-webkit-details-marker {
+  display: none;
+}
+.switcher summary::after {
+  content: "▾";
+  color: var(--text-secondary);
+}
+.switcher-menu {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: calc(100% + var(--space-1));
+  z-index: 15;
+  min-inline-size: 16rem;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+}
+.switcher-menu a {
+  display: flex;
+  align-items: center;
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.switcher-menu a:hover {
+  background: var(--surface-hover);
+}
+.switcher-menu a[aria-current="page"] {
+  color: var(--accent-primary);
+  font-weight: 700;
+}
+.nowrap {
+  white-space: nowrap;
+}
+code {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.85em;
+  padding-inline: 0.35rem;
+  border-radius: 0.3rem;
+  background: var(--surface-sunken);
+}
+.table td {
+  vertical-align: top;
+}

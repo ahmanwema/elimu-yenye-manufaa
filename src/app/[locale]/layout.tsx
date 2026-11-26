@@ -7,9 +7,9 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { LOCALES, localeDirection } from "@/i18n/config";
 import { getDictionary, getLocale } from "@/i18n/server";
-import { bottomNav } from "@/lib/navigation";
+
 import { getCurrentActor } from "@/server/auth";
-import { buildNav } from "@/server/navigation";
+import { buildNav, buildNavByTenant } from "@/server/navigation";
 import "../globals.css";
 
 // Typefaces (A152), self-hosted by next/font at build time. Exposed as CSS variables that
@@ -126,7 +126,8 @@ async function ShellNav() {
   const locale = await getLocale();
   const dict = await getDictionary();
   const current = await getShellActor();
-  const items = buildNav(current.state === "signed-in" ? current.actor : null, locale);
+  const actor = current.state === "signed-in" ? current.actor : null;
+  const items = buildNav(actor, locale);
   if (items.length === 0) return null;
-  return <AppNav items={items} bottomItems={bottomNav(items)} labels={dict.nav.items} ariaLabel={dict.nav.main} />;
+  return <AppNav items={items} byTenant={buildNavByTenant(actor, locale)} labels={dict.nav.items} ariaLabel={dict.nav.main} />;
 }

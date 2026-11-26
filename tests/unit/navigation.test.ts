@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DICTIONARIES } from "@/i18n/dictionaries";
-import { activeNavKey, bottomNav, BOTTOM_NAV_MAX, NAV_KEYS, type NavItem } from "@/lib/navigation";
+import { activeNavKey, bottomNav, BOTTOM_NAV_MAX, NAV_KEYS, navForPath, tenantFromPath, type NavItem } from "@/lib/navigation";
 import type { Actor, ActorMembership } from "@/server/authz/policy";
-import { buildNav } from "@/server/navigation";
+import { buildNav, buildNavByTenant } from "@/server/navigation";
 
 // A153: navigation shows what a person's ACTIVE roles lead to. It is never authorization —
 // these tests pin what is shown, the pages' own checks are tested elsewhere.
@@ -136,5 +136,42 @@ describe("navigation labels", () => {
   it.each(["sw", "en", "ar"] as const)("%s has a short label for every item", (locale) => {
     for (const key of NAV_KEYS) expect(DICTIONARIES[locale].nav.items[key].length).toBeGreaterThan(0);
     expect(DICTIONARIES[locale].nav.main.length).toBeGreaterThan(0);
+  });
+});
+
+describe("per-Markaz navigation (F5 switcher)", () => {
+  const two = actor([
+    { tenantId: T1, role: "TEACHER", status: "ACTIVE" },
+    { tenantId: T2, role: "MARKAZ_ADMIN", status: "ACTIVE" },
+  ]);
+
+  it("the Markaz in the URL wins when the person qualifies there", () => {
+    expect(buildNav(two, "sw").find((i) => i.key === "markaz")?.href).toBe(`/sw/markaz/${T1}`);
+    expect(buildNav(two, "sw", T2).find((i) => i.key === "markaz")?.href).toBe(`/sw/markaz/${T2}`);
+    expect(buildNav(two, "sw", T2).find((i) => i.key === "payments")?.href).toBe(`/sw/markaz/${T2}/finance`);
+  });
+
+  it("a preferred Markaz the person does not belong to is ignored", () => {
+    const stranger = "44444444-4444-4444-8444-444444444444";
+    expect(buildNav(two, "sw", stranger)).toEqual(buildNav(two, "sw"));
+  });
+
+  it("one set per ACTIVE Markaz", () => {
+    expect(Object.keys(buildNavByTenant(two, "sw")).sort()).toEqual([T1, T2].sort());
+    expect(buildNavByTenant(null, "sw")).toEqual({});
+  });
+
+  it("navForPath picks the set for the Markaz in the path, else the default", () => {
+    const byTenant = buildNavByTenant(two, "sw");
+    const fallback = buildNav(two, "sw");
+    expect(navForPath(`/sw/markaz/${T2}/classes`, fallback, byTenant)).toBe(byTenant[T2]);
+    expect(navForPath("/sw/account", fallback, byTenant)).toBe(fallback);
+    expect(navForPath("/sw/markaz/__proto__", fallback, byTenant)).toBe(fallback);
+    expect(navForPath("/sw/markaz/%E0%A4%A", fallback, byTenant)).toBe(fallback);
+  });
+
+  it("tenantFromPath reads only the Markaz segment", () => {
+    expect(tenantFromPath(`/ar/markaz/${T1}/finance`)).toBe(T1);
+    expect(tenantFromPath("/ar/platform")).toBeNull();
   });
 });

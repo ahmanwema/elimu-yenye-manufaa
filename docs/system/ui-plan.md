@@ -1,7 +1,7 @@
 # UI plan — dark learning-platform layout
 
 **Status (2026-11-26):** direction, palette and phases **APPROVED by the owner** (A152). Phases
-**F0–F4 authorized and implemented** (A153). Phases F5–F7 remain **PROPOSED** and each
+**F0–F5 authorized and implemented** (A153). Phases F6–F7 remain **PROPOSED** and each
 needs its own authorization. Companion to [design-system.md](design-system.md), which holds the
 token values.
 
@@ -76,8 +76,8 @@ SVGs in `src/components/icons.tsx`.
 | Markaz Admin | Dashboard · Classes · Payments · Account | **Dashboard:** KPI tiles (students, classes, seats left, payments pending). People (tabs by role), Join links (create, copy for WhatsApp, uses left), Parent links, Settings (time zone banner when unset). |
 | Super Admin | Platform | Markaz table, "Open a Markaz", platform capacity ceilings. |
 
-A person with several Markaz memberships currently gets links for the **first** Markaz; a Markaz
-switcher is part of F5.
+A person with several Markaz memberships gets the links of the Markaz in the URL (first Markaz elsewhere), plus a
+Markaz switcher on the Markaz and finance pages (F5).
 
 ## 5. Phases
 
@@ -87,8 +87,8 @@ switcher is part of F5.
 | F1 | App shell (rail, top bar, bottom nav), role-aware navigation, component classes | Done 2026-11-26 |
 | F2 | Sign in / Join / Invite | Done 2026-11-26 (`42fe1a5`, deployed) |
 | F3 | Student pages | Done 2026-11-26 (`be6405f`, deployed): home dashboard, class cards, student nav |
-| F4 | Teacher pages | Done 2026-11-26 (not committed): teacher home, class page tabs. Live view waits on RTC (A35) |
-| F5 | Markaz Admin + Finance Officer pages, Markaz switcher | Proposed |
+| F4 | Teacher pages | Done 2026-11-26 (`a4542e0`, deployed): teacher home, class page tabs. Live view waits on RTC (A35) |
+| F5 | Markaz Admin + Finance Officer pages, Markaz switcher | Done 2026-11-26 (not committed) |
 | F6 | Super Admin + Parent pages | Proposed |
 | F7 | Landing page + footer | Proposed |
 

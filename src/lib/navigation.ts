@@ -36,3 +36,20 @@ export function activeNavKey(items: readonly NavItem[], pathname: string): NavKe
   }
   return best?.key ?? null;
 }
+
+/** The Markaz id in a /{locale}/markaz/{id}/… path, if any. */
+export function tenantFromPath(pathname: string): string | null {
+  const match = /^\/[^/]+\/markaz\/([^/?#]+)/.exec(pathname);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null; // malformed escape in a typed URL
+  }
+}
+
+/** The navigation for the current path: that Markaz's links when the person has some there. */
+export function navForPath(pathname: string, fallback: NavItem[], byTenant: Record<string, NavItem[]>): NavItem[] {
+  const tenant = tenantFromPath(pathname);
+  return tenant && Object.hasOwn(byTenant, tenant) ? byTenant[tenant] : fallback;
+}

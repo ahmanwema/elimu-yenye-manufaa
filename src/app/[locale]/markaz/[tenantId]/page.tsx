@@ -5,6 +5,9 @@ import { ActionForm } from "@/components/action-form";
 import { CorrectionList } from "@/components/correction-list";
 import { InviteCreateForm } from "@/components/invite-create-form";
 import { JoinLinkCreateForm } from "@/components/join-link-create-form";
+import { MarkazSwitcher } from "@/components/markaz-switcher";
+import { SectionTabs } from "@/components/section-tabs";
+import { countOpenJoinLinks } from "@/lib/admin-dashboard";
 import { format } from "@/i18n/dictionaries";
 import { getDictionary, getLocale } from "@/i18n/server";
 import { revokeInvite } from "@/server/actions/invitations";
@@ -52,7 +55,8 @@ import {
   invitableTargets,
 } from "@/server/authz/policy";
 import { getDb } from "@/server/db";
-import { getTenant } from "@/server/data/tenants";
+import { getTenant, listMyTenants } from "@/server/data/tenants";
+import { listPaymentSubmissions } from "@/server/services/enrollments";
 import { listAppointmentCandidates, listTenantAppointmentRequests } from "@/server/services/appointments";
 import { listTenantConsentOverview } from "@/server/services/consent";
 import { ANCHOR_KINDS, listTenantCorrections } from "@/server/services/corrections";
@@ -138,25 +142,70 @@ async function MarkazBody({ params }: { params: PageProps<"/[locale]/markaz/[ten
   const targetLabel = (t: keyof typeof dict.roles) => dict.roles[t];
   const studentOptions = roster?.map((s) => ({ profileId: s.profileId, label: name(s.displayName) })) ?? [];
 
+  // F5 overview tiles, for a Markaz Admin only; every figure comes from a service that already
+  // authorized this admin for this Markaz.
+  const a = dict.adminDashboard;
+  const mayVerify = canVerifyPayment(actor, tenantId);
+  const [myTenants, adminClasses, adminPayments] = await Promise.all([
+    listMyTenants(db, actor),
+    can.administer ? listClasses(db, actor, tenantId).catch(() => []) : null,
+    can.administer && mayVerify ? listPaymentSubmissions(db, actor, tenantId).catch(() => []) : null,
+  ]);
+  const openLinks = countOpenJoinLinks(joinLinks ?? [], new Date());
+
   return (
     <>
-      <h1>{tenant.name}</h1>
-      <p className="muted">{format(dict.markaz.codeLabel, { code: tenant.slug })}</p>
-      {can.teach || can.administer || hasActiveRole(actor, tenantId, "STUDENT") ? (
-        <p>
-          <a className="button button-primary" href={`/${locale}/markaz/${tenant.id}/classes`}>
-            {dict.live.classesLink}
-          </a>
-        </p>
+      <MarkazSwitcher tenants={myTenants} currentId={tenant.id} locale={locale} label={a.switchLabel} currentLabel={a.currentMarkaz} />
+      <div className="page-head">
+        <div>
+          <h1>{tenant.name}</h1>
+          <p className="muted">{format(dict.markaz.codeLabel, { code: tenant.slug })}</p>
+        </div>
+        <div className="page-actions">
+          {can.teach || can.administer || hasActiveRole(actor, tenantId, "STUDENT") ? (
+            <a className="button button-primary" href={`/${locale}/markaz/${tenant.id}/classes`}>
+              {dict.live.classesLink}
+            </a>
+          ) : null}
+          {/* A140: the finance desk — Markaz Admins and Finance Officers only (re-checked on the page). */}
+          {mayVerify ? (
+            <a className="button button-secondary" href={`/${locale}/markaz/${tenant.id}/finance`}>
+              {dict.live.financeLink}
+            </a>
+          ) : null}
+        </div>
+      </div>
+
+      {can.administer ? (
+        <div className="stat-grid">
+          {roster ? (
+            <div className="stat">
+              <span className="stat-value">{roster.length}</span>
+              <span className="stat-label">{a.kpiStudents}</span>
+            </div>
+          ) : null}
+          {adminClasses ? (
+            <div className="stat">
+              <span className="stat-value">{adminClasses.filter((c) => c.status !== "ARCHIVED").length}</span>
+              <span className="stat-label">{a.kpiClasses}</span>
+            </div>
+          ) : null}
+          {adminPayments ? (
+            <a className="stat stat-link" href={`/${locale}/markaz/${tenant.id}/finance`}>
+              <span className="stat-value">{adminPayments.filter((p) => p.status === "SUBMITTED").length}</span>
+              <span className="stat-label">{a.kpiPayments}</span>
+            </a>
+          ) : null}
+          {joinLinks ? (
+            <a className="stat stat-link" href="#join-links">
+              <span className="stat-value">{openLinks}</span>
+              <span className="stat-label">{a.kpiLinks}</span>
+            </a>
+          ) : null}
+        </div>
       ) : null}
-      {/* A140: the finance desk — Markaz Admins and Finance Officers only (re-checked on the page). */}
-      {canVerifyPayment(actor, tenantId) ? (
-        <p>
-          <a className="button button-secondary" href={`/${locale}/markaz/${tenant.id}/finance`}>
-            {dict.live.financeLink}
-          </a>
-        </p>
-      ) : null}
+
+      <SectionTabs label={dict.common.onThisPage} />
 
       {roster && can.roster ? (
         <section className="card" aria-labelledby="roster">

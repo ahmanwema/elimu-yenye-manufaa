@@ -507,7 +507,32 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
 - **Not done, by dependency:** the whiteboard-first Live view — there is still no RTC/whiteboard
   transport (A35).
 - **Verification:** **855/855 tests in 42 files**, lint, typecheck and build clean; `next start`
-  serves `/sw` and a class route (200). Signed-in views not yet seen in a browser. Not committed.
+  serves `/sw` and a class route (200). Signed-in views not yet seen in a browser.
+- **Committed `a4542e0` and pushed** (`be6405f..a4542e0`, owner-authorised; credential scan of the new
+  commit: 0 matches). Vercel redeployed.
+
+## 2026-11-26 — UI redesign F5: Markaz Admin overview, finance desk, Markaz switcher
+
+- **Navigation follows the Markaz in the URL.** The layout now sends one link set per ACTIVE Markaz
+  (`buildNavByTenant`); the client picks the set for `/{locale}/markaz/{id}/…` (`navForPath`,
+  `tenantFromPath`, guarded against `__proto__` and malformed escapes) and falls back to the first
+  Markaz elsewhere. A preferred Markaz the person does not belong to is ignored.
+- **Markaz switcher** (`src/components/markaz-switcher.tsx`): a no-JavaScript `<details>` list of
+  the person's Markaz, on the Markaz page and (keeping `/finance`) on the finance page — there only
+  Markaz where the person may verify payments. Shown only with two or more.
+- **Markaz page:** title with code and action buttons in one header; for a Markaz Admin, KPI tiles
+  (students, active classes, payments to verify → finance, open join links → that section), using
+  data the page already loads plus `listClasses` / `listPaymentSubmissions`, both authorizing; sticky
+  section tabs over the page's long list of sections.
+- **Finance desk:** KPI tiles (to verify, enrollments waiting for payment); payments as a table
+  with tabs Pending · Verified · Rejected · All with counts (`?status=`, unknown values fall back to
+  Pending; the filter only narrows the already-authorized list); status and enrollment-state badges
+  coloured. Verify / Reject forms unchanged.
+- Open-join-link counting is a pure tested helper (`src/lib/admin-dashboard.ts`); `react-hooks/purity`
+  rejected `Date.now()` in render.
+- **Verification:** **863/863 tests in 43 files**, lint, typecheck and build clean; `next start`
+  serves the Markaz and finance routes in sw/ar, including `?status=` values (200). Signed-in views
+  not yet seen in a browser. Not committed.
 
 ## Status snapshot
 
