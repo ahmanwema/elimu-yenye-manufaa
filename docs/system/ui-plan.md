@@ -1,7 +1,7 @@
 # UI plan — dark learning-platform layout
 
 **Status (2026-11-26):** direction, palette and phases **APPROVED by the owner** (A152). Phases
-**F0–F3 authorized and implemented** (A153). Phases F4–F7 remain **PROPOSED** and each
+**F0–F4 authorized and implemented** (A153). Phases F5–F7 remain **PROPOSED** and each
 needs its own authorization. Companion to [design-system.md](design-system.md), which holds the
 token values.
 
@@ -86,8 +86,8 @@ switcher is part of F5.
 | F0 | Tokens, typefaces, decision record, this document | Done 2026-11-26 |
 | F1 | App shell (rail, top bar, bottom nav), role-aware navigation, component classes | Done 2026-11-26 |
 | F2 | Sign in / Join / Invite | Done 2026-11-26 (`42fe1a5`, deployed) |
-| F3 | Student pages | Done 2026-11-26 (not committed): home dashboard, class cards, student nav |
-| F4 | Teacher pages | Proposed |
+| F3 | Student pages | Done 2026-11-26 (`be6405f`, deployed): home dashboard, class cards, student nav |
+| F4 | Teacher pages | Done 2026-11-26 (not committed): teacher home, class page tabs. Live view waits on RTC (A35) |
 | F5 | Markaz Admin + Finance Officer pages, Markaz switcher | Proposed |
 | F6 | Super Admin + Parent pages | Proposed |
 | F7 | Landing page + footer | Proposed |

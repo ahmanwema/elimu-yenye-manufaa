@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { TeacherHome } from "./_home/teacher-home";
 import { Icon } from "@/components/icons";
 import { MediaPlayButton } from "@/components/media-play-button";
 import { format, type Dictionary } from "@/i18n/dictionaries";
@@ -93,9 +94,10 @@ async function Dashboard({ locale, dict, actor }: { locale: Locale; dict: Dictio
   const db = getDb();
   const profile = await db.profile.findUnique({ where: { id: actor.profileId }, select: { displayName: true, studentAccount: { select: { profileId: true } } } });
   const isStudent = profile?.studentAccount != null && actor.memberships.some((m) => m.status === "ACTIVE" && m.role === "STUDENT");
+  const isTeacher = actor.memberships.some((m) => m.status === "ACTIVE" && m.role === "TEACHER");
   const greeting = profile?.displayName ? format(d.greeting, { name: profile.displayName }) : d.greetingNoName;
 
-  if (!isStudent) {
+  if (!isStudent && !isTeacher) {
     const links = buildNav(actor, locale).filter((i) => i.key !== "home");
     return (
       <>
@@ -114,6 +116,20 @@ async function Dashboard({ locale, dict, actor }: { locale: Locale; dict: Dictio
     );
   }
 
+  // A teacher sees their teaching first; one who is also a student elsewhere sees their own
+  // learning below it.
+  return (
+    <>
+      <h1>{greeting}</h1>
+      {isTeacher ? <TeacherHome locale={locale} dict={dict} actor={actor} /> : null}
+      {isTeacher && isStudent ? <h2 className="section-title section-divider">{dict.teacherDashboard.studentSectionHeading}</h2> : null}
+      {isStudent ? <StudentHome locale={locale} dict={dict} actor={actor} /> : null}
+    </>
+  );
+}
+
+async function StudentHome({ locale, dict, actor }: { locale: Locale; dict: Dictionary; actor: Actor }) {
+  const d = dict.dashboard;
   const now = new Date();
   const { myClasses, attendance, corrections } = await loadStudentData(actor, now);
   const l = dict.live;
@@ -148,7 +164,6 @@ async function Dashboard({ locale, dict, actor }: { locale: Locale; dict: Dictio
 
   return (
     <>
-      <h1>{greeting}</h1>
       <p className="muted">{d.intro}</p>
 
       <div className="dashboard">

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ActionForm } from "@/components/action-form";
+import { SectionTabs } from "@/components/section-tabs";
+import { sessionTone } from "@/lib/teacher-dashboard";
 import { format } from "@/i18n/dictionaries";
 import { getDictionary, getLocale } from "@/i18n/server";
 import {
@@ -122,12 +124,14 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
       <p>
         <a href={`/${locale}/markaz/${cls.tenantId}/classes`}>{l.classesTitle}</a>
       </p>
-      <h1>{cls.name}</h1>
-      {cls.subject ? <p className="muted">{cls.subject}</p> : null}
-      {cls.description ? <p>{cls.description}</p> : null}
-      {!active ? <p className="badge">{l.archivedLabel}</p> : null}
+      <div className="row">
+        {cls.subject ? <span className="badge">{cls.subject}</span> : null}
+        {!active ? <span className="badge badge-warning">{l.archivedLabel}</span> : null}
+        {cls.paymentRequired ? <span className="badge badge-accent">{l.paymentRequiredBadge}</span> : null}
+      </div>
+      <h1 className="page-title">{cls.name}</h1>
+      {cls.description ? <p className="muted">{cls.description}</p> : null}
       {!tzSet ? <p role="alert" className="callout">{l.timezoneRequired}</p> : null}
-      {cls.paymentRequired ? <p className="badge">{l.paymentRequiredBadge}</p> : null}
       {view.myAccess ? <p className="callout">{format(l.myAccess, { state: l.enrollmentStates[view.myAccess] })}</p> : null}
       {view.staff ? (
         <p className="muted">
@@ -138,6 +142,8 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
           {format(l.ceilingLine, { enrollment: cls.ceilings.enrollment ?? l.noCeiling, live: cls.ceilings.live ?? l.noCeiling })}
         </p>
       ) : null}
+
+      <SectionTabs label={dict.common.onThisPage} />
 
       <section className="card" aria-labelledby="teachers">
         <h2 id="teachers">{l.teachersHeading}</h2>
@@ -421,7 +427,7 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
                 <p className="row">
                   <strong>{s.title ?? l.sessionKinds[s.kind]}</strong>
                   <span>{dateTime.format(s.scheduledStartAt)}</span>
-                  <span className="badge">{l.sessionStatuses[s.status]}</span>
+                  <span className={`badge badge-${sessionTone(s.status)}`}>{l.sessionStatuses[s.status]}</span>
                   {s.endReason === "SAFETY_CLOSE" ? <span className="muted">({l.safetyClosed})</span> : null}
                   {s.substitute ? (
                     <span className="muted">

@@ -486,7 +486,28 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
 - New `dashboard` strings in sw/en/ar.
 - **Verification:** **852/852 tests in 41 files**, lint, typecheck and build clean; signed-out `/sw`,
   `/ar` and `/en/sign-in` return 200 on `next start`. **The signed-in dashboard has not been seen in
-  a browser** — that needs a DEV student account and a sign-in. Not committed.
+  a browser** — that needs a DEV student account and a sign-in.
+- **Committed `be6405f` and pushed** (`42fe1a5..be6405f`, owner-authorised; scan of the new commits
+  for credentials: 0 matches). Vercel redeployed; the live `/sw` serves the F3 build.
+
+## 2026-11-26 — UI redesign F4: teacher home and class page tabs
+
+- **Teacher home** (`src/app/[locale]/_home/teacher-home.tsx`): KPI tiles (classes taught, students
+  holding a seat, sessions in the next 7 days, corrections recorded), the sessions in the next 7 days
+  (LIVE first, with *Enter class*; scheduled ones link to the class page's sessions, where Start/End
+  keep their own permission check), and a table of the classes taught (subject, my role, seats, next
+  session). A teacher who is also a student sees "My own learning" below it.
+- **Built only from existing services** (`listMyTenants`, `listClasses`, `getClassOverview`,
+  `listTenantCorrections`), filtered to classes the person currently teaches; pure ordering helpers
+  in `src/lib/teacher-dashboard.ts` with tests.
+- **Class page:** subject / archived / paid-class badges above the title, session status badges
+  coloured by state, and a sticky in-page tab bar (`src/components/section-tabs.tsx`) built from the
+  sections the page already rendered for that person — it shows nothing the page did not.
+- Added the missing `.badge-muted` style (F3 used it for ended enrollments).
+- **Not done, by dependency:** the whiteboard-first Live view — there is still no RTC/whiteboard
+  transport (A35).
+- **Verification:** **855/855 tests in 42 files**, lint, typecheck and build clean; `next start`
+  serves `/sw` and a class route (200). Signed-in views not yet seen in a browser. Not committed.
 
 ## Status snapshot
 
