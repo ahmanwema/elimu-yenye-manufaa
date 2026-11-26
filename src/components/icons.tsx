@@ -4,7 +4,14 @@ import type { NavKey } from "@/lib/navigation";
 // Inline line icons (24×24, stroke = currentColor). Decorative: the label next to each icon
 // carries the meaning, so every icon is aria-hidden.
 
-const paths: Record<NavKey | "signIn", ReactNode> = {
+const paths: Record<NavKey | "signIn" | "board", ReactNode> = {
+  board: (
+    <>
+      <rect x="3" y="4" width="18" height="12" rx="1.5" />
+      <path d="M8 20l4-4 4 4" />
+      <path d="M7 9h6M7 12h9" />
+    </>
+  ),
   home: (
     <>
       <path d="M3 10.5 12 3l9 7.5" />

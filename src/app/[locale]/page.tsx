@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { Landing } from "./_home/landing";
 import { ParentHome } from "./_home/parent-home";
 import { TeacherHome } from "./_home/teacher-home";
 import { Icon } from "@/components/icons";
@@ -41,25 +42,8 @@ async function HomeBody() {
   const locale = await getLocale();
   const dict = await getDictionary();
   const current = await getCurrentActor();
-  if (current.state !== "signed-in") return <PublicHome locale={locale} dict={dict} />;
+  if (current.state !== "signed-in") return <Landing locale={locale} dict={dict} />;
   return <Dashboard locale={locale} dict={dict} actor={current.actor} />;
-}
-
-function PublicHome({ locale, dict }: { locale: Locale; dict: Dictionary }) {
-  return (
-    <>
-      <p className="badge badge-accent">{dict.home.badge}</p>
-      <h1>{dict.home.title}</h1>
-      <p className="muted">{dict.home.intro}</p>
-      <section className="card">
-        <h2>{dict.home.invitedTitle}</h2>
-        <p>{dict.home.invitedBody}</p>
-        <a className="button button-primary" href={`/${locale}/sign-in`}>
-          {dict.nav.signIn}
-        </a>
-      </section>
-    </>
-  );
 }
 
 async function loadStudentData(actor: Actor, now: Date) {

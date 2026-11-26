@@ -5,6 +5,7 @@ import { AppNav } from "@/components/app-nav";
 import { Icon } from "@/components/icons";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
+import { SiteFooter } from "@/components/site-footer";
 import { LOCALES, localeDirection } from "@/i18n/config";
 import { getDictionary, getLocale } from "@/i18n/server";
 
@@ -91,9 +92,12 @@ export default async function LocaleLayout({ children }: LayoutProps<"/[locale]"
           <Suspense fallback={null}>
             <ShellNav />
           </Suspense>
-          <main id="main" className="shell">
-            {children}
-          </main>
+          <div className="content-col">
+            <main id="main" className="shell">
+              {children}
+            </main>
+            <SiteFooter locale={locale} dict={dict} />
+          </div>
         </div>
         <ServiceWorkerRegistration />
       </body>

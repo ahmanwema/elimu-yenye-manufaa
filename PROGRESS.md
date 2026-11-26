@@ -553,7 +553,31 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
   Administrator link form folded into a `<details>`). All forms and actions unchanged.
 - **Verification:** **863/863 tests in 43 files**, lint, typecheck and build clean; `next start`
   serves `/sw`, `/ar/platform` and `/en/account` (200). Signed-in views not yet seen in a browser.
-  Not committed.
+- **Committed `e59934a` and pushed** (`10d6d30..e59934a`, owner-authorised; credential scan of the new
+  commit: 0 matches). Vercel redeployed.
+
+## 2026-11-26 — UI redesign F7: public landing page and site footer
+
+- **Landing page** (`src/app/[locale]/_home/landing.tsx`, the signed-out home): hero with headline,
+  subtitle, three check points, *Start now* (→ sign-in) and *I have a join link* (a disclosure that
+  explains opening the Markaz's link); a grid of the eight subjects with their Arabic names (content,
+  shown with tashkīl in every language) and localized captions; "How it works" in three steps; one
+  card per role (students, teachers, Markaz administrators, parents); a closing call to action.
+- **Honest by construction:** no sign-up button (A45, A65 — sign-ups stay disabled), and no invented
+  figures, ratings, partner logos or testimonials.
+- **Site footer** (`src/components/site-footer.tsx`) on every page: wordmark, tagline, the
+  early-version note, links to pages that exist (home, sign in, account), language links, rights
+  line. Static, so it prerenders with the layout; no year is computed (a `new Date()` in a
+  prerendered layout would fail under `cacheComponents`). Main content and footer now sit in a
+  `.content-col` beside the rail; the phone bottom-bar padding moved there so the footer is never
+  hidden behind the bar.
+- New `landing` and `footer` strings in sw/en/ar; a whiteboard icon for the teacher card.
+- **Verification:** **863/863 tests in 43 files**, lint, typecheck and build clean; `next start`
+  serves `/sw`, `/en`, `/ar` with hero, 8 subject tiles, call to action and footer, and the footer on
+  `/sw/sign-in` (200). Committed and pushed on owner request; Vercel redeploys from the push.
+- **With F7 every phase of [docs/system/ui-plan.md](docs/system/ui-plan.md) is implemented.** Still
+  outstanding: seeing the signed-in views in a browser, the whiteboard-first Live view (needs A35),
+  and real brand icons for the PWA (placeholders remain).
 
 ## Status snapshot
 

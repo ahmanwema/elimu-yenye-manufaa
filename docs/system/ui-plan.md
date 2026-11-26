@@ -1,8 +1,8 @@
 # UI plan — dark learning-platform layout
 
-**Status (2026-11-26):** direction, palette and phases **APPROVED by the owner** (A152). Phases
-**F0–F6 authorized and implemented** (A153). Phase F7 remains **PROPOSED** and
-needs its own authorization. Companion to [design-system.md](design-system.md), which holds the
+**Status (2026-11-26):** direction, palette and phases **APPROVED by the owner** (A152).
+**All phases F0–F7 authorized and implemented** (A153). Further UI work (Live view, light theme, a
+Hifdh streak) needs its own decision. Companion to [design-system.md](design-system.md), which holds the
 token values.
 
 ## 0. Direction
@@ -89,8 +89,8 @@ Markaz switcher on the Markaz and finance pages (F5).
 | F3 | Student pages | Done 2026-11-26 (`be6405f`, deployed): home dashboard, class cards, student nav |
 | F4 | Teacher pages | Done 2026-11-26 (`a4542e0`, deployed): teacher home, class page tabs. Live view waits on RTC (A35) |
 | F5 | Markaz Admin + Finance Officer pages, Markaz switcher | Done 2026-11-26 (`10d6d30`, deployed) |
-| F6 | Super Admin + Parent pages | Done 2026-11-26 (not committed) |
-| F7 | Landing page + footer | Proposed |
+| F6 | Super Admin + Parent pages | Done 2026-11-26 (`e59934a`, deployed) |
+| F7 | Landing page + footer | Done 2026-11-26 (deployed) |
 
 **Rules for every phase:** UI only — no change to business logic, schema or authorization; every
 string in the sw/en/ar dictionaries; each screen checked at 360 px, on desktop and in Arabic (RTL);
