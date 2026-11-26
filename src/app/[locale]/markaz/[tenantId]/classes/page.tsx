@@ -69,27 +69,35 @@ async function ClassesBody({ params }: { params: PageProps<"/[locale]/markaz/[te
       {settings.timezone === null ? <p role="alert" className="callout">{l.timezoneRequired}</p> : null}
       <p className="muted">{format(l.ceilingLine, { enrollment: ceiling(settings.classEnrollmentCapacityMax), live: ceiling(settings.classLiveCapacityMax) })}</p>
 
-      <section className="card" aria-labelledby="class-list">
-        <h2 id="class-list">{l.classesTitle}</h2>
+      <section aria-labelledby="class-list">
+        <h2 id="class-list" className="visually-hidden">
+          {l.classesTitle}
+        </h2>
         {classes.length === 0 ? (
-          <p className="muted">{l.noClasses}</p>
+          <p className="empty-state">{l.noClasses}</p>
         ) : (
-          <ul className="list">
+          <ul className="card-grid list-reset">
             {classes.map((c) => {
               const primary = c.teachers.find((t) => t.role === "PRIMARY");
               return (
-                <li key={c.id} className="row">
-                  <a href={`/${locale}/markaz/${tenant.id}/classes/${c.id}`}>{c.name}</a>
-                  {c.subject ? <span className="muted">({c.subject})</span> : null}
-                  {c.status === "ARCHIVED" ? <span className="badge">{l.archivedLabel}</span> : null}
-                  <span className="muted">
-                    {l.teacherRoles.PRIMARY}: {name(primary?.teacher.displayName)}
-                  </span>
-                  <span className="muted">
-                    {c.enrollmentCapacity
-                      ? format(l.seats, { taken: c._count.enrollments, capacity: c.enrollmentCapacity })
-                      : format(l.seatsUnlimited, { taken: c._count.enrollments })}
-                  </span>
+                <li key={c.id} className="card class-card">
+                  <div className="row">
+                    <span className="badge">{c.subject ?? l.classesTitle}</span>
+                    {c.status === "ARCHIVED" ? <span className="badge badge-warning">{l.archivedLabel}</span> : null}
+                  </div>
+                  <h3 className="card-title">
+                    <a href={`/${locale}/markaz/${tenant.id}/classes/${c.id}`}>{c.name}</a>
+                  </h3>
+                  <p className="card-meta">
+                    <span>
+                      {l.teacherRoles.PRIMARY}: {name(primary?.teacher.displayName)}
+                    </span>
+                    <span>
+                      {c.enrollmentCapacity
+                        ? format(l.seats, { taken: c._count.enrollments, capacity: c.enrollmentCapacity })
+                        : format(l.seatsUnlimited, { taken: c._count.enrollments })}
+                    </span>
+                  </p>
                 </li>
               );
             })}

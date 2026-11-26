@@ -460,7 +460,33 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
   and `auth.showPassword` / `auth.hidePassword` in sw/en/ar.
 - **Verification:** 841/841 tests in 40 files, lint, typecheck and `npm run build` clean; with
   `.env.local` now present, `next start` serves `/sw/sign-in`, `/ar/sign-in`, `/sw/join/…` and
-  `/en/invite/…` with the new layout (200). Not committed yet.
+  `/en/invite/…` with the new layout (200).
+- **Committed `42fe1a5`, pushed and deployed** (owner-authorised): pre-push scan of the full
+  `git log -p --all` history (68,459 lines) for JWTs, `sb_secret_`/`sb_publishable_` keys,
+  credentialed Postgres URLs, private keys and API tokens — **0 matches**; only `.env.example` files
+  tracked. `31047ba..42fe1a5` pushed to `origin/master`; Vercel rebuilt automatically and
+  https://elimu-yenye-manufaa.vercel.app/sw/sign-in serves the new layout (200).
+
+## 2026-11-26 — UI redesign F3: student home dashboard
+
+- **Home (`/{locale}`) is now a dashboard when signed in.** Signed out it is still the public
+  introduction. For a student: "Your next class" (a LIVE session with *Enter class*, otherwise the
+  earliest scheduled one — only from classes holding a seat, ACTIVE/GRACE), "My classes" as cards
+  (subject badge, enrollment-state badge, primary teacher, paid-class note), the three latest
+  corrections with a play button for the current clip, and an attendance calendar for the current
+  month in the Markaz time zone (UTC when unset, A131) with present / late / absent colours and a
+  summary. Everyone else gets greeting + quick-link cards to their areas until F4–F6.
+- **Built only from existing, already-authorizing services** (`listMyTenants`, `listClasses`,
+  `getClassOverview`, `listMyAttendance`, `listStudentCorrections`); no new query, no business
+  logic, schema or authorization change. Selection and calendar logic is pure and tested
+  (`src/lib/student-dashboard.ts`, `tests/unit/student-dashboard.test.ts`).
+- **Student navigation:** a student now also gets a "Classes" link (their first Markaz's classes
+  page, which already shows them only their own classes). Classes page restyled as a card grid for
+  everyone.
+- New `dashboard` strings in sw/en/ar.
+- **Verification:** **852/852 tests in 41 files**, lint, typecheck and build clean; signed-out `/sw`,
+  `/ar` and `/en/sign-in` return 200 on `next start`. **The signed-in dashboard has not been seen in
+  a browser** — that needs a DEV student account and a sign-in. Not committed.
 
 ## Status snapshot
 

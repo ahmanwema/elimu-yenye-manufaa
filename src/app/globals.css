@@ -860,3 +860,155 @@ input[type="radio"] {
     padding: var(--space-4) var(--space-3);
   }
 }
+
+/* ======================================================================================
+ * Home dashboard (ui-plan §4, F3): main column + side column with the attendance calendar.
+ * ==================================================================================== */
+.dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+  gap: var(--space-5);
+  align-items: start;
+}
+.dashboard-main > section:first-child .section-title,
+.dashboard-side .section-title {
+  margin-block-start: var(--space-3);
+}
+.list-reset {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.card-title {
+  margin-block: var(--space-2);
+  font-size: 1.2rem;
+}
+.card-title a {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.card-title a:hover {
+  color: var(--accent-primary);
+}
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  margin-block-start: var(--space-3);
+}
+.next-class {
+  border-color: var(--accent-primary);
+  background:
+    linear-gradient(135deg, rgb(245 146 42 / 0.1), transparent 60%),
+    var(--surface-raised);
+}
+.class-card {
+  display: flex;
+  flex-direction: column;
+}
+.class-card .card-meta {
+  margin-block-start: auto;
+  padding-block-start: var(--space-2);
+}
+.clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.correction-card {
+  margin-block-end: 0;
+}
+.quick-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+.quick-link:hover {
+  color: var(--accent-primary);
+}
+
+.calendar-title {
+  margin-block: 0 var(--space-2);
+  font-weight: 700;
+}
+.calendar {
+  inline-size: 100%;
+  border-collapse: separate;
+  border-spacing: 0 var(--space-1);
+  text-align: center;
+  font-size: 0.85rem;
+}
+.calendar th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  padding-block: var(--space-1);
+}
+.calendar td {
+  padding: 0;
+}
+.calendar-day {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.calendar-day.is-today {
+  border: 2px solid var(--accent-success);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+.calendar-day.tone-present,
+.legend-dot.tone-present {
+  background: var(--accent-success);
+  border-color: var(--accent-success);
+  color: #072417;
+}
+.calendar-day.tone-late,
+.legend-dot.tone-late {
+  background: var(--accent-warning);
+  border-color: var(--accent-warning);
+  color: #2a1f00;
+}
+.calendar-day.tone-absent,
+.legend-dot.tone-absent {
+  background: var(--accent-danger);
+  border-color: var(--accent-danger);
+  color: #2b0a0b;
+}
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  list-style: none;
+  padding: 0;
+  margin-block: var(--space-3) var(--space-2);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.calendar-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.legend-dot {
+  display: inline-block;
+  inline-size: 0.7rem;
+  block-size: 0.7rem;
+  border-radius: 50%;
+  border: 1px solid;
+}
+
+@media (max-width: 1099px) {
+  .dashboard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

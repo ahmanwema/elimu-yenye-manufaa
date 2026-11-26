@@ -20,9 +20,25 @@ describe("buildNav — what each role sees", () => {
     expect(buildNav(null, "sw")).toEqual([]);
   });
 
-  it("a student or parent sees home and account only", () => {
-    expect(keys(buildNav(actor([{ tenantId: T1, role: "STUDENT", status: "ACTIVE" }]), "sw"))).toEqual(["home", "account"]);
+  it("a student sees home, their classes and account", () => {
+    const nav = buildNav(actor([{ tenantId: T1, role: "STUDENT", status: "ACTIVE" }]), "sw");
+    expect(keys(nav)).toEqual(["home", "classes", "account"]);
+    expect(nav[1].href).toBe(`/sw/markaz/${T1}/classes`);
+  });
+
+  it("a parent (no Markaz role) sees home and account only", () => {
     expect(keys(buildNav(actor(), "sw"))).toEqual(["home", "account"]);
+  });
+
+  it("a teacher who is also a student elsewhere gets one classes link, for the teaching Markaz", () => {
+    const nav = buildNav(
+      actor([
+        { tenantId: T2, role: "STUDENT", status: "ACTIVE" },
+        { tenantId: T1, role: "TEACHER", status: "ACTIVE" },
+      ]),
+      "sw",
+    );
+    expect(nav.filter((i) => i.key === "classes").map((i) => i.href)).toEqual([`/sw/markaz/${T1}/classes`]);
   });
 
   it("a teacher sees their Markaz and classes, but not payments", () => {

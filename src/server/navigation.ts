@@ -29,6 +29,10 @@ export function buildNav(actor: Actor | null, locale: Locale): NavItem[] {
     const enc = encodeURIComponent(staffTenant);
     items.push({ key: "markaz", href: `${base}/markaz/${enc}` });
     items.push({ key: "classes", href: `${base}/markaz/${enc}/classes` });
+  } else {
+    // A student (F3) gets their classes too; the classes page shows them only their own.
+    const studentTenant = firstActiveTenant(actor, (t) => hasActiveRole(actor, t, "STUDENT"));
+    if (studentTenant) items.push({ key: "classes", href: `${base}/markaz/${encodeURIComponent(studentTenant)}/classes` });
   }
 
   const financeTenant = firstActiveTenant(actor, (t) => canVerifyPayment(actor, t));
