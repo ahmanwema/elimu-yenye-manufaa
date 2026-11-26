@@ -58,4 +58,4 @@ Full desktop/tablet/mobile wireframes for the Live Class lesson page are describ
 
 ## 6. What is explicitly NOT done here
 
-No logo, illustration, copy or exact colour value of Codefinity is included, and its screenshots are kept off this public repository — consistent with the "do not copy Codefinity branding/graphics" instruction. Our own colour values (§2) were added 2026-11-26.
+The project logo is the owner's own (A155; `public/brand/`, `public/icons/`). No logo, illustration, copy or exact colour value of Codefinity is included, and its screenshots are kept off this public repository — consistent with the "do not copy Codefinity branding/graphics" instruction. Our own colour values (§2) were added 2026-11-26.

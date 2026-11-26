@@ -607,6 +607,22 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
   pages); `next start` serves the legal pages in all three languages and the toggle on every page
   (200). Committed and pushed on owner request.
 
+## 2026-11-26 — Owner logo in the app (A155)
+
+- Icons built from the owner's logo with System.Drawing (crop to the rounded square, corners cut out
+  anti-aliased or filled with the logo navy `#03174C`): `public/icons/icon-192.png`, `icon-512.png`,
+  `icon-maskable-512.png` (art at 78 % for circular masks), `apple-touch-icon.png` (180), and
+  `public/brand/logo-128.png` / `logo-512.png`. The placeholder `src/app/favicon.ico` was removed; the
+  favicon is declared in the layout metadata because the root layout lives under `[locale]`.
+- The logo replaces the placeholder dot beside the wordmark in the top bar and footer (`next/image`).
+- **Fix found while verifying:** the locale proxy would have redirected `/brand/…` to `/sw/brand/…`;
+  `brand/` is now excluded in its matcher, like `icons/`.
+- Manifest splash background set to the logo navy. The accent colour is still the A152 orange — the
+  logo's gold/teal were not adopted (open choice).
+- **Verification:** 866/866 tests (full run before the favicon fix; unit tests, lint, typecheck and
+  build re-run after it), `next start` serves the logo, all icons and the favicon link (200).
+  Committed and pushed on owner request.
+
 ## Status snapshot
 
 | Area | Status |

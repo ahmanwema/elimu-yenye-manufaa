@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Lexend, Noto_Naskh_Arabic } from "next/font/google";
 import { Suspense, cache } from "react";
+import Image from "next/image";
 import { AppNav } from "@/components/app-nav";
 import { Icon } from "@/components/icons";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -34,7 +35,9 @@ export async function generateMetadata(): Promise<Metadata> {
     description: dict.meta.description,
     applicationName: dict.meta.title,
     appleWebApp: { capable: true, title: "Elimu", statusBarStyle: "black-translucent" },
-    icons: { apple: "/icons/apple-touch-icon.png" },
+    // The owner's logo (A155). Declared here because the root layout lives under [locale], so the
+    // app/icon.png file convention does not reach these pages.
+    icons: { icon: [{ url: "/brand/logo-128.png", type: "image/png", sizes: "128x128" }], apple: "/icons/apple-touch-icon.png" },
     alternates: { languages: Object.fromEntries(LOCALES.map((l) => [l, `/${l}`])) },
   };
 }
@@ -71,7 +74,7 @@ export default async function LocaleLayout({ children }: LayoutProps<"/[locale]"
         </a>
         <header className="topbar">
           <a className="brand" href={`/${locale}`}>
-            <span className="brand-mark" aria-hidden="true" />
+            <Image className="brand-logo" src="/brand/logo-128.png" alt="" width={36} height={36} />
             <span>{dict.meta.title}</span>
           </a>
           {/* The switcher reads the current path (request data on dynamic routes), so it

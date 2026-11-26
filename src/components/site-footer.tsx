@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { LOCALES, type Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/dictionaries";
 
@@ -12,7 +13,7 @@ export function SiteFooter({ locale, dict }: { locale: Locale; dict: Dictionary 
       <div className="footer-grid">
         <div className="footer-brand">
           <a className="brand" href={`/${locale}`}>
-            <span className="brand-mark" aria-hidden="true" />
+            <Image className="brand-logo" src="/brand/logo-128.png" alt="" width={36} height={36} />
             <span>{dict.meta.title}</span>
           </a>
           <p className="muted">{f.tagline}</p>

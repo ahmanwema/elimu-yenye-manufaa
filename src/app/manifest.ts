@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
-// Icons in public/icons are generated PLACEHOLDERS (scripts/generate-placeholder-icons.mjs).
-// Final brand icons are a design deliverable — see docs/system/pwa.md.
+// Icons in public/icons are built from the owner's logo (A155); do NOT re-run
+// scripts/generate-placeholder-icons.mjs, which would overwrite them with placeholders.
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
@@ -14,7 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "any",
-    background_color: "#0E1521",
+    background_color: "#03174C",
     theme_color: "#0E1521",
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

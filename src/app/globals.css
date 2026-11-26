@@ -228,13 +228,11 @@ ul {
 .brand:hover {
   color: var(--text-primary);
 }
-/* Our own wordmark accent: a small crescent-like dot, not any other platform's mark. */
-.brand-mark {
-  inline-size: 0.9rem;
-  block-size: 0.9rem;
-  border-radius: 50%;
-  background: radial-gradient(circle at 70% 35%, var(--surface-raised) 0 38%, transparent 40%),
-    var(--accent-primary);
+/* The owner's logo (A155) beside the wordmark. */
+.brand-logo {
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border-radius: 0.55rem;
   flex: none;
 }
 

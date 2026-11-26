@@ -43,6 +43,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Skips framework assets, PWA files and the auth callback (which handles its own redirect).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|icons/|auth/).*)"],
+  // Skips framework assets, PWA files, brand images (A155) and the auth callback (which handles
+  // its own redirect).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|icons/|brand/|auth/).*)"],
 };
