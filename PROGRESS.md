@@ -579,6 +579,34 @@ the old machine state: `.env.local`, `.env`, `node_modules`, and the untracked
   outstanding: seeing the signed-in views in a browser, the whiteboard-first Live view (needs A35),
   and real brand icons for the PWA (placeholders remain).
 
+## 2026-11-26 — Owner decisions: RTC vendor (A154) and logo (A155); legal pages and light theme authorized
+
+- **A154 — RTC vendor resolved:** LiveKit for audio, Supabase Realtime for the live whiteboard,
+  after the closed pilot (docs/testing/rtc-pilot-results.md). Recorded together with the pilot's
+  known Supabase Realtime weaknesses (out-of-order delivery, higher RTT, no re-sync after offline),
+  which the implementation must handle with sequence numbers and snapshot re-sync. A35 and open
+  questions 8 / 60 marked resolved. **No media implementation yet** — A130 stays in force until
+  that phase is authorized.
+- **A155 — logo provided** (book, golden path, gold arch with teal pattern, navy rounded square).
+  Not yet used in the app.
+- **Authorized the same day:** Terms and Privacy pages and a light theme (see the next entry).
+
+## 2026-11-26 — Light theme (A156) and draft Terms / Privacy pages (A157)
+
+- **Light theme:** light token set in `src/app/globals.css`, applied by `html[data-theme="light"]` or,
+  with no saved choice, by `prefers-color-scheme: light`. Hard-coded white overlays and the
+  info-blue heading text became tokens so both themes read correctly. `src/components/theme-toggle.tsx`
+  (sun/moon button in the top bar, `useSyncExternalStore` over the attribute and the media query)
+  stores the choice in localStorage only; `THEME_BOOT_SCRIPT` (`src/lib/theme.ts`, inline in `<head>`)
+  applies it before first paint, guarded so only `light`/`dark` are accepted and blocked storage
+  cannot throw (`tests/unit/theme.test.ts`). Theme colour meta now has light and dark values.
+- **Terms of use and Privacy policy** at `/{locale}/terms` and `/{locale}/privacy`, in sw/en/ar,
+  linked from the footer. Written from what the system actually does; no invented address, law or
+  contact. Both pages carry a **draft — not reviewed by a lawyer** notice.
+- **Verification:** **866/866 tests in 44 files**, lint, typecheck and build clean (61 static
+  pages); `next start` serves the legal pages in all three languages and the toggle on every page
+  (200). Committed and pushed on owner request.
+
 ## Status snapshot
 
 | Area | Status |

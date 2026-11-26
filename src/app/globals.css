@@ -1,6 +1,6 @@
 /*
  * Design tokens — APPROVED 2026-11-26 (A152). Values and roles: docs/system/design-system.md §2;
- * layout and components: docs/system/ui-plan.md. Dark-only for now.
+ * layout and components: docs/system/ui-plan.md. Dark by default; light theme (A156) below.
  * Logical properties only (margin-inline, inset-inline-start, …) so every layout mirrors
  * under dir="rtl" without separate rules.
  */
@@ -37,6 +37,61 @@
   --topbar-height: 4rem;
   --bottom-nav-height: 4.5rem;
   --content-max: 72rem;
+  --overlay-1: rgb(255 255 255 / 0.04);
+  --overlay-2: rgb(255 255 255 / 0.07);
+  --text-info: #a9c1f5;
+}
+
+
+/*
+ * Light theme (A156). Chosen explicitly (html[data-theme="light"], set by the theme toggle and
+ * remembered in localStorage) or, with no choice saved, by the system preference. Accent and
+ * status colours are darkened so text on white keeps WCAG AA contrast; badge fills keep their
+ * dark text, so they read the same in both themes.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --surface-bg: #f4f6fa;
+  --surface-raised: #ffffff;
+  --surface-sunken: #eef1f6;
+  --surface-rail: #e3e8f2;
+  --surface-hover: #e9edf4;
+  --border: #d5dce8;
+  --text-primary: #13203a;
+  --text-secondary: #55627a;
+  --text-on-accent: #ffffff;
+  --accent-primary: #b35a0c;
+  --accent-primary-hover: #964a08;
+  --accent-success: #2fae74;
+  --accent-warning: #e0b23a;
+  --accent-danger: #d9575c;
+  --accent-info: #b9cdf7;
+  --overlay-1: rgb(19 32 58 / 0.04);
+  --overlay-2: rgb(19 32 58 / 0.07);
+  --text-info: #3c5a9a;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --surface-bg: #f4f6fa;
+    --surface-raised: #ffffff;
+    --surface-sunken: #eef1f6;
+    --surface-rail: #e3e8f2;
+    --surface-hover: #e9edf4;
+    --border: #d5dce8;
+    --text-primary: #13203a;
+    --text-secondary: #55627a;
+    --text-on-accent: #ffffff;
+    --accent-primary: #b35a0c;
+    --accent-primary-hover: #964a08;
+    --accent-success: #2fae74;
+    --accent-warning: #e0b23a;
+    --accent-danger: #d9575c;
+    --accent-info: #b9cdf7;
+    --overlay-1: rgb(19 32 58 / 0.04);
+    --overlay-2: rgb(19 32 58 / 0.07);
+    --text-info: #3c5a9a;
+  }
 }
 
 *,
@@ -261,11 +316,11 @@ ul {
 }
 .rail-link:hover {
   color: var(--text-primary);
-  background: rgb(255 255 255 / 0.04);
+  background: var(--overlay-1);
 }
 .rail-link[aria-current="page"] {
   color: var(--text-primary);
-  background: rgb(255 255 255 / 0.07);
+  background: var(--overlay-2);
 }
 .rail-link[aria-current="page"]::before {
   content: "";
@@ -720,13 +775,13 @@ input[type="radio"] {
   border-block-end: 1px solid var(--border);
 }
 .table th {
-  color: var(--accent-info);
+  color: var(--text-info);
   font-weight: 600;
   font-size: 0.9rem;
   white-space: nowrap;
 }
 .table tbody tr:hover {
-  background: rgb(255 255 255 / 0.03);
+  background: var(--overlay-1);
 }
 
 /* ======================================================================================
@@ -1337,7 +1392,7 @@ code {
   block-size: 3rem;
   border-radius: var(--radius);
   background: var(--surface-rail);
-  color: var(--accent-info);
+  color: var(--text-info);
 }
 .cta-band {
   margin-block: var(--space-6) var(--space-4);
@@ -1432,4 +1487,31 @@ code {
   .footer-brand {
     grid-column: 1 / -1;
   }
+}
+
+/* Theme toggle (A156) in the top bar. */
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.theme-toggle:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+/* Legal pages (A157). */
+.legal {
+  max-inline-size: 46rem;
+}
+.legal-section h2 {
+  margin-block-start: var(--space-4);
+}
+.callout-warning {
+  border-inline-start-color: var(--accent-warning);
 }

@@ -11,7 +11,7 @@ Status: direction, palette and typefaces **APPROVED 2026-11-26** (A152); see §2
 
 ## 2. Design tokens (APPROVED 2026-11-26, A152)
 
-Implemented as CSS custom properties in `src/app/globals.css`. Dark-only for now (a light theme is a later decision). Layout and phases: [ui-plan.md](ui-plan.md).
+Implemented as CSS custom properties in `src/app/globals.css`. Dark by default; a **light theme** (A156) follows the system preference or the top-bar toggle, with these overrides: surfaces `#F4F6FA` / `#FFFFFF` / `#EEF1F6`, rail `#E3E8F2`, border `#D5DCE8`, text `#13203A` / `#55627A`, accent `#B35A0C` (white text on it), success `#2FAE74`, warning `#E0B23A`, danger `#D9575C`, table headings `#3C5A9A`. Layout and phases: [ui-plan.md](ui-plan.md).
 
 | Token | Value | Role |
 |---|---|---|

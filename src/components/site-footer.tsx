@@ -3,7 +3,7 @@ import type { Dictionary } from "@/i18n/dictionaries";
 
 /**
  * Site footer (ui-plan §4, F7). Static: no request data, so it prerenders with the layout.
- * Only pages that exist are linked — no placeholder legal pages.
+ * Only pages that exist are linked (Terms and Privacy are drafts, A157).
  */
 export function SiteFooter({ locale, dict }: { locale: Locale; dict: Dictionary }) {
   const f = dict.footer;
@@ -29,6 +29,12 @@ export function SiteFooter({ locale, dict }: { locale: Locale; dict: Dictionary 
             </li>
             <li>
               <a href={`/${locale}/account`}>{dict.nav.account}</a>
+            </li>
+            <li>
+              <a href={`/${locale}/terms`}>{dict.legal.termsTitle}</a>
+            </li>
+            <li>
+              <a href={`/${locale}/privacy`}>{dict.legal.privacyTitle}</a>
             </li>
           </ul>
         </nav>

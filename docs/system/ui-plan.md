@@ -1,7 +1,7 @@
 # UI plan — dark learning-platform layout
 
 **Status (2026-11-26):** direction, palette and phases **APPROVED by the owner** (A152).
-**All phases F0–F7 authorized and implemented** (A153). Further UI work (Live view, light theme, a
+**All phases F0–F7 authorized and implemented** (A153); light theme (A156) and draft Terms / Privacy pages (A157) added after. Further UI work (Live view, logo A155, a
 Hifdh streak) needs its own decision. Companion to [design-system.md](design-system.md), which holds the
 token values.
 

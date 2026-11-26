@@ -6,9 +6,10 @@ import { Icon } from "@/components/icons";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { SiteFooter } from "@/components/site-footer";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { LOCALES, localeDirection } from "@/i18n/config";
 import { getDictionary, getLocale } from "@/i18n/server";
-
+import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 import { getCurrentActor } from "@/server/auth";
 import { buildNav, buildNavByTenant } from "@/server/navigation";
 import "../globals.css";
@@ -41,7 +42,10 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0E1521",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F4F6FA" },
+    { media: "(prefers-color-scheme: dark)", color: "#0E1521" },
+  ],
 };
 
 // Root layout. lang/dir come from the [locale] segment: Kiswahili and English are LTR,
@@ -55,7 +59,12 @@ export default async function LocaleLayout({ children }: LayoutProps<"/[locale]"
       lang={locale}
       dir={localeDirection(locale)}
       className={`${inter.variable} ${lexend.variable} ${naskh.variable}`}
+      // The boot script may set data-theme before React hydrates (A156).
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body>
         <a className="skip-link" href="#main">
           {dict.nav.skipToContent}
@@ -84,6 +93,7 @@ export default async function LocaleLayout({ children }: LayoutProps<"/[locale]"
           >
             <LanguageSwitcher current={locale} label={dict.nav.language} names={dict.languages} />
           </Suspense>
+          <ThemeToggle toLight={dict.nav.themeLight} toDark={dict.nav.themeDark} />
           <Suspense fallback={null}>
             <TopbarAccount />
           </Suspense>
