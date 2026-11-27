@@ -687,3 +687,15 @@ Earlier (2026-10-16 and before, kept for history): Owner confirms the interpreta
 - Tests: `tests/unit/rtc.test.ts` (14), unit suite 304/304; `tests/real/livekit-dev.test.ts` 4/4 against
   LiveKit Cloud (random non-existent room; nothing created). Lint and typecheck green.
 - Not done (not authorized): M1–M6, commit, push. Owner still to add the three LiveKit variables in Vercel.
+
+## 2026-11-26 — Live Class media M1 (audio), local
+
+- M0 committed and pushed (`37544ca`). Then M1 per docs/features/live-class-media-plan.md §7:
+  `src/server/services/live-audio.ts`, `src/server/rtc/index.ts`, audio wiring in the live-class actions
+  (new public action `audioTokenAction`, pinned in auth-safety), `src/components/live-audio.tsx`, the audio
+  card on `/[locale]/live/[sessionId]`, `live.audio.*` strings in sw/en/ar.
+- Tests: `tests/services/live-audio.test.ts` (12, PGlite + fake provider): grants per role/device, someone
+  else's device refused, waiting student refused, handoff/revoke/removal/leave/end reach the room, a failed
+  revoke disconnects the device. Unit suite 304/304; lint and typecheck green.
+- Not yet verified with real audio between two devices — that needs the LiveKit variables in Vercel (or a
+  local run) and a signed-in teacher and student on DEV.

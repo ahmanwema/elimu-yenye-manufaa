@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ActionForm } from "@/components/action-form";
+import { LiveAudio } from "@/components/live-audio";
+import { isLiveKitConfigured } from "@/env";
 import { format } from "@/i18n/dictionaries";
 import { getDictionary, getLocale } from "@/i18n/server";
 import {
@@ -41,9 +44,9 @@ export default async function LivePage({ params }: PageProps<"/[locale]/live/[se
   );
 }
 
-// PROVIDER-NEUTRAL SHELL (A35: no RTC vendor). It renders the business state only — status,
-// teachers, waiting room, admission, raise hand, mic / whiteboard PERMISSIONS, chat, recording
-// state. There is no audio, video, drawing or screen-share transport, and the page says so.
+// Live class page. Business state (status, teachers, waiting room, admission, raise hand, mic /
+// whiteboard PERMISSIONS, chat, recording) plus class AUDIO for this browser's own device
+// connection (media plan M1, LiveKit). No whiteboard or screen-share transport yet.
 // Every control is a server action that re-authorizes; reload to see others' changes.
 async function LiveBody({ params }: { params: PageProps<"/[locale]/live/[sessionId]">["params"] }) {
   const locale = await getLocale();
@@ -77,6 +80,10 @@ async function LiveBody({ params }: { params: PageProps<"/[locale]/live/[session
   const canJoin = (session.status === "LIVE" || session.waitingRoomOpen) && !me?.removedAt && (me?.connections.length ?? 0) < 2;
   const isStudent = view.role === "STUDENT";
   const primaryDevice = me?.connections.some((c) => c.mode === "PRIMARY") ?? false;
+  // Which of my connections is THIS browser (set by joinSessionAction). Audio is offered only for it.
+  const deviceId = (await cookies()).get(`lc_device_${session.id}`)?.value;
+  const thisDevice = me?.connections.find((c) => c.id === deviceId) ?? null;
+  const audioReady = session.status === "LIVE" && thisDevice !== null && !me?.removedAt && (!isStudent || me?.admission === "ADMITTED");
 
   return (
     <>
@@ -94,6 +101,17 @@ async function LiveBody({ params }: { params: PageProps<"/[locale]/live/[session
         {session.title ? ` — ${session.title}` : null}
       </p>
       {session.status === "SCHEDULED" ? <p className="muted">{session.waitingRoomOpen ? l.waitingRoom : l.notOpenYet}</p> : null}
+
+      {audioReady && thisDevice ? (
+        <section className="card" aria-labelledby="audio">
+          <h2 id="audio">{l.audio.heading}</h2>
+          {isLiveKitConfigured() ? (
+            <LiveAudio connectionId={thisDevice.id} viewOnly={thisDevice.mode === "VIEW_ONLY"} labels={l.audio} resultMessages={results} />
+          ) : (
+            <p className="muted">{l.audio.notConfigured}</p>
+          )}
+        </section>
+      ) : null}
 
       <section className="card" aria-labelledby="teachers">
         <h2 id="teachers">{l.teachersHeading}</h2>

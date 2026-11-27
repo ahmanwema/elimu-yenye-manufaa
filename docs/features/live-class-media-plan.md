@@ -94,7 +94,7 @@ changing any of those rules: the database stays the authority, the vendors only 
 | Phase | Scope | Needs |
 |---|---|---|
 | **M0 — Setup** ✅ done locally 2026-11-26 | LiveKit Cloud project (Build plan, free). Env vars `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` in `.env.local` and Vercel (never committed). Install `livekit-client` and `livekit-server-sdk` (pinned, the pilot used 2.22.4 / 2.19.1). `src/server/rtc/` adapter + fake. | Owner: create the LiveKit project and add the keys; authorize the install. |
-| **M1 — Audio** | Token action, teacher speaks, students hear; mic grant / revoke / handoff enforced in LiveKit; removal and end close the room; audio controls on the live page. | — |
+| **M1 — Audio** ✅ done locally 2026-11-26 | Token action, teacher speaks, students hear; mic grant / revoke / handoff enforced in LiveKit; removal and end close the room; audio controls on the live page. | — |
 | **M2 — Presence** | `/api/livekit/webhook` (proxy matcher excludes `api/`), signature check, closes connections; reconnect handling. | Owner: add the webhook URL in LiveKit Cloud. |
 | **M3 — Whiteboard** | Migration 26 (ADDITIVE): `live_whiteboard_strokes` + `live_whiteboard_access()` + `realtime.messages` policies. Canvas component, stroke protocol, ordering, persistence, re-sync, clear/undo by the teacher, student write grant. | Owner: authorize the migration and its DEV apply. |
 | **M4 — Classroom layout** | Teacher view: board takes the screen, compact toolbar, participant drawer. Student view: board + hand / mic button. Phone: fullscreen board, bottom controls. i18n sw/en/ar, RTL (the board itself is never mirrored). | — |
@@ -151,3 +151,21 @@ message quotas. Recording egress is not part of this phase.
   board** as the teacher (own colour; the teacher can undo or clear it).
 - **Q3.** LiveKit region: LiveKit Cloud picks the nearest edge automatically; confirm no data-residency
   requirement for audio (it is not stored in this phase).
+
+## 7. M1 as built (2026-11-26)
+
+- `src/server/services/live-audio.ts`: `issueAudioToken` (caller's own connection, grant from
+  `getMyDeviceCapabilities`, fail closed) and `syncSessionAudio` (pushes the stored state to the room:
+  setPublish per open connection, drops removed / left devices, closes the room when the session is no
+  longer LIVE). If withdrawing the mic fails at LiveKit, the device is disconnected instead; a failed
+  grant is reported to the caller as an error.
+- Actions (`src/server/actions/live-class.ts`): join sets an httpOnly cookie `lc_device_<sessionId>` that
+  tells the page which connection is this browser; leave, grant/revoke mic, remove and end call
+  `syncSessionAudio`; new `audioTokenAction(connectionId)` (does not refresh the page).
+- `src/components/live-audio.tsx` (client): "Join audio" (user gesture for autoplay), connection state,
+  who is speaking, mute/unmute only when the server allowed publishing, "turn on sound" when the browser
+  blocks playback, messages for removed / room closed / joined elsewhere / mic blocked.
+- **Known limits until M2:** a closed tab stays "connected" in our tables until Leave or the webhook
+  (M2); a membership or enrollment that lapses mid-session is enforced at the next token, not
+  instantly; `closeStaleSessions` (not scheduled) does not close the LiveKit room — LiveKit closes an
+  empty room itself.

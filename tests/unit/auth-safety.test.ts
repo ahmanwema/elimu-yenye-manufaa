@@ -127,6 +127,7 @@ describe("server action surface", () => {
       "cancelSessionAction",
       "assignSubstituteAction",
       "joinSessionAction",
+      "audioTokenAction",
       "leaveSessionAction",
       "raiseHandAction",
       "lowerHandAction",

@@ -42,7 +42,14 @@ import {
   startSession,
 } from "@/server/services/live-sessions";
 import { correctRecordingParticipants, startSessionRecording, stopSessionRecording } from "@/server/services/session-recording";
-import { field, runAsActor } from "./run";
+import { cookies } from "next/headers";
+import type { PrismaClient } from "@/generated/prisma/client";
+import { getRtcProvider } from "@/server/rtc";
+import { DomainError } from "@/server/services/errors";
+import { issueAudioToken, sessionIdOfOwnConnection, sessionIdOfParticipant, syncSessionAudio } from "@/server/services/live-audio";
+import { getCurrentActor } from "@/server/auth";
+import { getDb } from "@/server/db";
+import { field, runAsActor, toResultCode } from "./run";
 
 // Live Class actions (2026-10-19). Every export here is a PUBLIC endpoint: each delegates to a
 // service that authorizes the actor (tenant, class and session relation) before any database
@@ -222,7 +229,11 @@ export async function startSessionAction(_prev: ActionResult, formData: FormData
 }
 
 export async function endSessionAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  return runAsActor((db, actor) => endSession(db, actor, { sessionId: field(formData, "sessionId") }));
+  return runAsActor(async (db, actor) => {
+    const sessionId = field(formData, "sessionId");
+    await endSession(db, actor, { sessionId });
+    await syncAudio(db, sessionId ?? null); // the session is no longer LIVE: closes the room
+  });
 }
 
 export async function cancelSessionAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
@@ -235,15 +246,59 @@ export async function assignSubstituteAction(_prev: ActionResult, formData: Form
   );
 }
 
-// --- Live participation (business state only) ---------------------------------------------------
+// --- Live participation ----------------------------------------------------------------------------
+// Audio (media plan M1): after a change that affects who may speak or who is in the room, the
+// room is brought in line with the database (syncSessionAudio). Without LiveKit configured the
+// page stays the business-state shell and nothing is synced.
+
+/** Cookie that remembers which connection is THIS browser's device for a session. */
+const deviceCookie = (sessionId: string) => `lc_device_${sessionId}`;
+
+async function syncAudio(db: PrismaClient, sessionId: string | null, leftConnectionIds: string[] = []) {
+  const rtc = getRtcProvider();
+  if (rtc && sessionId) await syncSessionAudio(db, rtc, sessionId, leftConnectionIds);
+}
+
 export async function joinSessionAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   return runAsActor(async (db, actor) => {
-    await joinSession(db, actor, { sessionId: field(formData, "sessionId") });
+    const sessionId = field(formData, "sessionId");
+    const joined = await joinSession(db, actor, { sessionId });
+    (await cookies()).set(deviceCookie(sessionId as string), joined.connectionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 12 * 60 * 60,
+    });
   });
 }
 
 export async function leaveSessionAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  return runAsActor((db, actor) => leaveSession(db, actor, { connectionId: field(formData, "connectionId") }));
+  return runAsActor(async (db, actor) => {
+    const connectionId = field(formData, "connectionId");
+    const sessionId = await sessionIdOfOwnConnection(db, actor, connectionId);
+    await leaveSession(db, actor, { connectionId });
+    if (sessionId) {
+      const jar = await cookies();
+      if (jar.get(deviceCookie(sessionId))?.value === connectionId) jar.delete(deviceCookie(sessionId));
+    }
+    await syncAudio(db, sessionId, connectionId ? [connectionId] : []);
+  });
+}
+
+/** Join token for this browser's own device connection (the audio component calls it). */
+export async function audioTokenAction(connectionId: string): Promise<ActionResult<{ url: string; token: string; canPublishMicrophone: boolean }>> {
+  // Not runAsActor: a token request changes nothing, so it must not refresh the page.
+  const current = await getCurrentActor();
+  if (current.state !== "signed-in") return { status: "error", code: "forbidden" };
+  try {
+    const rtc = getRtcProvider();
+    if (!rtc) throw new DomainError("feature_not_enabled");
+    const { url, token, canPublishMicrophone } = await issueAudioToken(getDb(), current.actor, rtc, { connectionId });
+    return { status: "ok", data: { url, token, canPublishMicrophone } };
+  } catch (error) {
+    return { status: "error", code: toResultCode(error) };
+  }
 }
 
 export async function raiseHandAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
@@ -255,11 +310,19 @@ export async function lowerHandAction(_prev: ActionResult, formData: FormData): 
 }
 
 export async function grantMicAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  return runAsActor((db, actor) => grantMic(db, actor, { participantId: field(formData, "participantId") }));
+  return runAsActor(async (db, actor) => {
+    const participantId = field(formData, "participantId");
+    await grantMic(db, actor, { participantId });
+    await syncAudio(db, await sessionIdOfParticipant(db, participantId)); // also silences a handoff's previous holder (A138)
+  });
 }
 
 export async function revokeMicAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  return runAsActor((db, actor) => revokeMic(db, actor, { participantId: field(formData, "participantId") }));
+  return runAsActor(async (db, actor) => {
+    const participantId = field(formData, "participantId");
+    await revokeMic(db, actor, { participantId });
+    await syncAudio(db, await sessionIdOfParticipant(db, participantId));
+  });
 }
 
 export async function grantWhiteboardAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
@@ -271,7 +334,11 @@ export async function revokeWhiteboardAction(_prev: ActionResult, formData: Form
 }
 
 export async function removeParticipantAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  return runAsActor((db, actor) => removeParticipant(db, actor, { participantId: field(formData, "participantId") }));
+  return runAsActor(async (db, actor) => {
+    const participantId = field(formData, "participantId");
+    await removeParticipant(db, actor, { participantId });
+    await syncAudio(db, await sessionIdOfParticipant(db, participantId));
+  });
 }
 
 export async function postChatAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
