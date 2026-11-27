@@ -11,6 +11,7 @@ import {
   type InviteTarget,
   type TenantRole,
 } from "@/server/authz/policy";
+import { enrollIntoOpenClasses } from "./enrollments";
 import { DomainError, isUniqueViolation } from "./errors";
 import { openLinkRequest } from "./parent-links";
 
@@ -285,4 +286,6 @@ export async function activateMembership(tx: Tx, tenantId: string, profileId: st
   } else if (existing.status === "ENDED") {
     await tx.membership.update({ where: { id: existing.id }, data: { status: "ACTIVE", endedAt: null } });
   }
+  // A159: a student of the Markaz is in every OPEN class of it without being enrolled one by one.
+  if (role === "STUDENT") await enrollIntoOpenClasses(tx, tenantId, profileId);
 }

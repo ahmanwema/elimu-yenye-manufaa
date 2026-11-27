@@ -450,3 +450,63 @@ export async function listFinanceEnrollments(db: PrismaClient, actor: Actor, ten
   });
   return rows.map((e) => ({ ...e, effectiveStatus: effectiveEnrollmentState(e, now) }));
 }
+
+// --- Open classes (A159) -------------------------------------------------------------------------
+// An OPEN class enrolls every ACTIVE student of its Markaz automatically, through the same seat
+// and payment rules as a manual enrollment (free seat → ACTIVE, full → WAITLISTED, paid →
+// PENDING_PAYMENT). Never called from a client: the triggers are opening a class (Markaz Admin,
+// already authorized) and a student membership becoming ACTIVE (invitation / join link).
+
+type OpenClass = { id: string; tenantId: string; paymentRequired: boolean; enrollmentCapacity: number | null; tenant: { classEnrollmentCapacityMax: number | null } };
+
+const openClassSelect = {
+  id: true,
+  tenantId: true,
+  paymentRequired: true,
+  enrollmentCapacity: true,
+  tenant: { select: { classEnrollmentCapacityMax: true } },
+} as const;
+
+/** Enrolls one student into one open class unless an open (non-ENDED) enrollment exists. */
+async function enrollIntoOpenClass(tx: Tx, cls: OpenClass, studentProfileId: string, enrolledById: string, now: Date) {
+  await lockClass(tx, cls.id);
+  const existing = await tx.classEnrollment.findFirst({ where: { classId: cls.id, studentProfileId, status: { not: "ENDED" } }, select: { id: true } });
+  if (existing) return null;
+  const free = cls.paymentRequired ? false : hasFreeSeat(cls, await seatsTaken(tx, cls.id, now));
+  const status: EnrollmentState = cls.paymentRequired ? "PENDING_PAYMENT" : free ? "ACTIVE" : "WAITLISTED";
+  const row = await tx.classEnrollment.create({
+    data: {
+      tenantId: cls.tenantId,
+      classId: cls.id,
+      studentProfileId,
+      status,
+      enrolledById,
+      enrolledAt: now,
+      statusChangedAt: now,
+      waitlistedAt: status === "WAITLISTED" ? now : null,
+    },
+    select: { id: true },
+  });
+  const action: AuditAction = status === "WAITLISTED" ? "ENROLLMENT_WAITLISTED" : status === "PENDING_PAYMENT" ? "ENROLLMENT_PENDING_PAYMENT" : "ENROLLMENT_CREATED";
+  await audit(tx, enrolledById, cls.tenantId, action, row.id, now, { classId: cls.id, source: "OPEN_CLASS" });
+  return status;
+}
+
+/** A student membership became ACTIVE: enroll them into every open, active class of the Markaz. */
+export async function enrollIntoOpenClasses(tx: Tx, tenantId: string, studentProfileId: string, now: Date = new Date()) {
+  const classes = await tx.class.findMany({ where: { tenantId, status: "ACTIVE", openToMarkaz: true }, select: openClassSelect, orderBy: { createdAt: "asc" } });
+  for (const cls of classes) await enrollIntoOpenClass(tx, cls, studentProfileId, studentProfileId, now);
+}
+
+/**
+ * A class was created open or has just been opened: enroll every ACTIVE student of its Markaz
+ * (earliest members first, so a capacity waitlist is fair). `actorId` is the Markaz Admin.
+ */
+export async function enrollMarkazStudentsIntoClass(db: PrismaClient, classId: string, actorId: string, now: Date = new Date()) {
+  await db.$transaction(async (tx) => {
+    const cls = await tx.class.findUniqueOrThrow({ where: { id: classId }, select: { ...openClassSelect, status: true, openToMarkaz: true } });
+    if (cls.status !== "ACTIVE" || !cls.openToMarkaz) return;
+    const students = await tx.membership.findMany({ where: { tenantId: cls.tenantId, role: "STUDENT", status: "ACTIVE" }, select: { profileId: true }, orderBy: { createdAt: "asc" } });
+    for (const s of students) await enrollIntoOpenClass(tx, cls, s.profileId, actorId, now);
+  });
+}

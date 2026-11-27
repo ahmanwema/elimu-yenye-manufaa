@@ -722,3 +722,18 @@ Earlier (2026-10-16 and before, kept for history): Owner confirms the interpreta
   hidden (still read by screen readers) and the switcher shows SW / EN / ع; buttons wrap instead of
   overflowing; long words wrap; the body clips any remaining horizontal overflow; bottom-bar items may
   shrink with ellipsis. After: layout width 360 = viewport, no element wider (sw home, sw and ar sign-in).
+
+## 2026-11-27 — Open classes (A159); migration 26 applied to DEV
+
+- Owner: a student who joined the Markaz must attend without being enrolled class by class.
+  `classes.open_to_markaz` (migration `20261127000100_open_classes`, ADDITIVE, default false).
+  `enrollIntoOpenClasses` runs inside `activateMembership` for STUDENT; `enrollMarkazStudentsIntoClass` runs
+  when a class is created open or opened. Same seat/payment rules as manual enrollment; audit
+  `ENROLLMENT_*` with `source: OPEN_CLASS`. Class create form ticks "open" by default; edit form can toggle it;
+  "Open to all students" badge on the class page.
+- Platform page: each Markaz row links to the Markaz page's join links (teacher / student / finance), since the
+  platform form issues only Markaz Admin links (A52).
+- Tests: `tests/services/open-classes.test.ts` (8). Full suite **900/900 in 47 files**; lint and typecheck green.
+- DEV: `prisma migrate deploy` applied exactly the one pending migration; `compare-schema.mjs` → **"No
+  differences"** (35 tables / 402 columns / 190 constraints / 113 indexes / 35 enums / 14 policies /
+  13 functions / 8 triggers / 70 grants). DEV had no classes yet.

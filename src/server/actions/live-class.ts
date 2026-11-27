@@ -90,6 +90,7 @@ export async function createClassAction(_prev: ActionResult, formData: FormData)
       enrollmentCapacity: optionalInt(formData, "enrollmentCapacity"),
       liveCapacity: optionalInt(formData, "liveCapacity"),
       paymentRequired: checked(formData, "paymentRequired"),
+      openToMarkaz: checked(formData, "openToMarkaz"),
     });
   });
 }
@@ -105,6 +106,7 @@ export async function updateClassAction(_prev: ActionResult, formData: FormData)
       liveCapacity: optionalInt(formData, "liveCapacity"),
       // An unticked checkbox sends nothing: the hidden marker says the form carried the field.
       paymentRequired: formData.has("paymentRequiredField") ? checked(formData, "paymentRequired") : undefined,
+      openToMarkaz: formData.has("openToMarkazField") ? checked(formData, "openToMarkaz") : undefined,
     }),
   );
 }

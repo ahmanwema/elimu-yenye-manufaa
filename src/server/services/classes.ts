@@ -5,6 +5,7 @@ import { AuthorizationError, hasActiveRole, isValidId, type Actor } from "@/serv
 import { isValidTimeZone } from "@/lib/timezone";
 import { recordAudit } from "./audit";
 import { enrollmentAccess, hasActiveMembership, loadClassContext, requireMarkazTimezone } from "./class-context";
+import { enrollMarkazStudentsIntoClass } from "./enrollments";
 import { DomainError, isUniqueViolation } from "./errors";
 import { capacityWithinCeiling, effectiveCapacity, effectiveEnrollmentState, SEAT_HOLDING_STATES } from "./live-rules";
 
@@ -85,6 +86,8 @@ const createSchema = z.object({
   enrollmentCapacity: capacityInput,
   paymentRequired: z.boolean().optional(),
   liveCapacity: capacityInput,
+  /** A159: every ACTIVE student of the Markaz is enrolled automatically. Default closed here; the form defaults it on. */
+  openToMarkaz: z.boolean().optional(),
 });
 
 /** A Markaz Admin creates a class WITH its Primary Teacher (exactly one, A103). */
@@ -102,7 +105,7 @@ export async function createClass(db: PrismaClient, actor: Actor, input: unknown
   // Only an ACTIVE Teacher of THIS Markaz (also enforced by a DB trigger).
   if (!(await hasActiveMembership(db, d.tenantId, d.primaryTeacherProfileId, "TEACHER"))) throw new AuthorizationError();
   const now = options.now ?? new Date();
-  return db.$transaction(async (tx) => {
+  const classId = await db.$transaction(async (tx) => {
     const created = await tx.class.create({
       data: {
         tenantId: d.tenantId,
@@ -111,6 +114,7 @@ export async function createClass(db: PrismaClient, actor: Actor, input: unknown
         description: d.description || null,
         enrollmentCapacity,
         paymentRequired: d.paymentRequired ?? false,
+        openToMarkaz: d.openToMarkaz ?? false,
         liveCapacity,
         createdById: actor.profileId,
         createdAt: now,
@@ -133,6 +137,8 @@ export async function createClass(db: PrismaClient, actor: Actor, input: unknown
     });
     return created.id;
   });
+  if (d.openToMarkaz) await enrollMarkazStudentsIntoClass(db, classId, actor.profileId, now);
+  return classId;
 }
 
 const updateSchema = z.object({
@@ -143,6 +149,7 @@ const updateSchema = z.object({
   enrollmentCapacity: capacityInput,
   liveCapacity: capacityInput,
   paymentRequired: z.boolean().optional(),
+  openToMarkaz: z.boolean().optional(),
 });
 
 /**
@@ -174,6 +181,7 @@ export async function updateClass(db: PrismaClient, actor: Actor, input: unknown
         ...(d.description !== undefined ? { description: d.description || null } : {}),
         enrollmentCapacity,
         ...(d.paymentRequired !== undefined ? { paymentRequired: d.paymentRequired } : {}),
+        ...(d.openToMarkaz !== undefined ? { openToMarkaz: d.openToMarkaz } : {}),
         liveCapacity,
         updatedAt: now,
       },
@@ -184,10 +192,12 @@ export async function updateClass(db: PrismaClient, actor: Actor, input: unknown
       action: "CLASS_UPDATED",
       targetType: "CLASS",
       targetId: cls.id,
-      metadata: { enrollmentCapacity, liveCapacity, paymentRequired: d.paymentRequired ?? cls.paymentRequired },
+      metadata: { enrollmentCapacity, liveCapacity, paymentRequired: d.paymentRequired ?? cls.paymentRequired, openToMarkaz: d.openToMarkaz ?? cls.openToMarkaz },
       now,
     });
   });
+  // Opening a class brings in every current student (later ones join through their membership).
+  if (d.openToMarkaz && !cls.openToMarkaz) await enrollMarkazStudentsIntoClass(db, cls.id, actor.profileId, now);
 }
 
 /** A Markaz Admin archives a class: no new enrollments or sessions; all history is kept. */
@@ -497,6 +507,7 @@ export async function getClassOverview(db: PrismaClient, actor: Actor, classId: 
       status: cls.status,
       enrollmentCapacity: cls.enrollmentCapacity,
       paymentRequired: cls.paymentRequired,
+      openToMarkaz: cls.openToMarkaz,
       liveCapacity: cls.liveCapacity,
       timezone: cls.tenant.timezone,
       ceilings: { enrollment: cls.tenant.classEnrollmentCapacityMax, live: cls.tenant.classLiveCapacityMax },

@@ -105,6 +105,7 @@ export const en = {
     colName: "Name",
     colCode: "Code",
     colAdminLink: "Markaz Administrator link",
+    otherLinks: "Teacher and student links →",
     newLink: "Create a link",
   },
   landing: {
@@ -466,6 +467,9 @@ export const en = {
     timezoneNotSet: "not set",
     paymentRequired: "Payment required before access (a verified payment)",
     paymentRequiredBadge: "Paid class",
+    openToMarkaz: "Open to every student of this Markaz",
+    openToMarkazHint: "Every active student of the Markaz is enrolled automatically, now and when new students join. A paid class still needs a verified payment; a full class puts newcomers on the waitlist.",
+    openToMarkazBadge: "Open to all students",
     queueOverrideReason: "Reason to admit out of waitlist order (administrators)",
     queueOverridden: "Admitted out of order: {reason}",
     waitlistHeading: "Waitlist",

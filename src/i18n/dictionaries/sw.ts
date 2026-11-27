@@ -106,6 +106,7 @@ export const sw: Dictionary = {
     colName: "Jina",
     colCode: "Msimbo",
     colAdminLink: "Kiungo cha Msimamizi wa Markaz",
+    otherLinks: "Viungo vya walimu na wanafunzi →",
     newLink: "Tengeneza kiungo",
   },
   landing: {
@@ -467,6 +468,9 @@ export const sw: Dictionary = {
     timezoneNotSet: "haijawekwa",
     paymentRequired: "Malipo yanahitajika kabla ya kuingia (malipo yaliyothibitishwa)",
     paymentRequiredBadge: "Darasa la kulipia",
+    openToMarkaz: "Wazi kwa wanafunzi wote wa Markaz hii",
+    openToMarkazHint: "Kila mwanafunzi hai wa Markaz anaandikishwa moja kwa moja, sasa na wanafunzi wapya wanapojiunga. Darasa la kulipia bado linahitaji malipo yaliyothibitishwa; darasa likijaa, wapya wanawekwa kwenye orodha ya kusubiri.",
+    openToMarkazBadge: "Wazi kwa wanafunzi wote",
     queueOverrideReason: "Sababu ya kupokea nje ya mpangilio wa orodha ya kusubiri (wasimamizi)",
     queueOverridden: "Amepokewa nje ya mpangilio: {reason}",
     waitlistHeading: "Orodha ya kusubiri",

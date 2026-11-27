@@ -135,6 +135,11 @@ async function ClassesBody({ params }: { params: PageProps<"/[locale]/markaz/[te
               <label>
                 <input type="checkbox" name="paymentRequired" /> {l.paymentRequired}
               </label>
+              {/* A159: open to every student of the Markaz — on by default (owner decision). */}
+              <label>
+                <input type="checkbox" name="openToMarkaz" defaultChecked /> {l.openToMarkaz}
+              </label>
+              <p className="muted">{l.openToMarkazHint}</p>
             </ActionForm>
           )}
         </section>

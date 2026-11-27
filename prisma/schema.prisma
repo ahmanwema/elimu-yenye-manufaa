@@ -910,6 +910,8 @@ model Class {
   /// A135: when true, a VERIFIED payment/access authorization is required before first active
   /// access (new enrollments start PENDING_PAYMENT). Not every class is paid; no pricing here.
   paymentRequired    Boolean     @default(false) @map("payment_required")
+  /// Open to every ACTIVE student of the Markaz: enrollments are created automatically (A159).
+  openToMarkaz       Boolean     @default(false) @map("open_to_markaz")
   /// Live concurrent student capacity. Same rules.
   liveCapacity       Int?        @map("live_capacity")
   createdById        String      @map("created_by_id") @db.Uuid

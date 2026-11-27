@@ -106,6 +106,7 @@ export const ar: Dictionary = {
     colName: "الاسم",
     colCode: "الرمز",
     colAdminLink: "رابط مدير المركز",
+    otherLinks: "روابط المعلّمين والطلاب ←",
     newLink: "أنشئ رابطًا",
   },
   landing: {
@@ -467,6 +468,9 @@ export const ar: Dictionary = {
     timezoneNotSet: "غير محددة",
     paymentRequired: "الدفع مطلوب قبل الوصول (دفعة موثَّقة)",
     paymentRequiredBadge: "فصل مدفوع",
+    openToMarkaz: "مفتوح لجميع طلاب هذا المركز",
+    openToMarkazHint: "يُسجَّل كل طالب نشط في المركز تلقائيًا، الآن وعند انضمام طلاب جدد. الفصل المدفوع ما زال يتطلب دفعة موثَّقة، وإذا امتلأ الفصل يوضع الجدد في قائمة الانتظار.",
+    openToMarkazBadge: "مفتوح لجميع الطلاب",
     queueOverrideReason: "سبب القبول خارج ترتيب قائمة الانتظار (للمديرين)",
     queueOverridden: "قُبل خارج الترتيب: {reason}",
     waitlistHeading: "قائمة الانتظار",

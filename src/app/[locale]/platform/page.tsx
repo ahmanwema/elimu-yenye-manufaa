@@ -110,6 +110,9 @@ async function PlatformBody() {
                   <tr key={t.id}>
                     <td>
                       <strong>{t.name}</strong>
+                      {/* Teacher, student and finance links are made by the Markaz itself (A52). */}
+                      <br />
+                      <a href={`/${locale}/markaz/${t.id}#join-links`}>{pd.otherLinks}</a>
                     </td>
                     <td>
                       <code dir="ltr">{t.slug}</code>

@@ -128,6 +128,7 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
         {cls.subject ? <span className="badge">{cls.subject}</span> : null}
         {!active ? <span className="badge badge-warning">{l.archivedLabel}</span> : null}
         {cls.paymentRequired ? <span className="badge badge-accent">{l.paymentRequiredBadge}</span> : null}
+        {cls.openToMarkaz ? <span className="badge badge-success">{l.openToMarkazBadge}</span> : null}
       </div>
       <h1 className="page-title">{cls.name}</h1>
       {cls.description ? <p className="muted">{cls.description}</p> : null}
@@ -205,6 +206,11 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
             <label>
               <input type="checkbox" name="paymentRequired" defaultChecked={cls.paymentRequired} /> {l.paymentRequired}
             </label>
+            <input type="hidden" name="openToMarkazField" value="1" />
+            <label>
+              <input type="checkbox" name="openToMarkaz" defaultChecked={cls.openToMarkaz} /> {l.openToMarkaz}
+            </label>
+            <p className="muted">{l.openToMarkazHint}</p>
             <p className="muted">{l.capacityHint}</p>
           </ActionForm>
           <ActionForm action={archiveClassAction} submitLabel={l.archive} pendingLabel={loading} messages={results} variant="secondary">

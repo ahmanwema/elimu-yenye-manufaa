@@ -20,6 +20,7 @@ const classSelect = {
   status: true,
   enrollmentCapacity: true,
   paymentRequired: true,
+  openToMarkaz: true,
   liveCapacity: true,
   teachers: { where: { endedAt: null }, select: { id: true, teacherProfileId: true, role: true } },
   tenant: { select: { timezone: true, classEnrollmentCapacityMax: true, classLiveCapacityMax: true } },
