@@ -113,6 +113,11 @@ body {
   font-family: var(--font-latin);
   font-size: 1rem;
   line-height: 1.6;
+  /* Long words (emails, links, tokens) wrap instead of widening the page; anything that still
+     overflows is clipped at the page edge rather than making the whole layout scroll sideways
+     (which also drags the fixed bottom bar off-screen on phones). */
+  overflow-wrap: break-word;
+  overflow-x: clip;
 }
 
 /* Arabic UI: the Arabic typeface everywhere, headings included. */
@@ -364,7 +369,8 @@ ul {
     align-items: center;
   }
   .bottom-nav li {
-    flex: 1;
+    flex: 1 1 0;
+    min-inline-size: 0;
     display: flex;
     justify-content: center;
   }
@@ -373,17 +379,24 @@ ul {
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    min-inline-size: 3.5rem;
+    min-inline-size: 0;
+    max-inline-size: 100%;
     padding-block: var(--space-1);
-    padding-inline: var(--space-2);
+    padding-inline: var(--space-1);
     color: var(--text-secondary);
     text-decoration: none;
     font-size: 0.7rem;
     font-weight: 600;
   }
+  .bottom-link > span {
+    max-inline-size: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .bottom-link .icon {
     padding-block: 3px;
-    padding-inline: 14px;
+    padding-inline: 10px;
     box-sizing: content-box;
     border-radius: 999px;
   }
@@ -404,6 +417,33 @@ ul {
     max-inline-size: 9rem;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+}
+
+/* Phones: the top bar must fit 360 px (logo, three languages, theme, account). The app name and
+   the full language names stay in the accessibility tree but are not drawn. */
+.lang-code {
+  display: none;
+}
+@media (max-width: 599px) {
+  .topbar {
+    gap: var(--space-2);
+    padding-inline: var(--space-2);
+  }
+  .topbar .brand span:last-child,
+  .language-switcher .lang-name {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .language-switcher .lang-code {
+    display: inline;
+  }
+  .language-switcher ul {
+    gap: 0;
   }
 }
 
@@ -538,7 +578,10 @@ select {
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
+  max-inline-size: 100%;
+  padding-block: var(--space-2);
 }
 .button-primary {
   background: var(--accent-primary);

@@ -699,3 +699,26 @@ Earlier (2026-10-16 and before, kept for history): Owner confirms the interpreta
   revoke disconnects the device. Unit suite 304/304; lint and typecheck green.
 - Not yet verified with real audio between two devices — that needs the LiveKit variables in Vercel (or a
   local run) and a signed-in teacher and student on DEV.
+
+## 2026-11-27 — M1 pushed; DEV join links for the audio test
+
+- M1 committed and pushed (`5aca6ec`); Vercel has the LiveKit variables (owner).
+- DEV write, on owner request: two single-use join links (TEACHER, STUDENT; 7 days) for the existing Markaz
+  "Home Madrasa", created as its Markaz Admin exactly as `createJoinLink` does (hash only stored, audit
+  `JOIN_LINK_CREATED`). Tokens were shown to the owner only, never written to a file. DEV before: 8 auth
+  users, 1 Markaz, 1 Markaz Admin membership, no classes or sessions; the Markaz has no time zone yet
+  (ad hoc sessions do not need one).
+- First owner test (2026-11-27): the teacher link created a new account; the student link was redeemed
+  while signed in as the owner's existing account, which therefore became a STUDENT of Home Madrasa too.
+- DEV had **no Super Admin** (`platform_admins` empty), so nobody could issue a MARKAZ_ADMIN link (A52).
+  On owner decision, the owner's account (the Home Madrasa Markaz Admin) was added to `platform_admins`
+  on DEV. There is no audit action for granting platform admin, so it is recorded here instead.
+
+## 2026-11-27 — Phone layout fix
+
+- Owner screenshots: on a phone the page scrolled sideways and the bottom bar was cut off. Cause, measured
+  with Chrome DevTools mobile emulation at 360 px: the top bar content was 558 px wide (app name, three full
+  language names, theme, account). Fix: under 600 px the app name and full language names are visually
+  hidden (still read by screen readers) and the switcher shows SW / EN / ع; buttons wrap instead of
+  overflowing; long words wrap; the body clips any remaining horizontal overflow; bottom-bar items may
+  shrink with ellipsis. After: layout width 360 = viewport, no element wider (sw home, sw and ar sign-in).
