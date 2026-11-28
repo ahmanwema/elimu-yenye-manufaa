@@ -737,3 +737,13 @@ Earlier (2026-10-16 and before, kept for history): Owner confirms the interpreta
 - DEV: `prisma migrate deploy` applied exactly the one pending migration; `compare-schema.mjs` → **"No
   differences"** (35 tables / 402 columns / 190 constraints / 113 indexes / 35 enums / 14 policies /
   13 functions / 8 triggers / 70 grants). DEV had no classes yet.
+
+## 2026-11-28 — Class page fixes after the owner's first open class
+
+- Auto-enrollment worked on DEV (class "lugha": the owner's student account enrolled ACTIVE), but the manual
+  enroll form was still shown (with an empty list). Open classes now show the open-class note instead, and
+  the manual form is hidden whenever nobody is left to enroll.
+- "Start now" was a `<details>` disclosure that only revealed the form; the owner read it as a button that
+  did nothing. The start-now form is now always visible with its button. No session had been created on DEV;
+  the service starts ad hoc sessions fine with no Markaz time zone (reproduced on PGlite). A page opened
+  before a deploy also cannot submit its forms until reloaded.

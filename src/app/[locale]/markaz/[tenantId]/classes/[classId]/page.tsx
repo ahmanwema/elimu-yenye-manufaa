@@ -222,7 +222,9 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
       {view.staff ? (
         <section className="card" aria-labelledby="students">
           <h2 id="students">{l.studentsHeading}</h2>
-          {active && roster && canManageEnrollment(actor, ctx) ? (
+          {/* A159: an open class enrolls every Markaz student by itself — no manual form. */}
+          {cls.openToMarkaz ? <p className="callout">{l.openToMarkazHint}</p> : null}
+          {active && roster && canManageEnrollment(actor, ctx) && !cls.openToMarkaz && roster.some((s) => !enrolledIds.has(s.profileId)) ? (
             <ActionForm action={enrollStudentAction} submitLabel={l.enroll} pendingLabel={loading} messages={results}>
               <input type="hidden" name="classId" value={cls.id} />
               <label htmlFor="enrollStudent">{l.studentLabel}</label>
@@ -408,8 +410,9 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
               </ActionForm>
             </details>
             ) : null}
-            <details>
-              <summary>{l.adHocHeading}</summary>
+            {/* Start now is the common case: its button is visible at once, not behind a disclosure. */}
+            <div className="start-now">
+              <h3>{l.adHocHeading}</h3>
               <p className="muted">{l.adHocNote}</p>
               <ActionForm action={startAdHocSessionAction} submitLabel={l.startNow} pendingLabel={loading} messages={results}>
                 <input type="hidden" name="classId" value={cls.id} />
@@ -421,7 +424,7 @@ async function ClassBody({ params }: { params: PageProps<"/[locale]/markaz/[tena
                   <input type="checkbox" name="recordingEnabled" /> {l.recordingMode}
                 </label>
               </ActionForm>
-            </details>
+            </div>
           </>
         ) : null}
         {upcoming.length === 0 && (view.staff ? past.length === 0 : true) ? <p className="muted">{l.noSessions}</p> : null}
